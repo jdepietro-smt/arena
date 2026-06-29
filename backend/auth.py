@@ -113,7 +113,7 @@ async def require_admin(
 # Router
 # ---------------------------------------------------------------------------
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 
 @router.post("/token", response_model=Token)
