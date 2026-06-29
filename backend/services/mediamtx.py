@@ -47,7 +47,7 @@ class MediaMTXClient:
         base_url: str | None = None,
         timeout: float = 10.0,
     ) -> None:
-        self._base_url = (base_url or settings.mediamtx_api_url).rstrip("/")
+        self._base_url = (base_url or settings.MEDIAMTX_API).rstrip("/")
         self._http = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=timeout,

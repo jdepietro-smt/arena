@@ -56,13 +56,11 @@ async def _get_route_or_404(session: Session, route_id: int) -> StreamRoute:
 
 
 async def _get_route_manager():
-    """Lazy import of RouteManager to avoid circular imports at module load."""
     try:
-        from ..services.route_manager import route_manager  # noqa: PLC0415
-
-        return route_manager
-    except ImportError:
-        logger.warning("route_manager service not available")
+        from ..services.stream_router import get_router  # noqa: PLC0415
+        return get_router()
+    except Exception:
+        logger.warning("RouteManager not available")
         return None
 
 
