@@ -241,7 +241,7 @@ async def deactivate_route(
 
 @router.delete(
     "/{route_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Stop and delete a route",
 )
 async def delete_route(

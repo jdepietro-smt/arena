@@ -128,7 +128,7 @@ async def get_recording(
 
 @router.delete(
     "/{recording_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Delete recording file and DB entry",
 )
 async def delete_recording(

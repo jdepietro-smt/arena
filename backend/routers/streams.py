@@ -229,7 +229,7 @@ async def list_presets(
     ]
 
 
-@router.delete("/presets/{preset_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a preset")
+@router.delete("/presets/{preset_id}", status_code=status.HTTP_200_OK, summary="Delete a preset")
 async def delete_preset(
     preset_id: int,
     session: Session = Depends(get_session),
