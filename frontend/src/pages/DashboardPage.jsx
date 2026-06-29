@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import Hls from 'hls.js'
 import { getStreams, getStatsSummary, getPreviewUrls } from '../api/client'
 import StreamCard from '../components/StreamCard'
 
@@ -83,13 +84,48 @@ function EventSidebar() {
   )
 }
 
+// ── HLS video player ──────────────────────────────────────────────────────────
+
+function HlsPlayer({ src }) {
+  const videoRef = useRef(null)
+  const hlsRef = useRef(null)
+
+  useEffect(() => {
+    if (!src || !videoRef.current) return
+    if (Hls.isSupported()) {
+      const hls = new Hls({ lowLatencyMode: true })
+      hlsRef.current = hls
+      hls.loadSource(src)
+      hls.attachMedia(videoRef.current)
+      hls.on(Hls.Events.MANIFEST_PARSED, () => videoRef.current?.play().catch(() => {}))
+    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      videoRef.current.src = src
+      videoRef.current.play().catch(() => {})
+    }
+    return () => {
+      hlsRef.current?.destroy()
+      hlsRef.current = null
+    }
+  }, [src])
+
+  return (
+    <video
+      ref={videoRef}
+      className="w-full h-full object-contain bg-black"
+      controls
+      playsInline
+      muted
+    />
+  )
+}
+
 // ── Preview modal ─────────────────────────────────────────────────────────────
 
 function PreviewModal({ stream, onClose }) {
   const { data: urls } = useQuery({
-    queryKey: ['preview-urls', stream?.publisher_id],
-    queryFn: () => getPreviewUrls(stream.publisher_id),
-    enabled: !!stream,
+    queryKey: ['preview-urls', stream?.path],
+    queryFn: () => getPreviewUrls(stream.path),
+    enabled: !!stream?.path,
   })
 
   if (!stream) return null
@@ -100,24 +136,24 @@ function PreviewModal({ stream, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-[#111118] border border-[#222233] rounded-xl overflow-hidden w-full max-w-2xl mx-4 shadow-2xl"
+        className="bg-[#111118] border border-[#222233] rounded-xl overflow-hidden w-full max-w-3xl mx-4 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-[#222233]">
-          <h3 className="font-semibold text-white">{stream.name || stream.publisher_id}</h3>
+          <h3 className="font-semibold text-white">{stream.name || stream.path}</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-        <div className="aspect-video bg-[#0a0a0f] flex items-center justify-center text-gray-600 text-sm">
+        <div className="aspect-video bg-black">
           {urls?.hls_url ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <p className="text-xs font-mono text-gray-500 px-4 text-center break-all">{urls.hls_url}</p>
-            </div>
+            <HlsPlayer src={urls.hls_url} />
           ) : (
-            <span>Loading preview...</span>
+            <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
+              {urls === undefined ? 'Loading preview…' : 'Stream not available'}
+            </div>
           )}
         </div>
         {urls && (
@@ -250,7 +286,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {streams.map(stream => (
                 <StreamCard
-                  key={stream.publisher_id || stream.name}
+                  key={stream.path}
                   stream={stream}
                   onPreview={setPreviewStream}
                   sparklineData={stream.bitrate_history || []}

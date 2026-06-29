@@ -53,8 +53,8 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
 
   const recMutation = useMutation({
     mutationFn: isRecording
-      ? () => stopRecording(stream.publisher_id)
-      : () => startRecording(stream.publisher_id),
+      ? () => stopRecording(stream.path)
+      : () => startRecording(stream.path),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['streams'] }),
   })
 
@@ -106,7 +106,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
         {/* Stream name */}
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-bold text-white text-sm leading-tight truncate" title={stream.name}>
-            {stream.name || stream.publisher_id}
+            {stream.name || stream.path}
           </h3>
           {stream.readers != null && (
             <span className="shrink-0 text-xs text-gray-400 flex items-center gap-1">
@@ -183,10 +183,10 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
         </div>
       </div>
 
-      {/* Hover detail: publisher ID */}
-      {hovered && stream.publisher_id && (
+      {/* Hover detail: stream path */}
+      {hovered && stream.path && (
         <div className="absolute bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm px-3 py-1.5 text-[10px] font-mono text-gray-400 border-t border-[#222233] truncate">
-          {stream.publisher_id}
+          {stream.source_address || stream.path}
         </div>
       )}
     </div>

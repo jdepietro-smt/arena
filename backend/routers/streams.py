@@ -23,6 +23,7 @@ from ..models import (
     User,
 )
 from ..services.mediamtx import MediaMTXClient, MediaMTXError, get_client
+from ..services.srt_stats import get_collector
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,11 @@ router = APIRouter(tags=["streams"])
 def _mediamtx_to_stream_info(path: dict[str, Any]) -> dict[str, Any]:
     """Normalise a raw MediaMTX path item into a consistent dict."""
     source = path.get("source") or {}
+    name = path.get("name", "")
     return {
-        "path": path.get("name", ""),
+        "path": name,
+        "name": name,
+        "publisher_id": name,
         "ready": path.get("ready", False),
         "ready_time": path.get("readyTime"),
         "readers": len(path.get("readers", [])),
@@ -52,9 +56,9 @@ def _mediamtx_to_stream_info(path: dict[str, Any]) -> dict[str, Any]:
 def _preview_urls(path_name: str) -> dict[str, str]:
     ip = settings.SERVER_IP
     return {
-        "webrtc": f"http://{ip}:8889/{path_name}/whep",
-        "hls": f"http://{ip}:8888/{path_name}/index.m3u8",
-        "srt": f"srt://{ip}:{settings.MEDIAMTX_SRT_PORT}?streamid=read:{path_name}",
+        "hls_url": f"http://{ip}:8888/{path_name}/index.m3u8",
+        "webrtc_url": f"http://{ip}:8889/{path_name}/whep",
+        "srt_url": f"srt://{ip}:{settings.MEDIAMTX_SRT_PORT}?streamid=read:{path_name}",
     }
 
 
@@ -70,8 +74,8 @@ async def list_streams(
     client: MediaMTXClient = Depends(get_client),
 ) -> list[dict[str, Any]]:
     """
-    Return all MediaMTX paths enriched with DB preset metadata (if a preset
-    exists whose name matches the stream path).
+    Return all MediaMTX paths enriched with DB preset metadata, live stats,
+    and recording status.
     """
     try:
         raw_paths = await client.get_paths()
@@ -81,16 +85,34 @@ async def list_streams(
             detail=f"MediaMTX unavailable: {exc.detail}",
         )
 
-    # Build a lookup map of presets keyed by name so we can O(1) enrich.
     presets_by_name: dict[str, StreamPreset] = {
         p.name: p
         for p in session.exec(select(StreamPreset)).all()
     }
 
+    collector = get_collector()
+
     streams = []
     for raw in raw_paths:
         info = _mediamtx_to_stream_info(raw)
-        preset = presets_by_name.get(info["path"])
+        path_name = info["path"]
+
+        # Enrich with live stats from StatsCollector (bitrate, RTT, loss)
+        live_stats = collector.get_stats(path_name)
+        info["bitrate_kbps"] = live_stats["bitrate_kbps"] if live_stats else 0.0
+        info["rtt_ms"] = live_stats["rtt_ms"] if live_stats else 0.0
+        info["packet_loss_pct"] = live_stats["packet_loss_pct"] if live_stats else 0.0
+
+        # Check for an active recording on this path
+        active_rec = session.exec(
+            select(Recording).where(
+                Recording.stream_path == path_name,
+                Recording.status == RecordingStatus.recording,
+            )
+        ).first()
+        info["recording"] = active_rec is not None
+
+        preset = presets_by_name.get(path_name)
         info["preset"] = (
             {
                 "id": preset.id,
@@ -102,76 +124,14 @@ async def list_streams(
             if preset
             else None
         )
-        info["preview_urls"] = _preview_urls(info["path"])
+        info["preview_urls"] = _preview_urls(path_name)
         streams.append(info)
 
     return streams
 
 
-@router.get("/{path_name}", summary="Single stream detail with connections")
-async def get_stream(
-    path_name: str,
-    _user: User = Depends(get_current_active_user),
-    client: MediaMTXClient = Depends(get_client),
-) -> dict[str, Any]:
-    """
-    Return detail for a single MediaMTX path including all active
-    connections, grouped by protocol.
-    """
-    try:
-        raw = await client.get_path(path_name)
-    except MediaMTXError as exc:
-        if exc.status_code == 404:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Stream '{path_name}' not found",
-            )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"MediaMTX error: {exc.detail}",
-        )
-
-    try:
-        connections = await client.get_connections()
-    except MediaMTXError as exc:
-        logger.warning("Could not fetch connections: %s", exc)
-        connections = {}
-
-    # Filter connections to only those belonging to this path.
-    filtered_connections: dict[str, list[dict]] = {}
-    for proto, conns in connections.items():
-        path_conns = [c for c in conns if c.get("path") == path_name]
-        if path_conns:
-            filtered_connections[proto] = path_conns
-
-    info = _mediamtx_to_stream_info(raw)
-    info["connections"] = filtered_connections
-    info["preview_urls"] = _preview_urls(path_name)
-    return info
-
-
 # ---------------------------------------------------------------------------
-# Preview URLs
-# ---------------------------------------------------------------------------
-
-
-@router.get("/{path_name}/preview-url", summary="Playback URLs for a stream")
-async def stream_preview_url(
-    path_name: str,
-    _user: User = Depends(get_current_active_user),
-) -> dict[str, str]:
-    """
-    Return the WebRTC WHEP, HLS, and SRT reader URLs for a given stream path.
-
-    WebRTC: http://{SERVER_IP}:8889/{path}/whep
-    HLS:    http://{SERVER_IP}:8888/{path}/index.m3u8
-    SRT:    srt://{SERVER_IP}:{SRT_PORT}?streamid=read:{path}
-    """
-    return _preview_urls(path_name)
-
-
-# ---------------------------------------------------------------------------
-# Presets
+# Presets — defined BEFORE /{path_name} so FastAPI doesn't shadow /presets
 # ---------------------------------------------------------------------------
 
 
@@ -195,8 +155,6 @@ async def create_preset(
             detail=f"Preset '{preset_in.name}' already exists",
         )
 
-    # SQLModel assigns the id during commit; make sure we don't carry a
-    # caller-supplied id that could conflict.
     preset_in.id = None
     session.add(preset_in)
     session.commit()
@@ -247,6 +205,67 @@ async def delete_preset(
 
 
 # ---------------------------------------------------------------------------
+# Single stream detail & preview — after /presets to avoid route shadowing
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{path_name}", summary="Single stream detail with connections")
+async def get_stream(
+    path_name: str,
+    _user: User = Depends(get_current_active_user),
+    client: MediaMTXClient = Depends(get_client),
+) -> dict[str, Any]:
+    """
+    Return detail for a single MediaMTX path including all active
+    connections, grouped by protocol.
+    """
+    try:
+        raw = await client.get_path(path_name)
+    except MediaMTXError as exc:
+        if exc.status_code == 404:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Stream '{path_name}' not found",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"MediaMTX error: {exc.detail}",
+        )
+
+    try:
+        connections = await client.get_connections()
+    except MediaMTXError as exc:
+        logger.warning("Could not fetch connections: %s", exc)
+        connections = {}
+
+    filtered_connections: dict[str, list[dict]] = {}
+    for proto, conns in connections.items():
+        path_conns = [c for c in conns if c.get("path") == path_name]
+        if path_conns:
+            filtered_connections[proto] = path_conns
+
+    info = _mediamtx_to_stream_info(raw)
+    info["connections"] = filtered_connections
+    info["preview_urls"] = _preview_urls(path_name)
+    return info
+
+
+@router.get("/{path_name}/preview-url", summary="Playback URLs for a stream")
+async def stream_preview_url(
+    path_name: str,
+    _user: User = Depends(get_current_active_user),
+) -> dict[str, str]:
+    """
+    Return the WebRTC WHEP, HLS, and SRT reader URLs for a given stream path.
+
+    WebRTC: http://{SERVER_IP}:8889/{path}/whep
+    HLS:    http://{SERVER_IP}:8888/{path}/index.m3u8
+    SRT:    srt://{SERVER_IP}:{SRT_PORT}?streamid=read:{path}
+    """
+    return _preview_urls(path_name)
+
+
+# ---------------------------------------------------------------------------
 # Recording control
 # ---------------------------------------------------------------------------
 
@@ -263,7 +282,6 @@ async def start_recording(
     Creates a Recording DB entry with status=recording and calls
     recorder.start_recording().
     """
-    # Verify the path exists in MediaMTX before starting.
     try:
         await client.get_path(path_name)
     except MediaMTXError as exc:
@@ -277,7 +295,6 @@ async def start_recording(
             detail=f"MediaMTX error: {exc.detail}",
         )
 
-    # Guard: don't start a second recording on the same path.
     active = session.exec(
         select(Recording).where(
             Recording.stream_path == path_name,

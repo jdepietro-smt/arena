@@ -244,7 +244,7 @@ class StatsCollector:
 
                 # Byte-based bitrate calculation
                 source: dict[str, Any] = item.get("source") or {}
-                bytes_received: int = int(source.get("bytesReceived", 0))
+                bytes_received: int = int(item.get("bytesReceived", 0))
                 acc = self._accumulators.setdefault(name, _PathAccumulator())
                 delta_bytes = max(0, bytes_received - acc.last_bytes_received)
                 delta_time = mono_now - acc.last_poll_time
