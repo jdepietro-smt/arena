@@ -31,7 +31,7 @@ from ..services.mediamtx import MediaMTXClient, MediaMTXError, get_client
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/stats", tags=["stats"])
+router = APIRouter(tags=["stats"])
 
 # How often the WebSocket pushes updates to connected clients (seconds).
 _WS_PUSH_INTERVAL = 2.0

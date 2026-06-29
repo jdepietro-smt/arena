@@ -23,7 +23,7 @@ from ..models import RouteCreate, RouteRead, StreamRoute, User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/routes", tags=["routing"])
+router = APIRouter(tags=["routing"])
 
 
 # ---------------------------------------------------------------------------

@@ -6,8 +6,7 @@ from contextlib import asynccontextmanager
 import os
 
 from .database import create_db_and_tables, seed_default_admin
-from .services.mediamtx import mediamtx_client
-from .services.srt_stats import stats_collector
+from .services.srt_stats import get_collector
 from .routers import streams, routes, recordings, stats, users
 from .auth import router as auth_router
 
@@ -17,10 +16,10 @@ async def lifespan(app: FastAPI):
     # Startup
     create_db_and_tables()
     seed_default_admin()
-    await stats_collector.start()
+    await get_collector().start()
     yield
     # Shutdown
-    await stats_collector.stop()
+    await get_collector().stop()
 
 
 app = FastAPI(

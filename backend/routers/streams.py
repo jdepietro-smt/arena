@@ -26,7 +26,7 @@ from ..services.mediamtx import MediaMTXClient, MediaMTXError, get_client
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/streams", tags=["streams"])
+router = APIRouter(tags=["streams"])
 
 
 # ---------------------------------------------------------------------------

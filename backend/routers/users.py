@@ -22,7 +22,7 @@ from ..models import User, UserCreate, UserRead, UserRole
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+router = APIRouter(tags=["users"])
 
 
 # ---------------------------------------------------------------------------

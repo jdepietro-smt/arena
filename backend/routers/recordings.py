@@ -23,7 +23,7 @@ from ..models import Recording, RecordingRead, User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/recordings", tags=["recordings"])
+router = APIRouter(tags=["recordings"])
 
 
 # ---------------------------------------------------------------------------
