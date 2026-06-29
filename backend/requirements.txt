@@ -9,3 +9,4 @@ websockets==13.0
 aiofiles==24.1.0
 psutil==6.0.0
 pydantic-settings==2.4.0
+email-validator==2.2.0
