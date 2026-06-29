@@ -1,7 +1,60 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import Hls from 'hls.js'
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts'
 import { startRecording, stopRecording } from '../api/client'
+
+function CardThumbnail({ hlsUrl }) {
+  const videoRef = useRef(null)
+  const hlsRef = useRef(null)
+  const containerRef = useRef(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hlsRef.current) {
+          const hls = new Hls({ lowLatencyMode: true, maxBufferLength: 4 })
+          hlsRef.current = hls
+          hls.loadSource(hlsUrl)
+          hls.attachMedia(videoRef.current)
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            videoRef.current?.play().catch(() => {})
+            setLoaded(true)
+          })
+        }
+      },
+      { threshold: 0.1 }
+    )
+    obs.observe(container)
+    return () => {
+      obs.disconnect()
+      hlsRef.current?.destroy()
+      hlsRef.current = null
+    }
+  }, [hlsUrl])
+
+  return (
+    <div ref={containerRef} className="w-full h-full relative">
+      <video
+        ref={videoRef}
+        className="w-full h-full object-cover"
+        muted
+        playsInline
+        style={{ display: loaded ? 'block' : 'none' }}
+      />
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <svg className="w-10 h-10 text-indigo-400/40" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function PulsingDot({ live }) {
   if (!live) return <span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />
@@ -69,11 +122,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
       {/* Thumbnail / preview area */}
       <div className="relative w-full aspect-video bg-[#0d0d15] flex items-center justify-center overflow-hidden">
         {isLive ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <svg className="w-10 h-10 text-indigo-400/40" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </div>
+          <CardThumbnail hlsUrl={`/api/hls/${stream.path}/index.m3u8`} />
         ) : (
           <div className="flex flex-col items-center gap-1 text-gray-600">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">

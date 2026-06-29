@@ -25,7 +25,10 @@ _client: httpx.AsyncClient | None = None
 def _get_client() -> httpx.AsyncClient:
     global _client
     if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=10.0)
+        # follow_redirects handles mediamtx's cookieCheck=1 redirect;
+        # the client also persists cookies across requests so the check
+        # is satisfied on the first real segment fetch.
+        _client = httpx.AsyncClient(timeout=10.0, follow_redirects=True)
     return _client
 
 
