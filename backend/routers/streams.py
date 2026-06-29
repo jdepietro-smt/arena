@@ -63,7 +63,7 @@ def _preview_urls(path_name: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/", summary="List all active streams")
+@router.get("", summary="List all active streams")
 async def list_streams(
     session: Session = Depends(get_session),
     _user: User = Depends(get_current_active_user),

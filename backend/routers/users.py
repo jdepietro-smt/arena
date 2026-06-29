@@ -80,7 +80,7 @@ async def get_me(
 
 
 @router.get(
-    "/",
+    "",
     response_model=list[UserRead],
     summary="List all users (admin only)",
 )

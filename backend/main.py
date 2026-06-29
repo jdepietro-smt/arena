@@ -58,4 +58,7 @@ if os.path.isdir(frontend_dist):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_frontend(full_path: str):
+        from fastapi import HTTPException
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="Not found")
         return FileResponse(os.path.join(frontend_dist, "index.html"))

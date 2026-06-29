@@ -87,7 +87,7 @@ async def _get_recording_or_404(session: Session, recording_id: int) -> Recordin
 
 
 @router.get(
-    "/",
+    "",
     response_model=list[RecordingRead],
     summary="List all recordings",
 )

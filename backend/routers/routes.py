@@ -69,7 +69,7 @@ async def _get_route_manager():
 # ---------------------------------------------------------------------------
 
 
-@router.get("/", response_model=list[RouteRead], summary="List all routes")
+@router.get("", response_model=list[RouteRead], summary="List all routes")
 async def list_routes(
     session: Session = Depends(get_session),
     _user: User = Depends(get_current_active_user),
