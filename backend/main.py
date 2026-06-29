@@ -7,7 +7,7 @@ import os
 
 from .database import create_db_and_tables, seed_default_admin
 from .services.srt_stats import get_collector
-from .routers import streams, routes, recordings, stats, users
+from .routers import streams, routes, recordings, stats, users, hls_proxy
 from .auth import router as auth_router
 
 
@@ -44,6 +44,7 @@ app.include_router(routes.router, prefix="/api/routes", tags=["routing"])
 app.include_router(recordings.router, prefix="/api/recordings", tags=["recordings"])
 app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(hls_proxy.router, prefix="/api/hls", tags=["hls"])
 
 
 @app.get("/api/health", tags=["health"])

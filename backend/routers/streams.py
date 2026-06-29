@@ -56,7 +56,7 @@ def _mediamtx_to_stream_info(path: dict[str, Any]) -> dict[str, Any]:
 def _preview_urls(path_name: str) -> dict[str, str]:
     ip = settings.SERVER_IP
     return {
-        "hls_url": f"http://{ip}:8888/{path_name}/index.m3u8",
+        "hls_url": f"/api/hls/{path_name}/index.m3u8",
         "webrtc_url": f"http://{ip}:8889/{path_name}/whep",
         "srt_url": f"srt://{ip}:{settings.MEDIAMTX_SRT_PORT}?streamid=read:{path_name}",
     }
