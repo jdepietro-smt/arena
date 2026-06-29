@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Hls from 'hls.js'
-import { getStreams, getStatsSummary, getPreviewUrls } from '../api/client'
+import { getStreams, getStatsSummary } from '../api/client'
 import StreamCard from '../components/StreamCard'
 
 // ── Skeleton helpers ──────────────────────────────────────────────────────────
@@ -89,20 +89,36 @@ function EventSidebar() {
 function HlsPlayer({ src }) {
   const videoRef = useRef(null)
   const hlsRef = useRef(null)
+  const retryTimer = useRef(null)
+
+  const startHls = (source) => {
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
+    if (!videoRef.current || !source) return
+    if (!Hls.isSupported()) {
+      if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        videoRef.current.src = source
+        videoRef.current.play().catch(() => {})
+      }
+      return
+    }
+    const hls = new Hls({ maxBufferLength: 8, liveSyncDurationCount: 2 })
+    hlsRef.current = hls
+    hls.loadSource(source)
+    hls.attachMedia(videoRef.current)
+    hls.on(Hls.Events.MANIFEST_PARSED, () => videoRef.current?.play().catch(() => {}))
+    hls.on(Hls.Events.ERROR, (_, data) => {
+      if (data.fatal) {
+        hls.destroy()
+        hlsRef.current = null
+        retryTimer.current = setTimeout(() => startHls(source), 5000)
+      }
+    })
+  }
 
   useEffect(() => {
-    if (!src || !videoRef.current) return
-    if (Hls.isSupported()) {
-      const hls = new Hls({ lowLatencyMode: true })
-      hlsRef.current = hls
-      hls.loadSource(src)
-      hls.attachMedia(videoRef.current)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => videoRef.current?.play().catch(() => {}))
-    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-      videoRef.current.src = src
-      videoRef.current.play().catch(() => {})
-    }
+    startHls(src)
     return () => {
+      clearTimeout(retryTimer.current)
       hlsRef.current?.destroy()
       hlsRef.current = null
     }
@@ -122,13 +138,9 @@ function HlsPlayer({ src }) {
 // ── Preview modal ─────────────────────────────────────────────────────────────
 
 function PreviewModal({ stream, onClose }) {
-  const { data: urls } = useQuery({
-    queryKey: ['preview-urls', stream?.path],
-    queryFn: () => getPreviewUrls(stream.path),
-    enabled: !!stream?.path,
-  })
-
   if (!stream) return null
+  const urls = stream.preview_urls || {}
+  const hlsUrl = urls.hls_url || `/api/hls/${stream.path}/index.m3u8`
 
   return (
     <div
@@ -148,19 +160,11 @@ function PreviewModal({ stream, onClose }) {
           </button>
         </div>
         <div className="aspect-video bg-black">
-          {urls?.hls_url ? (
-            <HlsPlayer src={urls.hls_url} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
-              {urls === undefined ? 'Loading preview…' : 'Stream not available'}
-            </div>
-          )}
+          <HlsPlayer src={hlsUrl} />
         </div>
-        {urls && (
-          <div className="px-5 py-3 border-t border-[#222233] text-xs font-mono text-gray-500 truncate">
-            {urls.hls_url || urls.srt_url || '—'}
-          </div>
-        )}
+        <div className="px-5 py-3 border-t border-[#222233] text-xs font-mono text-gray-500 truncate">
+          {hlsUrl}
+        </div>
       </div>
     </div>
   )

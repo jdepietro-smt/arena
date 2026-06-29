@@ -44,13 +44,25 @@ async def hls_proxy(path_name: str, filename: str) -> Response:
     if resp.status_code == 404:
         raise HTTPException(status_code=404, detail="HLS resource not found")
     if resp.status_code != 200:
+        logger.warning("HLS upstream %s returned %d: %s", url, resp.status_code, resp.text[:200])
         raise HTTPException(status_code=resp.status_code, detail="HLS upstream error")
 
     content_type = resp.headers.get("content-type", "application/octet-stream")
-    cache_control = resp.headers.get("cache-control", "no-cache")
+    content = resp.content
 
+    # Rewrite any absolute mediamtx segment URLs in the manifest so HLS.js
+    # fetches segments through this proxy rather than directly to port 8888.
+    if filename.endswith(".m3u8") or "mpegurl" in content_type:
+        text = content.decode("utf-8", errors="replace")
+        text = text.replace(
+            f"{_MEDIAMTX_HLS}/{path_name}/",
+            f"/api/hls/{path_name}/",
+        )
+        content = text.encode("utf-8")
+
+    cache_control = resp.headers.get("cache-control", "no-cache")
     return Response(
-        content=resp.content,
+        content=content,
         media_type=content_type,
         headers={"Cache-Control": cache_control, "Access-Control-Allow-Origin": "*"},
     )

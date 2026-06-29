@@ -28,3 +28,9 @@ sleep 6
 echo "=== HLS test ==="
 curl -L -s "http://localhost:8888/Golf_Channel/index.m3u8" | head -10 \
   && echo "SUCCESS" || echo "FAILED - check: journalctl -u mediamtx -n 10"
+
+echo ""
+echo "=== Restarting arena service (loads latest Python code) ==="
+systemctl restart arena
+sleep 2
+systemctl is-active arena && echo "arena: OK" || echo "arena: FAILED - check: journalctl -u arena -n 20"

@@ -8,29 +8,41 @@ function CardThumbnail({ hlsUrl }) {
   const videoRef = useRef(null)
   const hlsRef = useRef(null)
   const containerRef = useRef(null)
+  const retryTimer = useRef(null)
   const [loaded, setLoaded] = useState(false)
+
+  const startHls = () => {
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
+    if (!videoRef.current) return
+    const hls = new Hls({ maxBufferLength: 4, liveSyncDurationCount: 2 })
+    hlsRef.current = hls
+    hls.loadSource(hlsUrl)
+    hls.attachMedia(videoRef.current)
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      videoRef.current?.play().catch(() => {})
+      setLoaded(true)
+    })
+    hls.on(Hls.Events.ERROR, (_, data) => {
+      if (data.fatal) {
+        hls.destroy()
+        hlsRef.current = null
+        setLoaded(false)
+        retryTimer.current = setTimeout(startHls, 5000)
+      }
+    })
+  }
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
     const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !hlsRef.current) {
-          const hls = new Hls({ lowLatencyMode: true, maxBufferLength: 4 })
-          hlsRef.current = hls
-          hls.loadSource(hlsUrl)
-          hls.attachMedia(videoRef.current)
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            videoRef.current?.play().catch(() => {})
-            setLoaded(true)
-          })
-        }
-      },
+      ([entry]) => { if (entry.isIntersecting && !hlsRef.current) startHls() },
       { threshold: 0.1 }
     )
     obs.observe(container)
     return () => {
       obs.disconnect()
+      clearTimeout(retryTimer.current)
       hlsRef.current?.destroy()
       hlsRef.current = null
     }
