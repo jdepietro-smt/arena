@@ -101,7 +101,13 @@ function HlsPlayer({ src }) {
       }
       return
     }
-    const hls = new Hls({ maxBufferLength: 8, liveSyncDurationCount: 2 })
+    const hls = new Hls({
+      maxBufferLength: 8,
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: 6,
+      maxLiveSyncPlaybackRate: 1.0,
+      lowLatencyMode: false,
+    })
     hlsRef.current = hls
     hls.loadSource(source)
     hls.attachMedia(videoRef.current)

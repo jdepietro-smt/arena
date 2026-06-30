@@ -16,7 +16,13 @@ function CardThumbnail({ hlsUrl }) {
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
     if (!videoRef.current) return
     setHlsError(null)
-    const hls = new Hls({ maxBufferLength: 4, liveSyncDurationCount: 2 })
+    const hls = new Hls({
+      maxBufferLength: 6,
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: 6,
+      maxLiveSyncPlaybackRate: 1.0,
+      lowLatencyMode: false,
+    })
     hlsRef.current = hls
     hls.loadSource(hlsUrl)
     hls.attachMedia(videoRef.current)
