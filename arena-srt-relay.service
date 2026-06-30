@@ -1,0 +1,17 @@
+[Unit]
+Description=Arena SRT audio relay (PCM->AAC, port 8890->8892)
+After=network.target
+# Must start before mediamtx tries to use 8890
+Before=mediamtx.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/arena-relay.conf
+ExecStart=/opt/arena/srt-audio-relay.sh
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
