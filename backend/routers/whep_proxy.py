@@ -1,6 +1,6 @@
 """
 WHEP signaling proxy — forwards SDP offer/answer through FastAPI to avoid
-cross-origin issues. The browser posts to /api/whep/{path}/whep (same origin
+cross-origin issues. The browser posts to /api/whep/{name}/whep (same origin
 as the ArenaHub app). This router forwards to mediamtx at localhost:8889.
 
 WebRTC media (RTP/UDP) still flows directly between the browser and the
@@ -10,20 +10,28 @@ so latency is not affected.
 
 import httpx
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import RedirectResponse
 
 router = APIRouter(tags=["whep"])
 
 MEDIAMTX_WEBRTC = "http://localhost:8889"
 
 
-@router.post("/{stream_path:path}/whep")
-async def whep_proxy(stream_path: str, request: Request) -> Response:
+@router.get("/{stream_name}/whep")
+async def whep_info(stream_name: str) -> RedirectResponse:
+    # Browser navigated to the WHEP endpoint directly (GET). Redirect to the
+    # dashboard so the user sees the stream there instead of a bare 404.
+    return RedirectResponse(url="/", status_code=302)
+
+
+@router.post("/{stream_name}/whep")
+async def whep_proxy(stream_name: str, request: Request) -> Response:
     body = await request.body()
 
     async with httpx.AsyncClient() as client:
         try:
             r = await client.post(
-                f"{MEDIAMTX_WEBRTC}/{stream_path}/whep",
+                f"{MEDIAMTX_WEBRTC}/{stream_name}/whep",
                 content=body,
                 headers={"Content-Type": "application/sdp"},
                 timeout=10.0,

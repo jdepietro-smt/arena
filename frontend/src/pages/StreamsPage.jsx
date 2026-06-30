@@ -112,8 +112,8 @@ function ExpandedRow({ stream }) {
           <div className="shrink-0">
             {isLoading ? (
               <Skeleton className="w-[320px] h-[180px]" />
-            ) : urls?.webrtc_url && stream.ready ? (
-              <WhepPlayer src={urls.webrtc_url} />
+            ) : stream.path && stream.ready ? (
+              <WhepPlayer src={`/api/whep/${stream.path}/whep`} />
             ) : (
               <div className="w-[320px] h-[180px] bg-[#111118] border border-[#222233] rounded-lg flex items-center justify-center text-gray-600 text-xs">
                 {stream.ready ? 'No HLS available' : 'Stream offline'}
@@ -126,10 +126,13 @@ function ExpandedRow({ stream }) {
             {[
               { label: 'SRT URL',    value: urls?.srt_url },
               { label: 'HLS URL',    value: urls?.hls_url },
-              { label: 'WebRTC URL', value: urls?.webrtc_url },
-            ].map(({ label, value }) => (
+              { label: 'WebRTC (WHEP)', value: urls?.webrtc_url, note: 'POST endpoint — for OBS / VLC / compatible WHEP player' },
+            ].map(({ label, value, note }) => (
               <div key={label}>
-                <p className="text-gray-500 mb-0.5">{label}</p>
+                <div className="flex items-baseline gap-2 mb-0.5">
+                  <p className="text-gray-500">{label}</p>
+                  {note && <span className="text-[10px] text-gray-600 italic">{note}</span>}
+                </div>
                 {isLoading ? (
                   <Skeleton className="h-5 w-full" />
                 ) : (
