@@ -9,6 +9,7 @@ import RouterPage from './pages/RouterPage'
 import RecordingsPage from './pages/RecordingsPage'
 import StatsPage from './pages/StatsPage'
 import SettingsPage from './pages/SettingsPage'
+import PlayerPage from './pages/PlayerPage'
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -63,6 +64,7 @@ export default function App() {
           <Route path="stats"       element={<StatsPage />} />
           <Route path="settings"    element={<SettingsPage />} />
         </Route>
+        <Route path="/watch/:streamName" element={<PlayerPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>

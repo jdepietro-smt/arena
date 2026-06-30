@@ -21,7 +21,7 @@ MEDIAMTX_WEBRTC = "http://localhost:8889"
 async def whep_info(stream_name: str) -> RedirectResponse:
     # Browser navigated to the WHEP endpoint directly (GET). Redirect to the
     # dashboard so the user sees the stream there instead of a bare 404.
-    return RedirectResponse(url="/", status_code=302)
+    return RedirectResponse(url=f"/watch/{stream_name}", status_code=302)
 
 
 @router.post("/{stream_name}/whep")

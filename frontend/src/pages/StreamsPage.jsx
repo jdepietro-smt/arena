@@ -126,13 +126,10 @@ function ExpandedRow({ stream }) {
             {[
               { label: 'SRT URL',    value: urls?.srt_url },
               { label: 'HLS URL',    value: urls?.hls_url },
-              { label: 'WebRTC (WHEP)', value: urls?.webrtc_url, note: 'POST endpoint — for OBS / VLC / compatible WHEP player' },
-            ].map(({ label, value, note }) => (
+              { label: 'Watch URL', value: urls?.webrtc_url },
+            ].map(({ label, value }) => (
               <div key={label}>
-                <div className="flex items-baseline gap-2 mb-0.5">
-                  <p className="text-gray-500">{label}</p>
-                  {note && <span className="text-[10px] text-gray-600 italic">{note}</span>}
-                </div>
+                <p className="text-gray-500 mb-0.5">{label}</p>
                 {isLoading ? (
                   <Skeleton className="h-5 w-full" />
                 ) : (
