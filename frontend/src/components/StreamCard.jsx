@@ -10,10 +10,12 @@ function CardThumbnail({ hlsUrl }) {
   const containerRef = useRef(null)
   const retryTimer = useRef(null)
   const [loaded, setLoaded] = useState(false)
+  const [hlsError, setHlsError] = useState(null)
 
   const startHls = () => {
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
     if (!videoRef.current) return
+    setHlsError(null)
     const hls = new Hls({ maxBufferLength: 4, liveSyncDurationCount: 2 })
     hlsRef.current = hls
     hls.loadSource(hlsUrl)
@@ -21,9 +23,12 @@ function CardThumbnail({ hlsUrl }) {
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       videoRef.current?.play().catch(() => {})
       setLoaded(true)
+      setHlsError(null)
     })
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (data.fatal) {
+        const msg = `${data.type}: ${data.details} (${data.response?.code ?? '?'})`
+        setHlsError(msg)
         hls.destroy()
         hlsRef.current = null
         setLoaded(false)
@@ -58,10 +63,15 @@ function CardThumbnail({ hlsUrl }) {
         style={{ display: loaded ? 'block' : 'none' }}
       />
       {!loaded && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <svg className="w-10 h-10 text-indigo-400/40" fill="currentColor" viewBox="0 0 24 24">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-2">
+          <svg className="w-8 h-8 text-indigo-400/40 shrink-0" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />
           </svg>
+          {hlsError && (
+            <span className="text-[9px] text-red-400/80 font-mono text-center leading-tight break-all">
+              {hlsError}
+            </span>
+          )}
         </div>
       )}
     </div>
