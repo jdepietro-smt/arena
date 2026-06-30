@@ -4,19 +4,43 @@ import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts'
 import { startRecording, stopRecording } from '../api/client'
 import { startWhep } from '../utils/whep'
 
-function CardThumbnail({ whepUrl }) {
+function CardThumbnail({ whepUrl, onLatency }) {
   const videoRef = useRef(null)
   const pcRef = useRef(null)
   const containerRef = useRef(null)
   const retryTimer = useRef(null)
+  const statsTimer = useRef(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(null)
+
+  const pollStats = async (pc) => {
+    if (!pc || pc.connectionState !== 'connected') return
+    try {
+      const report = await pc.getStats()
+      let jitterMs = null, rttMs = null, decodeMs = null
+      report.forEach(s => {
+        if (s.type === 'inbound-rtp' && s.kind === 'video') {
+          if (s.jitterBufferEmittedCount > 0)
+            jitterMs = (s.jitterBufferDelay / s.jitterBufferEmittedCount) * 1000
+          if (s.framesDecoded > 0)
+            decodeMs = (s.totalDecodeTime / s.framesDecoded) * 1000
+        }
+        if (s.type === 'candidate-pair' && s.state === 'succeeded' && s.currentRoundTripTime != null)
+          rttMs = s.currentRoundTripTime * 1000
+      })
+      if (jitterMs != null && rttMs != null) {
+        const est = Math.round(35 + rttMs / 2 + jitterMs + (decodeMs ?? 2))
+        onLatency?.(est)
+      }
+    } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     let alive = true
 
     const connect = async () => {
       clearTimeout(retryTimer.current)
+      clearInterval(statsTimer.current)
       if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
       if (!alive || !videoRef.current) return
       setError(null)
@@ -25,6 +49,7 @@ function CardThumbnail({ whepUrl }) {
         const pc = await startWhep(whepUrl, videoRef.current)
         if (!alive) { pc.close(); return }
         pcRef.current = pc
+        statsTimer.current = setInterval(() => pollStats(pc), 2000)
 
         pc.addEventListener('connectionstatechange', () => {
           if (!alive) return
@@ -32,9 +57,13 @@ function CardThumbnail({ whepUrl }) {
           if (s === 'failed') {
             setLoaded(false)
             setError('reconnecting…')
+            clearInterval(statsTimer.current)
+            onLatency?.(null)
             retryTimer.current = setTimeout(connect, 4000)
           } else if (s === 'disconnected') {
             setLoaded(false)
+            clearInterval(statsTimer.current)
+            onLatency?.(null)
             retryTimer.current = setTimeout(connect, 3000)
           }
         })
@@ -59,6 +88,7 @@ function CardThumbnail({ whepUrl }) {
       alive = false
       obs.disconnect()
       clearTimeout(retryTimer.current)
+      clearInterval(statsTimer.current)
       video?.removeEventListener('playing', onPlaying)
       pcRef.current?.close()
       pcRef.current = null
@@ -130,6 +160,7 @@ function MiniSparkline({ data }) {
 
 export default function StreamCard({ stream, onPreview, sparklineData }) {
   const [hovered, setHovered] = useState(false)
+  const [latencyMs, setLatencyMs] = useState(null)
   const queryClient = useQueryClient()
 
   const isLive = stream.ready === true
@@ -158,7 +189,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
       {/* Thumbnail / preview area */}
       <div className="relative w-full aspect-video bg-[#0d0d15] flex items-center justify-center overflow-hidden">
         {isLive ? (
-          <CardThumbnail whepUrl={whepUrl} />
+          <CardThumbnail whepUrl={whepUrl} onLatency={setLatencyMs} />
         ) : (
           <div className="flex flex-col items-center gap-1 text-gray-600">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,10 +244,14 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
             <span className="text-xs font-mono font-semibold text-gray-200">{bitrateMbps} <span className="text-gray-500 font-normal">Mbps</span></span>
           </div>
           <div className="flex flex-col bg-[#0a0a0f] rounded-lg py-1.5 px-1">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider">RTT</span>
-            <span className={`text-xs font-mono font-semibold ${parseFloat(rtt) > 100 ? 'text-yellow-400' : 'text-gray-200'}`}>
-              {rtt} <span className="text-gray-500 font-normal">ms</span>
-            </span>
+            <span className="text-[10px] text-gray-500 uppercase tracking-wider">Latency</span>
+            {latencyMs != null ? (
+              <span className={`text-xs font-mono font-semibold ${latencyMs <= 500 ? 'text-green-400' : latencyMs <= 800 ? 'text-yellow-400' : 'text-red-400'}`}>
+                ~{latencyMs} <span className="text-gray-500 font-normal">ms</span>
+              </span>
+            ) : (
+              <span className="text-xs font-mono font-semibold text-gray-600">— <span className="text-gray-700 font-normal">ms</span></span>
+            )}
           </div>
           <div className="flex flex-col bg-[#0a0a0f] rounded-lg py-1.5 px-1">
             <span className="text-[10px] text-gray-500 uppercase tracking-wider">Loss</span>
