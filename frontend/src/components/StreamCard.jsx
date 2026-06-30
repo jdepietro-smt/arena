@@ -138,7 +138,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
   const rtt = stream.rtt_ms != null ? stream.rtt_ms.toFixed(0) : '—'
   const loss = stream.packet_loss_pct != null ? stream.packet_loss_pct.toFixed(2) : '—'
 
-  const whepUrl = `http://${window.location.hostname}:8889/${stream.path}/whep`
+  const whepUrl = `/api/whep/${stream.path}/whep`
 
   const recMutation = useMutation({
     mutationFn: isRecording

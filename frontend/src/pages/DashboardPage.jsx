@@ -139,7 +139,7 @@ function WhepPlayer({ url }) {
 
 function PreviewModal({ stream, onClose }) {
   if (!stream) return null
-  const whepUrl = `http://${window.location.hostname}:8889/${stream.path}/whep`
+  const whepUrl = `/api/whep/${stream.path}/whep`
 
   return (
     <div
