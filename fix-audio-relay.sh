@@ -16,8 +16,15 @@ sed -i '/srtAddress/d' "$CONF"
 echo 'srtAddress: :8892' >> "$CONF"
 grep 'srtAddress' "$CONF"
 
-echo "=== Restarting mediamtx ==="
-systemctl restart mediamtx
+echo "=== Freeing port 8892 ==="
+systemctl stop mediamtx 2>/dev/null || true
+sleep 1
+fuser -k 8892/udp 2>/dev/null || true
+pkill -f mediamtx 2>/dev/null || true
+sleep 2
+
+echo "=== Starting mediamtx ==="
+systemctl start mediamtx
 sleep 3
 systemctl is-active --quiet mediamtx && echo "mediamtx: OK" || {
   echo "mediamtx FAILED:"
