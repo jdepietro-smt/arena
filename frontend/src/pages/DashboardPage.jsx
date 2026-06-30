@@ -84,9 +84,56 @@ function EventSidebar() {
   )
 }
 
+// ── WebRTC latency stats ──────────────────────────────────────────────────────
+
+function useWhepStats(pcRef) {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    const poll = async () => {
+      const pc = pcRef.current
+      if (!pc || pc.connectionState !== 'connected') return
+
+      const report = await pc.getStats()
+      let jitterMs = null, decodeMs = null, rttMs = null
+
+      report.forEach(s => {
+        if (s.type === 'inbound-rtp' && s.kind === 'video') {
+          if (s.jitterBufferEmittedCount > 0)
+            jitterMs = (s.jitterBufferDelay / s.jitterBufferEmittedCount) * 1000
+          if (s.framesDecoded > 0)
+            decodeMs = (s.totalDecodeTime / s.framesDecoded) * 1000
+        }
+        if (s.type === 'candidate-pair' && s.state === 'succeeded' && s.currentRoundTripTime != null)
+          rttMs = s.currentRoundTripTime * 1000
+      })
+
+      // Glass-to-glass estimate:
+      //   encode+capture (~35ms) + SRT one-way (rtt/2) + jitter buffer + decode
+      const networkMs = rttMs != null ? rttMs / 2 : null
+      const estimated =
+        jitterMs != null && networkMs != null
+          ? Math.round(35 + networkMs + jitterMs + (decodeMs ?? 2))
+          : null
+
+      setStats({
+        rttMs: rttMs != null ? Math.round(rttMs) : null,
+        jitterMs: jitterMs != null ? Math.round(jitterMs) : null,
+        decodeMs: decodeMs != null ? decodeMs.toFixed(1) : null,
+        estimated,
+      })
+    }
+
+    const id = setInterval(poll, 1500)
+    return () => clearInterval(id)
+  }, [pcRef])
+
+  return stats
+}
+
 // ── WebRTC preview player ─────────────────────────────────────────────────────
 
-function WhepPlayer({ url }) {
+function WhepPlayer({ url, onPcReady }) {
   const videoRef = useRef(null)
   const pcRef = useRef(null)
   const retryTimer = useRef(null)
@@ -96,17 +143,19 @@ function WhepPlayer({ url }) {
 
     const connect = async () => {
       clearTimeout(retryTimer.current)
-      if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
+      if (pcRef.current) { pcRef.current.close(); pcRef.current = null; onPcReady?.(null) }
       if (!alive || !videoRef.current || !url) return
 
       try {
         const pc = await startWhep(url, videoRef.current)
         if (!alive) { pc.close(); return }
         pcRef.current = pc
+        onPcReady?.(pc)
         pc.addEventListener('connectionstatechange', () => {
           if (!alive) return
           const s = pc.connectionState
           if (s === 'failed' || s === 'disconnected') {
+            onPcReady?.(null)
             retryTimer.current = setTimeout(connect, 3000)
           }
         })
@@ -121,6 +170,7 @@ function WhepPlayer({ url }) {
       clearTimeout(retryTimer.current)
       pcRef.current?.close()
       pcRef.current = null
+      onPcReady?.(null)
     }
   }, [url])
 
@@ -137,9 +187,45 @@ function WhepPlayer({ url }) {
 
 // ── Preview modal ─────────────────────────────────────────────────────────────
 
+function LatencyBar({ stats }) {
+  if (!stats) {
+    return (
+      <div className="px-5 py-2.5 border-t border-[#222233] text-xs text-gray-600 font-mono">
+        Measuring latency…
+      </div>
+    )
+  }
+
+  const color = stats.estimated == null ? 'text-gray-500'
+    : stats.estimated <= 500 ? 'text-green-400'
+    : stats.estimated <= 800 ? 'text-yellow-400'
+    : 'text-red-400'
+
+  return (
+    <div className="px-5 py-2.5 border-t border-[#222233] flex items-center gap-4 text-xs font-mono flex-wrap">
+      {stats.estimated != null && (
+        <span className={`font-bold text-sm ${color}`}>
+          ~{stats.estimated} ms glass-to-glass
+        </span>
+      )}
+      {stats.rttMs != null && (
+        <span className="text-gray-500">WebRTC RTT <span className="text-gray-300">{stats.rttMs} ms</span></span>
+      )}
+      {stats.jitterMs != null && (
+        <span className="text-gray-500">jitter buf <span className="text-gray-300">{stats.jitterMs} ms</span></span>
+      )}
+      {stats.decodeMs != null && (
+        <span className="text-gray-500">decode <span className="text-gray-300">{stats.decodeMs} ms</span></span>
+      )}
+    </div>
+  )
+}
+
 function PreviewModal({ stream, onClose }) {
   if (!stream) return null
   const whepUrl = `/api/whep/${stream.path}/whep`
+  const pcRef = useRef(null)
+  const stats = useWhepStats(pcRef)
 
   return (
     <div
@@ -159,11 +245,9 @@ function PreviewModal({ stream, onClose }) {
           </button>
         </div>
         <div className="aspect-video bg-black">
-          <WhepPlayer url={whepUrl} />
+          <WhepPlayer url={whepUrl} onPcReady={pc => { pcRef.current = pc }} />
         </div>
-        <div className="px-5 py-3 border-t border-[#222233] text-xs font-mono text-gray-500 truncate">
-          {whepUrl}
-        </div>
+        <LatencyBar stats={stats} />
       </div>
     </div>
   )
