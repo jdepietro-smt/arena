@@ -11,19 +11,17 @@ sed "s|ExecStart=.*|ExecStart=$DIR/srt-audio-relay.sh|" \
   "$DIR/arena-srt-relay.service" > /etc/systemd/system/arena-srt-relay.service
 systemctl daemon-reload
 
-echo "=== Setting mediamtx SRT port to :8892 (removing duplicates) ==="
+echo "=== Reverting mediamtx srtAddress to :8890 (undo previous edits) ==="
+# Remove any srtAddress lines we may have added, restore the original port.
+# mediamtx was working fine on 8890 — the relay now sits on 8895 instead.
 sed -i '/srtAddress/d' "$CONF"
-echo 'srtAddress: :8892' >> "$CONF"
+echo 'srtAddress: :8890' >> "$CONF"
+echo "Current srtAddress lines:"
 grep 'srtAddress' "$CONF"
 
-echo "=== Freeing port 8892 ==="
+echo "=== Restarting mediamtx ==="
 systemctl stop mediamtx 2>/dev/null || true
-sleep 1
-fuser -k 8892/udp 2>/dev/null || true
-pkill -f mediamtx 2>/dev/null || true
 sleep 2
-
-echo "=== Starting mediamtx ==="
 systemctl start mediamtx
 sleep 3
 systemctl is-active --quiet mediamtx && echo "mediamtx: OK" || {
@@ -32,7 +30,8 @@ systemctl is-active --quiet mediamtx && echo "mediamtx: OK" || {
   exit 1
 }
 
-echo "=== Starting SRT audio relay on :8890 ==="
+echo "=== Starting SRT audio relay on :8895 ==="
+systemctl stop arena-srt-relay 2>/dev/null || true
 systemctl enable --now arena-srt-relay
 sleep 3
 systemctl is-active --quiet arena-srt-relay && echo "arena-srt-relay: OK" || {
@@ -45,8 +44,11 @@ echo "=== Restarting arena ==="
 systemctl restart arena
 
 echo ""
-echo "=== Port check ==="
-ss -ulnp | awk '{print $5}' | grep -E '8890|8892' || echo "(waiting for encoder to connect)"
+echo "=== Port check (8890=mediamtx SRT, 8895=relay listener) ==="
+ss -ulnp | grep -E '8890|8895' || echo "(no binds yet)"
 
 echo ""
-echo "Done. Stop/Start the stream in arena_stream to reconnect to the new relay."
+echo "Done."
+echo "ACTION REQUIRED: In arena_stream.exe, change the SRT publish"
+echo "port from 8890 to 8895. The relay will transcode audio and"
+echo "push into mediamtx on 8890."

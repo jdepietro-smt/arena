@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     MEDIAMTX_API: str = "http://localhost:9997"
     MEDIAMTX_HLS: str = "http://localhost:8888"
     MEDIAMTX_WEBRTC: str = "http://localhost:8889"
-    MEDIAMTX_SRT_PORT: int = 8892  # 8890 is now the FFmpeg PCM->AAC relay input
+    MEDIAMTX_SRT_PORT: int = 8890  # mediamtx SRT port; relay ingests on 8895
 
     # JWT / Auth
     SECRET_KEY: str = "arena-secret-change-in-prod"
