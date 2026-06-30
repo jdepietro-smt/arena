@@ -39,6 +39,8 @@ webrtc: yes
 webrtcAddress: :8889
 webrtcAllowOrigin: '*'
 webrtcIPsFromInterfaces: yes
+webrtcAdditionalHosts: [5.78.236.254]
+webrtcLocalUDPAddress: :8889
 srt: yes
 srtAddress: :8890
 paths:
@@ -59,7 +61,21 @@ echo ""
 echo "=== Port check ==="
 ss -ulnp | grep -E '8890|8889|8888' || true
 
+echo "=== Restarting arena backend ==="
+systemctl restart arena
+sleep 3
+systemctl is-active --quiet arena && echo "arena: OK" || {
+  echo "arena FAILED:"
+  journalctl -u arena -n 20 --no-pager
+  exit 1
+}
+
 echo ""
-echo "Done. Stream with arena_stream.exe to port 8890 as before."
-echo "Audio relay is OFF — video-only streams will work."
-echo "Run fix-audio-relay.sh after confirming streams appear."
+echo "=== Stream list from mediamtx API ==="
+curl -s localhost:9997/v3/paths/list 2>/dev/null | python3 -c \
+  "import sys,json; d=json.load(sys.stdin); [print(p['name'],p.get('ready')) for p in d.get('items',[])]" \
+  || echo "(no streams yet)"
+
+echo ""
+echo "Done. Publish to port 8890 with arena_stream.exe."
+echo "Stop/start the stream in arena_stream if it was running during this reset."
