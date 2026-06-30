@@ -1,68 +1,59 @@
 """
-HLS proxy: forwards requests to mediamtx's HLS port (8888) through the
-FastAPI backend so the browser never has to make a cross-origin request.
+HLS proxy: serves files written by the per-stream ffmpeg HLS generator
+(started via mediamtx runOnReady hook) from /tmp/arena-hls/{path}/{file}.
 
-Mounted at /api/hls — e.g. /api/hls/{path}/index.m3u8
+Why not mediamtx's built-in HLS muxer?
+  The encoder (arena_stream.exe) uses libx264 with ~8s keyframe intervals.
+  mediamtx's HLS muxer waits for a keyframe to close each 1s segment.
+  Without a keyframe, the segment grows until it hits the size limit and
+  crashes. The external ffmpeg generator forces keyframes every 1s via
+  -g 30 -keyint_min 30 -sc_threshold 0, producing correct HLS segments.
+
+Mounted at /api/hls — e.g. /api/hls/Golf_Channel/index.m3u8
 """
 
 from __future__ import annotations
 
 import logging
+import os
 
-import httpx
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["hls"])
 
-_MEDIAMTX_HLS = "http://127.0.0.1:8888"
+HLS_DIR = "/tmp/arena-hls"
 
-_client: httpx.AsyncClient | None = None
-
-
-def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None or _client.is_closed:
-        # follow_redirects handles mediamtx's cookieCheck=1 redirect;
-        # the client also persists cookies across requests so the check
-        # is satisfied on the first real segment fetch.
-        _client = httpx.AsyncClient(timeout=10.0, follow_redirects=True)
-    return _client
+_CORS = {"Access-Control-Allow-Origin": "*"}
 
 
 @router.get("/{path_name}/{filename:path}")
 async def hls_proxy(path_name: str, filename: str) -> Response:
-    url = f"{_MEDIAMTX_HLS}/{path_name}/{filename}"
-    try:
-        resp = await _get_client().get(url)
-    except httpx.RequestError as exc:
-        logger.warning("HLS proxy error for %s: %s", url, exc)
-        raise HTTPException(status_code=502, detail="HLS upstream unreachable")
+    file_path = os.path.join(HLS_DIR, path_name, filename)
 
-    if resp.status_code == 404:
-        raise HTTPException(status_code=404, detail="HLS resource not found")
-    if resp.status_code != 200:
-        logger.warning("HLS upstream %s returned %d: %s", url, resp.status_code, resp.text[:200])
-        raise HTTPException(status_code=resp.status_code, detail="HLS upstream error")
+    if not os.path.isfile(file_path):
+        # Stream not live yet or segment rolled off — HLS.js will retry
+        logger.debug("HLS file not found: %s", file_path)
+        raise HTTPException(status_code=404, detail="HLS file not available")
 
-    content_type = resp.headers.get("content-type", "application/octet-stream")
-    content = resp.content
-
-    # Rewrite any absolute mediamtx segment URLs in the manifest so HLS.js
-    # fetches segments through this proxy rather than directly to port 8888.
-    if filename.endswith(".m3u8") or "mpegurl" in content_type:
-        text = content.decode("utf-8", errors="replace")
-        text = text.replace(
-            f"{_MEDIAMTX_HLS}/{path_name}/",
-            f"/api/hls/{path_name}/",
+    if filename.endswith(".m3u8"):
+        try:
+            with open(file_path, "rb") as f:
+                content = f.read()
+        except OSError as exc:
+            logger.warning("HLS manifest read error %s: %s", file_path, exc)
+            raise HTTPException(status_code=503, detail="HLS manifest temporarily unavailable")
+        return Response(
+            content=content,
+            media_type="application/vnd.apple.mpegurl",
+            headers={"Cache-Control": "no-cache", **_CORS},
         )
-        content = text.encode("utf-8")
 
-    cache_control = resp.headers.get("cache-control", "no-cache")
-    return Response(
-        content=content,
-        media_type=content_type,
-        headers={"Cache-Control": cache_control, "Access-Control-Allow-Origin": "*"},
+    # Segment files (.ts)
+    return FileResponse(
+        file_path,
+        media_type="video/mp2t",
+        headers={"Cache-Control": "no-cache", **_CORS},
     )
