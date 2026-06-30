@@ -11,12 +11,12 @@ export default function PlayerPage() {
   const [status, setStatus] = useState('connecting')
   const [latencyMs, setLatencyMs] = useState(null)
   const [muted, setMuted] = useState(true)
-  const [hasAudio, setHasAudio] = useState(false)
+  const [hasAudio, setHasAudio] = useState(null) // null = unknown, true/false = detected
 
   const whepUrl = `/api/whep/${streamName}/whep`
 
-  // Keep DOM muted state in sync — do NOT use the muted JSX prop because
-  // React re-applies it on every render and overwrites the DOM property.
+  // Control mute via DOM ref — never use the muted JSX prop because React
+  // re-applies it on every render and overwrites the DOM property.
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted
   }, [muted])
@@ -46,41 +46,47 @@ export default function PlayerPage() {
   useEffect(() => {
     let alive = true
 
+    const checkAudio = (pc) => {
+      // Primary: check the video element's attached stream
+      const stream = videoRef.current?.srcObject
+      if (stream) {
+        const tracks = stream.getAudioTracks()
+        setHasAudio(tracks.length > 0 && tracks.some(t => t.readyState === 'live'))
+        return
+      }
+      // Fallback: check WebRTC receivers
+      setHasAudio(pc.getReceivers().some(r => r.track?.kind === 'audio'))
+    }
+
     const connect = async () => {
       clearTimeout(retryRef.current)
       clearInterval(statsRef.current)
       if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
       if (!alive || !videoRef.current) return
       setStatus('connecting')
-      setHasAudio(false)
+      setHasAudio(null)
 
       try {
         const pc = await startWhep(whepUrl, videoRef.current)
         if (!alive) { pc.close(); return }
         pcRef.current = pc
-
-        // Detect whether the stream actually contains an audio track
-        pc.ontrack = ({ track, streams }) => {
-          if (track.kind === 'audio') setHasAudio(true)
-          // Re-attach stream in case startWhep already set it
-          if (streams[0] && videoRef.current && videoRef.current.srcObject !== streams[0]) {
-            videoRef.current.srcObject = streams[0]
-            videoRef.current.play().catch(() => {})
-          }
-        }
-
         setStatus('live')
         statsRef.current = setInterval(() => pollStats(pc), 2000)
+
+        // startWhep already handled ontrack/srcObject. Check audio now and
+        // again after 1s since tracks can arrive just after SDP exchange.
+        checkAudio(pc)
+        setTimeout(() => { if (alive) checkAudio(pc) }, 1000)
 
         pc.addEventListener('connectionstatechange', () => {
           if (!alive) return
           const s = pc.connectionState
           if (s === 'failed') {
-            setStatus('reconnecting'); setLatencyMs(null); setHasAudio(false)
+            setStatus('reconnecting'); setLatencyMs(null); setHasAudio(null)
             clearInterval(statsRef.current)
             retryRef.current = setTimeout(connect, 4000)
           } else if (s === 'disconnected') {
-            setStatus('reconnecting'); setLatencyMs(null); setHasAudio(false)
+            setStatus('reconnecting'); setLatencyMs(null); setHasAudio(null)
             clearInterval(statsRef.current)
             retryRef.current = setTimeout(connect, 3000)
           }
@@ -94,7 +100,6 @@ export default function PlayerPage() {
 
     const video = videoRef.current
     if (video) {
-      // Start muted via DOM property (not JSX prop) so React can't override it
       video.muted = true
       video.addEventListener('playing', () => { if (alive) setStatus('live') })
     }
@@ -114,7 +119,6 @@ export default function PlayerPage() {
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
-      {/* Video — no muted prop; controlled via DOM ref only */}
       <video
         ref={videoRef}
         className="flex-1 w-full object-contain"
@@ -122,7 +126,6 @@ export default function PlayerPage() {
         autoPlay
       />
 
-      {/* Bottom overlay */}
       <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3
         bg-gradient-to-t from-black/80 to-transparent">
         <div className="flex items-center gap-3 pointer-events-none">
@@ -152,19 +155,21 @@ export default function PlayerPage() {
             </span>
           )}
 
-          {/* Audio control */}
-          {isLive && !hasAudio ? (
-            // Stream has no audio track at all
-            <span className="text-xs text-gray-600 font-mono px-3 py-1.5 bg-black/40 rounded-lg border border-white/10">
-              No audio in stream
+          {isLive && hasAudio === false && (
+            <span className="text-xs text-gray-500 font-mono px-3 py-1.5 bg-black/40 rounded-lg border border-white/10">
+              No audio track from mediamtx
             </span>
-          ) : (
+          )}
+
+          {(hasAudio === true || !isLive) && (
             <button
               onClick={toggleMute}
+              disabled={!isLive}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
-                ${muted
-                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/30'
-                  : 'bg-white/10 text-white/80 border border-white/20 hover:bg-white/20'
+                ${!isLive ? 'opacity-30 cursor-default bg-white/5 text-white/40 border border-white/10'
+                  : muted
+                    ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/30'
+                    : 'bg-white/10 text-white/80 border border-white/20 hover:bg-white/20'
                 }`}
             >
               {muted ? (
@@ -190,7 +195,6 @@ export default function PlayerPage() {
         </div>
       </div>
 
-      {/* Waiting overlay */}
       {!isLive && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
           <svg className="w-16 h-16 text-white/10" fill="currentColor" viewBox="0 0 24 24">
