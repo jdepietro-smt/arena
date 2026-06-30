@@ -30,8 +30,8 @@ exec ffmpeg \
     -g 30 \
     -keyint_min 30 \
     -sc_threshold 0 \
-    -hls_time 1 \
-    -hls_list_size 6 \
+    -hls_time 2 \
+    -hls_list_size 8 \
     -hls_flags delete_segments+omit_endlist \
     -f hls \
     "$HLS_DIR/index.m3u8"

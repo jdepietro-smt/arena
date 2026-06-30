@@ -17,9 +17,9 @@ function CardThumbnail({ hlsUrl }) {
     if (!videoRef.current) return
     setHlsError(null)
     const hls = new Hls({
-      maxBufferLength: 6,
-      liveSyncDurationCount: 3,
-      liveMaxLatencyDurationCount: 6,
+      maxBufferLength: 16,
+      liveSyncDurationCount: 4,
+      liveMaxLatencyDurationCount: 10,
       maxLiveSyncPlaybackRate: 1.0,
       lowLatencyMode: false,
     })
