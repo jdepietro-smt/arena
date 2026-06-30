@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import Hls from 'hls.js'
 import { getStreams, getStatsSummary } from '../api/client'
 import StreamCard from '../components/StreamCard'
+import { startWhep } from '../utils/whep'
 
 // ── Skeleton helpers ──────────────────────────────────────────────────────────
 
@@ -84,51 +84,45 @@ function EventSidebar() {
   )
 }
 
-// ── HLS video player ──────────────────────────────────────────────────────────
+// ── WebRTC preview player ─────────────────────────────────────────────────────
 
-function HlsPlayer({ src }) {
+function WhepPlayer({ url }) {
   const videoRef = useRef(null)
-  const hlsRef = useRef(null)
+  const pcRef = useRef(null)
   const retryTimer = useRef(null)
 
-  const startHls = (source) => {
-    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
-    if (!videoRef.current || !source) return
-    if (!Hls.isSupported()) {
-      if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        videoRef.current.src = source
-        videoRef.current.play().catch(() => {})
-      }
-      return
-    }
-    const hls = new Hls({
-      maxBufferLength: 16,
-      liveSyncDurationCount: 4,
-      liveMaxLatencyDurationCount: 10,
-      maxLiveSyncPlaybackRate: 1.0,
-      lowLatencyMode: false,
-    })
-    hlsRef.current = hls
-    hls.loadSource(source)
-    hls.attachMedia(videoRef.current)
-    hls.on(Hls.Events.MANIFEST_PARSED, () => videoRef.current?.play().catch(() => {}))
-    hls.on(Hls.Events.ERROR, (_, data) => {
-      if (data.fatal) {
-        hls.destroy()
-        hlsRef.current = null
-        retryTimer.current = setTimeout(() => startHls(source), 5000)
-      }
-    })
-  }
-
   useEffect(() => {
-    startHls(src)
-    return () => {
+    let alive = true
+
+    const connect = async () => {
       clearTimeout(retryTimer.current)
-      hlsRef.current?.destroy()
-      hlsRef.current = null
+      if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
+      if (!alive || !videoRef.current || !url) return
+
+      try {
+        const pc = await startWhep(url, videoRef.current)
+        if (!alive) { pc.close(); return }
+        pcRef.current = pc
+        pc.addEventListener('connectionstatechange', () => {
+          if (!alive) return
+          const s = pc.connectionState
+          if (s === 'failed' || s === 'disconnected') {
+            retryTimer.current = setTimeout(connect, 3000)
+          }
+        })
+      } catch {
+        retryTimer.current = setTimeout(connect, 5000)
+      }
     }
-  }, [src])
+
+    connect()
+    return () => {
+      alive = false
+      clearTimeout(retryTimer.current)
+      pcRef.current?.close()
+      pcRef.current = null
+    }
+  }, [url])
 
   return (
     <video
@@ -136,7 +130,7 @@ function HlsPlayer({ src }) {
       className="w-full h-full object-contain bg-black"
       controls
       playsInline
-      muted
+      autoPlay
     />
   )
 }
@@ -145,8 +139,7 @@ function HlsPlayer({ src }) {
 
 function PreviewModal({ stream, onClose }) {
   if (!stream) return null
-  const urls = stream.preview_urls || {}
-  const hlsUrl = urls.hls_url || `/api/hls/${stream.path}/index.m3u8`
+  const whepUrl = `http://${window.location.hostname}:8889/${stream.path}/whep`
 
   return (
     <div
@@ -166,10 +159,10 @@ function PreviewModal({ stream, onClose }) {
           </button>
         </div>
         <div className="aspect-video bg-black">
-          <HlsPlayer src={hlsUrl} />
+          <WhepPlayer url={whepUrl} />
         </div>
         <div className="px-5 py-3 border-t border-[#222233] text-xs font-mono text-gray-500 truncate">
-          {hlsUrl}
+          {whepUrl}
         </div>
       </div>
     </div>

@@ -1,63 +1,69 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import Hls from 'hls.js'
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts'
 import { startRecording, stopRecording } from '../api/client'
+import { startWhep } from '../utils/whep'
 
-function CardThumbnail({ hlsUrl }) {
+function CardThumbnail({ whepUrl }) {
   const videoRef = useRef(null)
-  const hlsRef = useRef(null)
+  const pcRef = useRef(null)
   const containerRef = useRef(null)
   const retryTimer = useRef(null)
   const [loaded, setLoaded] = useState(false)
-  const [hlsError, setHlsError] = useState(null)
-
-  const startHls = () => {
-    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
-    if (!videoRef.current) return
-    setHlsError(null)
-    const hls = new Hls({
-      maxBufferLength: 16,
-      liveSyncDurationCount: 4,
-      liveMaxLatencyDurationCount: 10,
-      maxLiveSyncPlaybackRate: 1.0,
-      lowLatencyMode: false,
-    })
-    hlsRef.current = hls
-    hls.loadSource(hlsUrl)
-    hls.attachMedia(videoRef.current)
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      videoRef.current?.play().catch(() => {})
-      setLoaded(true)
-      setHlsError(null)
-    })
-    hls.on(Hls.Events.ERROR, (_, data) => {
-      if (data.fatal) {
-        const msg = `${data.type}: ${data.details} (${data.response?.code ?? '?'})`
-        setHlsError(msg)
-        hls.destroy()
-        hlsRef.current = null
-        setLoaded(false)
-        retryTimer.current = setTimeout(startHls, 5000)
-      }
-    })
-  }
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+    let alive = true
+
+    const connect = async () => {
+      clearTimeout(retryTimer.current)
+      if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
+      if (!alive || !videoRef.current) return
+      setError(null)
+
+      try {
+        const pc = await startWhep(whepUrl, videoRef.current)
+        if (!alive) { pc.close(); return }
+        pcRef.current = pc
+
+        pc.addEventListener('connectionstatechange', () => {
+          if (!alive) return
+          const s = pc.connectionState
+          if (s === 'failed') {
+            setLoaded(false)
+            setError('reconnecting…')
+            retryTimer.current = setTimeout(connect, 4000)
+          } else if (s === 'disconnected') {
+            setLoaded(false)
+            retryTimer.current = setTimeout(connect, 3000)
+          }
+        })
+      } catch (e) {
+        if (!alive) return
+        setError(e.message)
+        retryTimer.current = setTimeout(connect, 5000)
+      }
+    }
+
+    const video = videoRef.current
+    const onPlaying = () => { if (alive) { setLoaded(true); setError(null) } }
+    video?.addEventListener('playing', onPlaying)
+
     const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting && !hlsRef.current) startHls() },
+      ([entry]) => { if (entry.isIntersecting && !pcRef.current) connect() },
       { threshold: 0.1 }
     )
-    obs.observe(container)
+    if (containerRef.current) obs.observe(containerRef.current)
+
     return () => {
+      alive = false
       obs.disconnect()
       clearTimeout(retryTimer.current)
-      hlsRef.current?.destroy()
-      hlsRef.current = null
+      video?.removeEventListener('playing', onPlaying)
+      pcRef.current?.close()
+      pcRef.current = null
     }
-  }, [hlsUrl])
+  }, [whepUrl])
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
@@ -73,9 +79,9 @@ function CardThumbnail({ hlsUrl }) {
           <svg className="w-8 h-8 text-indigo-400/40 shrink-0" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />
           </svg>
-          {hlsError && (
+          {error && (
             <span className="text-[9px] text-red-400/80 font-mono text-center leading-tight break-all">
-              {hlsError}
+              {error}
             </span>
           )}
         </div>
@@ -132,6 +138,8 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
   const rtt = stream.rtt_ms != null ? stream.rtt_ms.toFixed(0) : '—'
   const loss = stream.packet_loss_pct != null ? stream.packet_loss_pct.toFixed(2) : '—'
 
+  const whepUrl = `http://${window.location.hostname}:8889/${stream.path}/whep`
+
   const recMutation = useMutation({
     mutationFn: isRecording
       ? () => stopRecording(stream.path)
@@ -150,7 +158,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
       {/* Thumbnail / preview area */}
       <div className="relative w-full aspect-video bg-[#0d0d15] flex items-center justify-center overflow-hidden">
         {isLive ? (
-          <CardThumbnail hlsUrl={`/api/hls/${stream.path}/index.m3u8`} />
+          <CardThumbnail whepUrl={whepUrl} />
         ) : (
           <div className="flex flex-col items-center gap-1 text-gray-600">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
