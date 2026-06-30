@@ -57,7 +57,7 @@ def _preview_urls(path_name: str) -> dict[str, str]:
     ip = settings.SERVER_IP
     return {
         "hls_url": f"/api/hls/{path_name}/index.m3u8",
-        "webrtc_url": f"http://{ip}:8889/{path_name}/whep",
+        "webrtc_url": f"http://{ip}:{settings.ARENA_PORT}/api/whep/{path_name}/whep",
         "srt_url": f"srt://{ip}:{settings.MEDIAMTX_SRT_PORT}?streamid=read:{path_name}",
     }
 

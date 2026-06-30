@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # Network
     SERVER_IP: str = "5.78.236.254"
+    ARENA_PORT: int = 8001
 
 
 settings = Settings()

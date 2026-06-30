@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import Hls from 'hls.js'
 import {
   getStreams, getPresets, savePreset, deletePreset,
   startRecording, stopRecording, getPreviewUrls,
 } from '../api/client'
+import { startWhep } from '../utils/whep'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,27 +36,41 @@ function formatDuration(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-// ── HLS inline player ─────────────────────────────────────────────────────────
+// ── WebRTC inline player ──────────────────────────────────────────────────────
 
-function HlsPlayer({ src }) {
+function WhepPlayer({ src }) {
   const videoRef = useRef(null)
+  const pcRef = useRef(null)
+  const retryTimer = useRef(null)
 
   useEffect(() => {
-    if (!src || !videoRef.current) return
-    const video = videoRef.current
+    let alive = true
 
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        lowLatencyMode: true,
-        backBufferLength: 5,
-      })
-      hls.loadSource(src)
-      hls.attachMedia(video)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}))
-      return () => hls.destroy()
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = src
-      video.play().catch(() => {})
+    const connect = async () => {
+      clearTimeout(retryTimer.current)
+      if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
+      if (!alive || !videoRef.current || !src) return
+      try {
+        const pc = await startWhep(src, videoRef.current)
+        if (!alive) { pc.close(); return }
+        pcRef.current = pc
+        pc.addEventListener('connectionstatechange', () => {
+          if (!alive) return
+          const s = pc.connectionState
+          if (s === 'failed' || s === 'disconnected')
+            retryTimer.current = setTimeout(connect, 4000)
+        })
+      } catch {
+        retryTimer.current = setTimeout(connect, 5000)
+      }
+    }
+
+    connect()
+    return () => {
+      alive = false
+      clearTimeout(retryTimer.current)
+      pcRef.current?.close()
+      pcRef.current = null
     }
   }, [src])
 
@@ -66,6 +80,7 @@ function HlsPlayer({ src }) {
       className="w-[320px] h-[180px] bg-black rounded-lg object-contain"
       muted
       playsInline
+      autoPlay
     />
   )
 }
@@ -97,8 +112,8 @@ function ExpandedRow({ stream }) {
           <div className="shrink-0">
             {isLoading ? (
               <Skeleton className="w-[320px] h-[180px]" />
-            ) : urls?.hls_url && stream.ready ? (
-              <HlsPlayer src={urls.hls_url} />
+            ) : urls?.webrtc_url && stream.ready ? (
+              <WhepPlayer src={urls.webrtc_url} />
             ) : (
               <div className="w-[320px] h-[180px] bg-[#111118] border border-[#222233] rounded-lg flex items-center justify-center text-gray-600 text-xs">
                 {stream.ready ? 'No HLS available' : 'Stream offline'}
