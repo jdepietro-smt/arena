@@ -7,12 +7,13 @@ rtmp: no
 hls: no
 webrtc: yes
 webrtcAddress: :8989
-webrtcAllowOrigin: '*'
+webrtcAllowOrigins: ['*']
 webrtcIPsFromInterfaces: yes
 webrtcAdditionalHosts: [5.78.236.254]
 webrtcLocalUDPAddress: :8988
 srt: yes
 srtAddress: :8990
+moq: no
 paths:
   all:
     source: publisher
