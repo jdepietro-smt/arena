@@ -5,6 +5,7 @@ import { startWhep } from '../utils/whep'
 export default function PlayerPage() {
   const { streamName } = useParams()
   const videoRef = useRef(null)
+  const containerRef = useRef(null)
   const pcRef = useRef(null)
   const retryRef = useRef(null)
   const statsRef = useRef(null)
@@ -12,6 +13,7 @@ export default function PlayerPage() {
   const [latencyMs, setLatencyMs] = useState(null)
   const [muted, setMuted] = useState(true)
   const [hasAudio, setHasAudio] = useState(null) // null = unknown, true/false = detected
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const whepUrl = `/api/whep/${streamName}/whep`
 
@@ -22,6 +24,24 @@ export default function PlayerPage() {
   }, [muted])
 
   const toggleMute = () => setMuted(m => !m)
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().catch(() => {})
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+  }
+
+  // Native fullscreen (not CSS position:fixed) sizes correctly against the
+  // real screen regardless of browser chrome/viewport quirks — the previous
+  // fixed inset-0 approach could end up taller than the visible viewport,
+  // clipping the bottom of the video until something forced a reflow.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
 
   const pollStats = async (pc) => {
     if (!pc || pc.connectionState !== 'connected') return
@@ -118,10 +138,16 @@ export default function PlayerPage() {
   const isLive = status === 'live'
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col">
+    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4 sm:p-8">
+      <div
+        ref={containerRef}
+        className={isFullscreen
+          ? 'relative w-screen h-screen bg-black flex items-center justify-center'
+          : 'relative w-full max-w-5xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl'}
+      >
       <video
         ref={videoRef}
-        className="flex-1 w-full object-contain"
+        className="w-full h-full object-contain"
         playsInline
         autoPlay
       />
@@ -192,6 +218,25 @@ export default function PlayerPage() {
               )}
             </button>
           )}
+
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-xs font-semibold transition-colors
+              bg-white/10 text-white/80 border border-white/20 hover:bg-white/20"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 
@@ -205,6 +250,7 @@ export default function PlayerPage() {
           </p>
         </div>
       )}
+      </div>
     </div>
   )
 }
