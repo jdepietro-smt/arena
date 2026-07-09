@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import StreamsPage from './pages/StreamsPage'
+import MultiviewerPage from './pages/MultiviewerPage'
 import RouterPage from './pages/RouterPage'
 import RecordingsPage from './pages/RecordingsPage'
 import StatsPage from './pages/StatsPage'
@@ -59,6 +60,7 @@ export default function App() {
         >
           <Route path="dashboard"   element={<DashboardPage />} />
           <Route path="streams"     element={<StreamsPage />} />
+          <Route path="multiviewer" element={<MultiviewerPage />} />
           <Route path="router"      element={<RouterPage />} />
           <Route path="recordings"  element={<RecordingsPage />} />
           <Route path="stats"       element={<StatsPage />} />

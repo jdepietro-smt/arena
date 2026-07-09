@@ -24,6 +24,15 @@ function IconStreams({ size = 18 }) {
   )
 }
 
+function IconMultiviewer({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="16" height="16" rx="1.5" />
+      <path d="M10 2v16M2 10h16" />
+    </svg>
+  )
+}
+
 function IconRouter({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -99,6 +108,7 @@ function LogoMark({ size = 26 }) {
 const NAV_ITEMS = [
   { path: '/dashboard',  label: 'Dashboard',  Icon: IconDashboard },
   { path: '/streams',    label: 'Streams',    Icon: IconStreams },
+  { path: '/multiviewer', label: 'Multiviewer', Icon: IconMultiviewer },
   { path: '/router',     label: 'Router',     Icon: IconRouter },
   { path: '/recordings', label: 'Recordings', Icon: IconRecordings },
   { path: '/stats',      label: 'Statistics', Icon: IconStats },
@@ -107,6 +117,7 @@ const NAV_ITEMS = [
 const PAGE_TITLES = {
   '/dashboard':  'Dashboard',
   '/streams':    'Streams',
+  '/multiviewer': 'Multiviewer',
   '/router':     'Router',
   '/recordings': 'Recordings',
   '/stats':      'Statistics',
