@@ -27,6 +27,7 @@ ExecStart=$VENV/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8001 --worker
 Restart=always
 RestartSec=5
 Environment=PYTHONPATH=$DEPLOY_DIR
+Environment=HOME=/root
 
 [Install]
 WantedBy=multi-user.target

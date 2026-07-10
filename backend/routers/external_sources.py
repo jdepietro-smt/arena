@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
@@ -21,10 +22,20 @@ from ..auth import get_current_active_user, require_admin
 from ..models import User
 from ..services.external_source import COOKIES_PATH, get_external_sources
 
+_PLUGIN_ZIP_URL = (
+    "https://github.com/Brainicism/bgutil-ytdlp-pot-provider"
+    "/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
+)
+
 router = APIRouter(tags=["sources"])
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _MAX_COOKIES_BYTES = 256 * 1024  # cookies.txt files are a few KB at most
+
+
+def _plugin_dir() -> str:
+    home = os.environ.get("HOME") or "/root"
+    return os.path.join(home, ".yt-dlp", "plugins")
 
 
 class YoutubeSourceRequest(BaseModel):
@@ -153,12 +164,34 @@ async def delete_youtube_cookies(_admin: User = Depends(require_admin)) -> dict:
 
 @router.get("/debug/plugin-dir", summary="Debug: what yt-dlp's plugin dir actually looks like")
 async def debug_plugin_dir(_admin: User = Depends(require_admin)) -> dict:
-    home = os.environ.get("HOME")
-    plugins_dir = os.path.join(home or "/root", ".yt-dlp", "plugins")
+    plugins_dir = _plugin_dir()
     entries = []
     if os.path.isdir(plugins_dir):
         for name in os.listdir(plugins_dir):
             full = os.path.join(plugins_dir, name)
             entries.append({"name": name, "size_bytes": os.path.getsize(full) if os.path.isfile(full) else None,
                              "is_dir": os.path.isdir(full)})
-    return {"HOME": home, "plugins_dir": plugins_dir, "plugins_dir_exists": os.path.isdir(plugins_dir), "entries": entries}
+    return {
+        "HOME": os.environ.get("HOME"),
+        "plugins_dir": plugins_dir,
+        "plugins_dir_exists": os.path.isdir(plugins_dir),
+        "entries": entries,
+    }
+
+
+@router.post("/debug/fetch-plugin", summary="Debug: server-side download of the bgutil PO-token plugin zip")
+async def debug_fetch_plugin(_admin: User = Depends(require_admin)) -> dict:
+    plugins_dir = _plugin_dir()
+    os.makedirs(plugins_dir, exist_ok=True)
+    dest = os.path.join(plugins_dir, "bgutil-ytdlp-pot-provider.zip")
+
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+        resp = await client.get(_PLUGIN_ZIP_URL)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"GitHub returned {resp.status_code}")
+        data = resp.content
+
+    with open(dest, "wb") as f:
+        f.write(data)
+
+    return {"saved_to": dest, "size_bytes": len(data)}
