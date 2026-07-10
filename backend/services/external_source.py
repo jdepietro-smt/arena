@@ -24,6 +24,8 @@ import asyncio
 import logging
 import time
 
+from ..models import ManagedPathType
+from .managed_paths import register_path, unregister_path
 from .mediamtx import get_client
 
 logger = logging.getLogger(__name__)
@@ -145,6 +147,7 @@ class ExternalSourceManager:
                 await client.add_path(name, {"source": "publisher"})
             except Exception as exc:
                 logger.warning("add_path failed for %s (may already exist): %s", name, exc)
+            register_path(name, ManagedPathType.external_source)
             source = _YoutubeSource(name, url)
             source.start()
             self._sources[name] = source
@@ -159,6 +162,7 @@ class ExternalSourceManager:
             await get_client().remove_path(name)
         except Exception:
             pass
+        unregister_path(name)
         return True
 
     def list(self) -> list[dict]:
@@ -184,6 +188,7 @@ class ExternalSourceManager:
                 await client.remove_path(s.name)
             except Exception:
                 pass
+            unregister_path(s.name)
 
 
 _manager: ExternalSourceManager | None = None

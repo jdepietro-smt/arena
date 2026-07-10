@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import os
 
 from .database import create_db_and_tables, seed_default_admin
+from .services.managed_paths import reconcile_orphans
 from .services.srt_stats import get_collector
 from .services.compositor import get_compositor
 from .services.external_source import get_external_sources
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
     # Startup
     create_db_and_tables()
     seed_default_admin()
+    await reconcile_orphans()
     await get_collector().start()
     get_compositor().start_reaper()
     yield

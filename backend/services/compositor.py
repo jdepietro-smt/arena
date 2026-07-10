@@ -27,6 +27,8 @@ import logging
 import math
 import time
 
+from ..models import ManagedPathType
+from .managed_paths import register_path, unregister_path
 from .mediamtx import get_client
 
 logger = logging.getLogger(__name__)
@@ -191,6 +193,7 @@ class CompositorManager:
                 await client.add_path(job_id, {"source": "publisher"})
             except Exception as exc:
                 logger.warning("add_path failed for %s (may already exist): %s", job_id, exc)
+            register_path(job_id, ManagedPathType.composite)
             await job.start()
             self._jobs[job_id] = job
             asyncio.create_task(self._watch_job(job))
@@ -228,6 +231,7 @@ class CompositorManager:
             await get_client().remove_path(job_id)
         except Exception:
             pass
+        unregister_path(job_id)
         return True
 
     async def _wait_until_ready(self, job_id: str, timeout: float = 10.0, interval: float = 0.5) -> None:
@@ -295,6 +299,7 @@ class CompositorManager:
                     await client.remove_path(job_id)
                 except Exception:
                     pass
+                unregister_path(job_id)
                 async with self._lock:
                     self._jobs.pop(job_id, None)
 
@@ -324,6 +329,7 @@ class CompositorManager:
                 await client.remove_path(job.job_id)
             except Exception:
                 pass
+            unregister_path(job.job_id)
 
 
 _manager: CompositorManager | None = None

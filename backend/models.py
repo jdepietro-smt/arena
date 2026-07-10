@@ -41,6 +41,11 @@ class AlertAction(str, enum.Enum):
     webhook = "webhook"
 
 
+class ManagedPathType(str, enum.Enum):
+    composite = "composite"
+    external_source = "external_source"
+
+
 # ---------------------------------------------------------------------------
 # SQLModel tables
 # ---------------------------------------------------------------------------
@@ -104,6 +109,25 @@ class AlertRule(SQLModel, table=True):
     threshold: float
     action: AlertAction
     is_active: bool = Field(default=True)
+
+
+class ManagedPath(SQLModel, table=True):
+    """
+    A mediamtx path this app created and is responsible for tearing down.
+
+    Registered when a compositor job or external source successfully calls
+    add_path, and unregistered when it's cleanly removed. Rows still present
+    at startup are orphans from a process that restarted without a clean
+    shutdown — the reconciliation step in main.py's lifespan handler removes
+    both the mediamtx path and the row.
+    """
+
+    __tablename__ = "managed_paths"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True, min_length=1, max_length=128)
+    path_type: ManagedPathType
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------
