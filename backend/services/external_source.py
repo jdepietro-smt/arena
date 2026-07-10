@@ -69,6 +69,11 @@ class _YoutubeSource:
         cmd = [
             "yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist", "--verbose",
             "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+            # Non-web player clients (android_vr etc, which yt-dlp tries by
+            # default) don't use browser cookies the same way and can hit
+            # their own LOGIN_REQUIRED wall regardless of cookies/PO token —
+            # force the client that actually honors both together.
+            "--extractor-args", "youtube:player_client=web",
         ]
         if os.path.isfile(COOKIES_PATH):
             cmd += ["--cookies", COOKIES_PATH]
