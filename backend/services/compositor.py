@@ -163,6 +163,7 @@ class CompositorManager:
 
     async def ensure_job(self, paths: list[str]) -> str:
         job_id = _job_id(paths)
+        is_new = False
         async with self._lock:
             job = self._jobs.get(job_id)
             if job is not None and job.running:
@@ -177,7 +178,27 @@ class CompositorManager:
             await job.start()
             self._jobs[job_id] = job
             asyncio.create_task(self._watch_job(job))
-            return job_id
+            is_new = True
+
+        if is_new:
+            # Wait for ffmpeg to actually start publishing before handing the
+            # job_id back — otherwise the frontend's first WHEP attempt races
+            # a still-starting composite and gets a 404. Don't hold the
+            # manager lock while doing this; it only touches this one job.
+            await self._wait_until_ready(job_id)
+        return job_id
+
+    async def _wait_until_ready(self, job_id: str, timeout: float = 10.0, interval: float = 0.5) -> None:
+        client = get_client()
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                info = await client.get_path(job_id)
+                if info.get("ready"):
+                    return
+            except Exception:
+                pass
+            await asyncio.sleep(interval)
 
     async def _watch_job(self, job: _Job) -> None:
         """

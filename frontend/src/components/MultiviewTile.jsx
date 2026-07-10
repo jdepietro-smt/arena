@@ -85,7 +85,7 @@ export default function MultiviewTile({ path, label, fill = false, showLabel = t
       />
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center px-2 text-center">
-          <span className="text-xs text-gray-500">{error || 'Connecting…'}</span>
+          <span className="text-xs text-gray-500">{error ? 'Waiting for stream…' : 'Connecting…'}</span>
         </div>
       )}
       {showLabel && (
