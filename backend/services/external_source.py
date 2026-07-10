@@ -59,7 +59,11 @@ class _YoutubeSource:
         self._task: asyncio.Task | None = None
 
     async def _resolve(self) -> list[str]:
-        cmd = ["yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist"]
+        # --verbose so we can tell whether the PO-token plugin actually
+        # loaded (yt-dlp prints that at the very start of stderr) — without
+        # it we can only see the final extractor error, not why the plugin
+        # path didn't help.
+        cmd = ["yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist", "--verbose"]
         if os.path.isfile(COOKIES_PATH):
             cmd += ["--cookies", COOKIES_PATH]
         cmd.append(self.url)
@@ -71,7 +75,12 @@ class _YoutubeSource:
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
-            raise RuntimeError((stderr or b"").decode("utf-8", errors="replace").strip()[-500:])
+            text = (stderr or b"").decode("utf-8", errors="replace").strip()
+            # Keep the plugin-loading header (start of output) *and* the
+            # actual error (end of output) — a plain tail truncation drops
+            # the header entirely on verbose runs.
+            head, tail = text[:1200], text[-800:]
+            raise RuntimeError(f"{head}\n...\n{tail}" if len(text) > 2000 else text)
         urls = [u for u in stdout.decode().strip().splitlines() if u]
         if not urls:
             raise RuntimeError("yt-dlp returned no stream URL")
