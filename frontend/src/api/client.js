@@ -45,6 +45,11 @@ export const downloadUrl    = (id) => `/api/recordings/${id}/download`
 export const getMultiviewJobs  = () => api.get('/multiview/jobs').then(r => r.data)
 export const stopMultiviewJob  = (jobId) => api.delete(`/multiview/jobs/${jobId}`)
 
+// --- External sources ---
+export const getExternalSources  = () => api.get('/sources').then(r => r.data)
+export const addYoutubeSource    = (name, url) => api.post('/sources/youtube', { name, url }).then(r => r.data)
+export const removeExternalSource = (name) => api.delete(`/sources/${name}`)
+
 // --- Stats ---
 export const getStats        = (p) => api.get(`/stats/${p}`).then(r => r.data)
 export const getStatsHistory = (p, s) => api.get(`/stats/${p}/history`, { params: { seconds: s } }).then(r => r.data)

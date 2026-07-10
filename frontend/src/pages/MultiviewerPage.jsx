@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getStreams, getMultiviewJobs, stopMultiviewJob } from '../api/client'
+import {
+  getStreams, getMultiviewJobs, stopMultiviewJob,
+  getExternalSources, addYoutubeSource, removeExternalSource,
+} from '../api/client'
 import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
 
 function parseStreamsParam(searchParams) {
@@ -41,6 +44,46 @@ export default function MultiviewerPage() {
       queryClient.invalidateQueries({ queryKey: ['multiview-jobs'] })
     } finally {
       setStoppingId(null)
+    }
+  }
+
+  const { data: externalSources = [] } = useQuery({
+    queryKey: ['external-sources'],
+    queryFn: getExternalSources,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+  })
+  const [showAddSource, setShowAddSource] = useState(false)
+  const [sourceName, setSourceName] = useState('')
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [sourceError, setSourceError] = useState(null)
+  const [addingSource, setAddingSource] = useState(false)
+  const [removingSource, setRemovingSource] = useState(null)
+
+  async function submitYoutubeSource(e) {
+    e.preventDefault()
+    setSourceError(null)
+    setAddingSource(true)
+    try {
+      await addYoutubeSource(sourceName.trim(), sourceUrl.trim())
+      setSourceName('')
+      setSourceUrl('')
+      setShowAddSource(false)
+      queryClient.invalidateQueries({ queryKey: ['external-sources'] })
+    } catch (err) {
+      setSourceError(err.response?.data?.detail || err.message || 'Failed to add source')
+    } finally {
+      setAddingSource(false)
+    }
+  }
+
+  async function removeSource(name) {
+    setRemovingSource(name)
+    try {
+      await removeExternalSource(name)
+      queryClient.invalidateQueries({ queryKey: ['external-sources'] })
+    } finally {
+      setRemovingSource(null)
     }
   }
 
@@ -156,6 +199,70 @@ export default function MultiviewerPage() {
             </div>
           </div>
         )}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold">
+              External Sources
+            </h2>
+            <button
+              onClick={() => setShowAddSource((v) => !v)}
+              className="text-xs text-gray-500 hover:text-gray-300"
+            >
+              {showAddSource ? 'Cancel' : '+ Add'}
+            </button>
+          </div>
+
+          {showAddSource && (
+            <form onSubmit={submitYoutubeSource} className="flex flex-col gap-1.5 mb-2 px-1">
+              <input
+                value={sourceName}
+                onChange={(e) => setSourceName(e.target.value)}
+                placeholder="Name (letters, numbers, - _)"
+                className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+                required
+              />
+              <input
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                placeholder="YouTube URL"
+                className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+                required
+              />
+              {sourceError && <p className="text-xs text-red-400">{sourceError}</p>}
+              <button
+                type="submit"
+                disabled={addingSource}
+                className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
+              >
+                {addingSource ? 'Adding…' : 'Add YouTube source'}
+              </button>
+            </form>
+          )}
+
+          {externalSources.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {externalSources.map((s) => (
+                <div
+                  key={s.name}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    s.status === 'live' ? 'bg-green-500' : s.status === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                  }`} title={s.last_error || s.status} />
+                  <span className="truncate flex-1 text-gray-300" title={s.url}>{s.name}</span>
+                  <button
+                    onClick={() => removeSource(s.name)}
+                    disabled={removingSource === s.name}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-red-500/40 bg-red-600/20 text-red-300 hover:bg-red-600/30 disabled:opacity-50 transition-colors"
+                  >
+                    {removingSource === s.name ? '…' : 'Remove'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {liveStreams.length === 0 && (
           <p className="text-sm text-gray-600 px-1">No live streams right now.</p>
         )}
