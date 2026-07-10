@@ -91,7 +91,38 @@ async def youtube_cookies_status(_user: User = Depends(get_current_active_user))
     if not os.path.isfile(COOKIES_PATH):
         return {"present": False}
     stat = os.stat(COOKIES_PATH)
-    return {"present": True, "size_bytes": stat.st_size, "modified_at": stat.st_mtime}
+
+    # Sanity-check the format/contents without exposing any cookie value —
+    # a common failure mode is uploading a file yt-dlp silently can't use
+    # (wrong export format, or a file with no youtube.com entries at all).
+    looks_like_netscape = False
+    youtube_cookie_lines = 0
+    has_session_cookie = False
+    try:
+        with open(COOKIES_PATH, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("# Netscape HTTP Cookie File") or stripped.startswith("# HTTP Cookie File"):
+                    looks_like_netscape = True
+                    continue
+                if not stripped or stripped.startswith("#"):
+                    continue
+                fields = stripped.split("\t")
+                if len(fields) >= 7 and "youtube.com" in fields[0]:
+                    youtube_cookie_lines += 1
+                    if fields[5] in ("SID", "SAPISID", "SSID", "HSID", "__Secure-1PSID", "__Secure-3PSID"):
+                        has_session_cookie = True
+    except Exception:
+        pass
+
+    return {
+        "present": True,
+        "size_bytes": stat.st_size,
+        "modified_at": stat.st_mtime,
+        "looks_like_netscape_format": looks_like_netscape,
+        "youtube_cookie_lines": youtube_cookie_lines,
+        "has_session_cookie": has_session_cookie,
+    }
 
 
 @router.post("/youtube-cookies", summary="Upload a youtube.com cookies.txt (Netscape format)")
