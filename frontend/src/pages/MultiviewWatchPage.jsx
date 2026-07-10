@@ -26,7 +26,7 @@ function cellRect(index, cols, rows) {
 
 function YoutubeTile({ videoId, style }) {
   return (
-    <div className="absolute bg-black overflow-hidden" style={style}>
+    <div className="absolute bg-black overflow-hidden" style={{ ...style, zIndex: 50 }}>
       <iframe
         src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`}
         className="w-full h-full"
