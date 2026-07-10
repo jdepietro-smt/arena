@@ -60,10 +60,10 @@ function MultiviewTile({ stream }) {
   }, [whepUrl])
 
   return (
-    <div className="relative w-full h-full bg-[#0b0b13] rounded-xl overflow-hidden border border-[#222233]">
+    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
       <video
         ref={videoRef}
-        className="w-full h-full object-contain bg-black"
+        className="w-full h-full object-contain"
         muted
         autoPlay
         playsInline
@@ -165,7 +165,7 @@ export default function MultiviewerPage() {
             Select streams from the left to add them to the multiviewer.
           </div>
         ) : (
-          <div className={`grid ${gridColsClass} auto-rows-fr gap-3 w-full h-full`}>
+          <div className={`grid ${gridColsClass} content-start gap-3 w-full`}>
             {pinnedStreams.map((s) => (
               <MultiviewTile key={s.path} stream={s} />
             ))}
