@@ -41,6 +41,10 @@ export const getRecordings  = () => api.get('/recordings').then(r => r.data)
 export const deleteRecording = (id) => api.delete(`/recordings/${id}`)
 export const downloadUrl    = (id) => `/api/recordings/${id}/download`
 
+// --- Multiview ---
+export const getMultiviewJobs  = () => api.get('/multiview/jobs').then(r => r.data)
+export const stopMultiviewJob  = (jobId) => api.delete(`/multiview/jobs/${jobId}`)
+
 // --- Stats ---
 export const getStats        = (p) => api.get(`/stats/${p}`).then(r => r.data)
 export const getStatsHistory = (p, s) => api.get(`/stats/${p}/history`, { params: { seconds: s } }).then(r => r.data)

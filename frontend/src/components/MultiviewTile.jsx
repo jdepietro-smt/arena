@@ -17,12 +17,17 @@ export function gridColsClassFor(count) {
   return GRID_COLS[Math.min(count, 9)] || GRID_COLS[9]
 }
 
-export default function MultiviewTile({ path, label, fill = false, showLabel = true, muted = true }) {
+export default function MultiviewTile({ path, label, fill = false, showLabel = true, muted = true, onReady }) {
   const videoRef = useRef(null)
   const pcRef = useRef(null)
   const retryTimer = useRef(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (loaded) onReady?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded])
 
   const whepUrl = `/api/whep/${path}/whep`
 

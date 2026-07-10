@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getStreams } from '../api/client'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getStreams, getMultiviewJobs, stopMultiviewJob } from '../api/client'
 import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
 
 function parseStreamsParam(searchParams) {
@@ -17,6 +17,8 @@ export default function MultiviewerPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [pinned, setPinned] = useState(() => parseStreamsParam(searchParams))
   const [copied, setCopied] = useState(false)
+  const queryClient = useQueryClient()
+  const [stoppingId, setStoppingId] = useState(null)
 
   const { data: streams = [] } = useQuery({
     queryKey: ['streams'],
@@ -24,6 +26,23 @@ export default function MultiviewerPage() {
     refetchInterval: 3000,
     refetchIntervalInBackground: true,
   })
+
+  const { data: activeJobs = [] } = useQuery({
+    queryKey: ['multiview-jobs'],
+    queryFn: getMultiviewJobs,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+  })
+
+  async function stopJob(jobId) {
+    setStoppingId(jobId)
+    try {
+      await stopMultiviewJob(jobId)
+      queryClient.invalidateQueries({ queryKey: ['multiview-jobs'] })
+    } finally {
+      setStoppingId(null)
+    }
+  }
 
   const liveStreams = streams.filter((s) => s.ready)
   const pinnedStreams = liveStreams.filter((s) => pinned.has(s.path))
@@ -107,6 +126,34 @@ export default function MultiviewerPage() {
             >
               Open standalone view
             </button>
+          </div>
+        )}
+        {activeJobs.length > 0 && (
+          <div className="mb-4">
+            <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
+              Active Composites
+            </h2>
+            <div className="flex flex-col gap-1">
+              {activeJobs.map((j) => (
+                <div
+                  key={j.job_id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${j.running ? 'bg-green-500' : 'bg-gray-500'}`} />
+                  <span className="truncate flex-1 text-gray-300" title={j.paths.join(', ')}>
+                    {j.paths.join(' + ')}
+                    {j.audio_path && <span className="text-gray-500"> 🔊{j.audio_path}</span>}
+                  </span>
+                  <button
+                    onClick={() => stopJob(j.job_id)}
+                    disabled={stoppingId === j.job_id}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-red-500/40 bg-red-600/20 text-red-300 hover:bg-red-600/30 disabled:opacity-50 transition-colors"
+                  >
+                    {stoppingId === j.job_id ? '…' : 'Stop'}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {liveStreams.length === 0 && (

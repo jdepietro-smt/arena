@@ -22,6 +22,28 @@ export default function MultiviewWatchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get('streams')])
 
+  // Switching audio means requesting a different composite job — rather than
+  // unmounting the current video while the new one spins up (a blank/
+  // "Compositing…" flash every time), keep every requested job mounted,
+  // stacked with older ones on top, until the newest signals it's actually
+  // playing — then drop everything older in one step, no visible gap.
+  const [layers, setLayers] = useState([]) // [{ jobId }], oldest first
+  useEffect(() => {
+    if (!jobId) return
+    setLayers((prev) => (prev.some((l) => l.jobId === jobId) ? prev : [...prev, { jobId }]))
+  }, [jobId])
+
+  const promoteLayer = (readyJobId) => {
+    setLayers((prev) => {
+      const idx = prev.findIndex((l) => l.jobId === readyJobId)
+      // only prune if this is the newest layer — an older one finishing its
+      // (re)connect after a newer request has already superseded it shouldn't
+      // jump back to the front.
+      if (idx === -1 || idx !== prev.length - 1) return prev
+      return [prev[idx]]
+    })
+  }
+
   useEffect(() => {
     if (paths.length === 0) return
     let alive = true
@@ -96,16 +118,22 @@ export default function MultiviewWatchPage() {
           <div className="w-full h-full flex items-center justify-center text-red-400 text-sm">
             Could not start composite: {jobError} — retrying…
           </div>
-        ) : !jobId ? (
+        ) : layers.length === 0 ? (
           <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
             Compositing streams…
           </div>
         ) : (
-          // key={jobId} forces a clean reconnect when the audio selection
-          // changes the underlying job — audio and video are muxed together
-          // server-side, so switching audio means watching a different job,
-          // not swapping a track on the existing one.
-          <MultiviewTile key={jobId} path={jobId} fill showLabel={false} muted={muted} />
+          layers.map((l, i) => (
+            <div key={l.jobId} className="absolute inset-0" style={{ zIndex: layers.length - i }}>
+              <MultiviewTile
+                path={l.jobId}
+                fill
+                showLabel={false}
+                muted={muted}
+                onReady={() => promoteLayer(l.jobId)}
+              />
+            </div>
+          ))
         )}
 
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 gap-3

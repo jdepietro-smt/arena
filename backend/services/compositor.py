@@ -204,6 +204,32 @@ class CompositorManager:
             await self._wait_until_ready(job_id)
         return job_id
 
+    def list_jobs(self) -> list[dict]:
+        return [
+            {
+                "job_id": job.job_id,
+                "paths": job.paths,
+                "audio_path": job.audio_path,
+                "running": job.running,
+                "age_seconds": round(time.monotonic() - job.created_at, 1),
+            }
+            for job in self._jobs.values()
+        ]
+
+    async def stop_job(self, job_id: str) -> bool:
+        """Explicitly tear a job down regardless of reader count. Returns
+        False if no such job is tracked by this process."""
+        async with self._lock:
+            job = self._jobs.pop(job_id, None)
+        if job is None:
+            return False
+        await job.stop()
+        try:
+            await get_client().remove_path(job_id)
+        except Exception:
+            pass
+        return True
+
     async def _wait_until_ready(self, job_id: str, timeout: float = 10.0, interval: float = 0.5) -> None:
         client = get_client()
         deadline = time.monotonic() + timeout
