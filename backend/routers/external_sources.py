@@ -1,9 +1,10 @@
 """
 Router: /api/sources
 
-Add/list/remove external sources (currently just YouTube URLs) that get
-ingested into mediamtx as normal paths — once added, a source shows up in
-GET /api/streams and behaves like any other live stream.
+Add/list/remove external sources — an SRT URL or a YouTube page URL,
+auto-detected by scheme — that get ingested into mediamtx as normal paths.
+Once added, a source shows up in GET /api/streams and behaves like any
+other live stream.
 
 Auth required for all of these — unlike watching an already-live stream,
 claiming a path name and starting a relay is a real, name-colliding action.
@@ -38,12 +39,12 @@ def _plugin_dir() -> str:
     return os.path.join(home, ".yt-dlp", "plugins")
 
 
-class YoutubeSourceRequest(BaseModel):
+class ExternalSourceRequest(BaseModel):
     name: str = Field(..., description="Path name this source will be served as")
-    url: str = Field(..., description="YouTube video/live URL")
+    url: str = Field(..., description="srt://... URL, or a YouTube video/live URL")
 
 
-class YoutubeSourceInfo(BaseModel):
+class ExternalSourceInfo(BaseModel):
     name: str
     url: str
     status: str
@@ -51,12 +52,12 @@ class YoutubeSourceInfo(BaseModel):
     age_seconds: float
 
 
-@router.post("/youtube", response_model=YoutubeSourceInfo, status_code=status.HTTP_201_CREATED,
-             summary="Add a YouTube URL as a live source")
-async def add_youtube_source(
-    body: YoutubeSourceRequest,
+@router.post("", response_model=ExternalSourceInfo, status_code=status.HTTP_201_CREATED,
+             summary="Add an SRT or YouTube URL as a live source")
+async def add_source(
+    body: ExternalSourceRequest,
     _user: User = Depends(get_current_active_user),
-) -> YoutubeSourceInfo:
+) -> ExternalSourceInfo:
     name = body.name.strip()
     url = body.url.strip()
     if not _NAME_RE.match(name):
@@ -74,12 +75,12 @@ async def add_youtube_source(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
     info = next((j for j in manager.list() if j["name"] == name), None)
-    return YoutubeSourceInfo(**info)
+    return ExternalSourceInfo(**info)
 
 
-@router.get("", response_model=list[YoutubeSourceInfo], summary="List external sources")
-async def list_sources(_user: User = Depends(get_current_active_user)) -> list[YoutubeSourceInfo]:
-    return [YoutubeSourceInfo(**s) for s in get_external_sources().list()]
+@router.get("", response_model=list[ExternalSourceInfo], summary="List external sources")
+async def list_sources(_user: User = Depends(get_current_active_user)) -> list[ExternalSourceInfo]:
+    return [ExternalSourceInfo(**s) for s in get_external_sources().list()]
 
 
 @router.delete("/{name}", summary="Stop and remove an external source")

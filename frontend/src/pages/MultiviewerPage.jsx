@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getStreams, getMultiviewJobs, stopMultiviewJob,
-  getExternalSources, addYoutubeSource, removeExternalSource,
+  getExternalSources, addExternalSource, removeExternalSource,
   getYoutubeCookiesStatus, uploadYoutubeCookies, removeYoutubeCookies,
 } from '../api/client'
 import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
@@ -72,29 +72,7 @@ export default function MultiviewerPage() {
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
   })
-  const [showAddSource, setShowAddSource] = useState(false)
-  const [sourceName, setSourceName] = useState('')
-  const [sourceUrl, setSourceUrl] = useState('')
-  const [sourceError, setSourceError] = useState(null)
-  const [addingSource, setAddingSource] = useState(false)
   const [removingSource, setRemovingSource] = useState(null)
-
-  async function submitYoutubeSource(e) {
-    e.preventDefault()
-    setSourceError(null)
-    setAddingSource(true)
-    try {
-      await addYoutubeSource(sourceName.trim(), sourceUrl.trim())
-      setSourceName('')
-      setSourceUrl('')
-      setShowAddSource(false)
-      queryClient.invalidateQueries({ queryKey: ['external-sources'] })
-    } catch (err) {
-      setSourceError(err.response?.data?.detail || err.message || 'Failed to add source')
-    } finally {
-      setAddingSource(false)
-    }
-  }
 
   async function removeSource(name) {
     setRemovingSource(name)
@@ -142,9 +120,10 @@ export default function MultiviewerPage() {
 
   const [youtubeEmbeds, setYoutubeEmbeds] = useState(loadYoutubeEmbeds)
   const [pinnedYoutubeIds, setPinnedYoutubeIds] = useState(() => new Set())
-  const [embedUrl, setEmbedUrl] = useState('')
-  const [embedName, setEmbedName] = useState('')
-  const [embedError, setEmbedError] = useState(null)
+  const [linkName, setLinkName] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+  const [linkError, setLinkError] = useState(null)
+  const [addingLink, setAddingLink] = useState(false)
   const [renamingId, setRenamingId] = useState(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -153,21 +132,48 @@ export default function MultiviewerPage() {
     localStorage.setItem(YOUTUBE_EMBEDS_KEY, JSON.stringify(next))
   }
 
-  function addYoutubeEmbed(e) {
+  // One field for either kind of external link: an srt:// URL becomes a
+  // real ingested stream (mediamtx pulls it natively, shows up in Live
+  // Streams once ready); anything else that looks like a YouTube URL
+  // becomes a client-side embed (no server ingestion, no bot-check risk).
+  async function submitExternalLink(e) {
     e.preventDefault()
-    setEmbedError(null)
-    const videoId = extractYoutubeId(embedUrl.trim())
-    if (!videoId) {
-      setEmbedError('Could not find a video ID in that URL')
+    setLinkError(null)
+    const url = linkUrl.trim()
+    const name = linkName.trim()
+
+    if (url.toLowerCase().startsWith('srt://')) {
+      if (!name) {
+        setLinkError('Name is required for an SRT source')
+        return
+      }
+      setAddingLink(true)
+      try {
+        await addExternalSource(name, url)
+        queryClient.invalidateQueries({ queryKey: ['external-sources'] })
+        setLinkUrl('')
+        setLinkName('')
+      } catch (err) {
+        setLinkError(err.response?.data?.detail || err.message || 'Failed to add source')
+      } finally {
+        setAddingLink(false)
+      }
       return
     }
-    if (youtubeEmbeds.some((y) => y.videoId === videoId)) {
-      setEmbedError('Already added')
+
+    const videoId = extractYoutubeId(url)
+    if (videoId) {
+      if (youtubeEmbeds.some((y) => y.videoId === videoId)) {
+        setLinkError('Already added')
+        return
+      }
+      persistEmbeds([...youtubeEmbeds, { videoId, url, label: name || videoId }])
+      setLinkUrl('')
+      setLinkName('')
       return
     }
-    persistEmbeds([...youtubeEmbeds, { videoId, url: embedUrl.trim(), label: embedName.trim() || videoId }])
-    setEmbedUrl('')
-    setEmbedName('')
+
+    setLinkError('Enter an SRT URL (srt://...) or a YouTube link')
   }
 
   function removeYoutubeEmbed(videoId) {
@@ -319,72 +325,45 @@ export default function MultiviewerPage() {
           </div>
         )}
         <div className="mb-4">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold">
-              External Sources
-            </h2>
+          <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
+            External Links
+          </h2>
+          <p className="text-xs text-gray-600 mb-2 px-1">
+            One field for either — an srt:// URL becomes a real ingested stream (shows up in Live Streams below once ready); a YouTube URL becomes an embed (YouTube's own player, no bot-check risk).
+          </p>
+
+          <form onSubmit={submitExternalLink} className="flex flex-col gap-1.5 mb-2 px-1">
+            <input
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="srt://... or YouTube URL"
+              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+            />
+            <input
+              value={linkName}
+              onChange={(e) => setLinkName(e.target.value)}
+              placeholder="Name"
+              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+            />
+            {linkError && <p className="text-xs text-red-400">{linkError}</p>}
             <button
-              onClick={() => setShowAddSource((v) => !v)}
-              className="text-xs text-gray-500 hover:text-gray-300"
+              type="submit"
+              disabled={addingLink}
+              className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
             >
-              {showAddSource ? 'Cancel' : '+ Add'}
+              {addingLink ? 'Adding…' : 'Add link'}
             </button>
-          </div>
-
-          <div className="flex items-center gap-2 mb-2 px-1 text-xs">
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus?.present ? 'bg-green-500' : 'bg-gray-600'}`} />
-            <span className="text-gray-500 flex-1">
-              {cookiesStatus?.present ? 'YouTube cookies loaded' : 'No YouTube cookies (may hit bot checks)'}
-            </span>
-            {cookiesStatus?.present ? (
-              <button onClick={clearCookies} disabled={uploadingCookies} className="text-gray-500 hover:text-red-300 disabled:opacity-50">
-                Clear
-              </button>
-            ) : (
-              <label className="text-indigo-300 hover:text-indigo-200 cursor-pointer">
-                {uploadingCookies ? 'Uploading…' : 'Upload'}
-                <input type="file" accept=".txt" onChange={handleCookiesFile} disabled={uploadingCookies} className="hidden" />
-              </label>
-            )}
-          </div>
-          {cookiesError && <p className="text-xs text-red-400 mb-2 px-1">{cookiesError}</p>}
-
-          {showAddSource && (
-            <form onSubmit={submitYoutubeSource} className="flex flex-col gap-1.5 mb-2 px-1">
-              <input
-                value={sourceName}
-                onChange={(e) => setSourceName(e.target.value)}
-                placeholder="Name (letters, numbers, - _)"
-                className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
-                required
-              />
-              <input
-                value={sourceUrl}
-                onChange={(e) => setSourceUrl(e.target.value)}
-                placeholder="YouTube URL"
-                className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
-                required
-              />
-              {sourceError && <p className="text-xs text-red-400">{sourceError}</p>}
-              <button
-                type="submit"
-                disabled={addingSource}
-                className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
-              >
-                {addingSource ? 'Adding…' : 'Add YouTube source'}
-              </button>
-            </form>
-          )}
+          </form>
 
           {externalSources.length > 0 && (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 mb-3">
               {externalSources.map((s) => (
                 <div
                   key={s.name}
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    s.status === 'live' ? 'bg-green-500' : s.status === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                    s.status === 'live' || s.status === 'srt' ? 'bg-green-500' : s.status === 'error' ? 'bg-red-500' : 'bg-yellow-500'
                   }`} title={s.last_error || s.status} />
                   <span className="truncate flex-1 text-gray-300" title={s.url}>{s.name}</span>
                   <button
@@ -398,36 +377,29 @@ export default function MultiviewerPage() {
               ))}
             </div>
           )}
-        </div>
 
-        <div className="mb-4">
-          <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
-            YouTube Embeds
-          </h2>
-          <p className="text-xs text-gray-600 mb-2 px-1">
-            Plays via YouTube's own embedded player — no bot-check issues, included in both the preview here and the composited standalone link.
-          </p>
-          <form onSubmit={addYoutubeEmbed} className="flex flex-col gap-1.5 mb-2 px-1">
-            <input
-              value={embedUrl}
-              onChange={(e) => setEmbedUrl(e.target.value)}
-              placeholder="YouTube URL"
-              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
-            />
-            <input
-              value={embedName}
-              onChange={(e) => setEmbedName(e.target.value)}
-              placeholder="Name (optional)"
-              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
-            />
-            {embedError && <p className="text-xs text-red-400">{embedError}</p>}
-            <button
-              type="submit"
-              className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
-            >
-              Add embed
-            </button>
-          </form>
+          <details className="mb-2">
+            <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-400 px-1">
+              Advanced: YouTube cookies (only needed if ingesting YouTube as a real composited stream, not an embed)
+            </summary>
+            <div className="flex items-center gap-2 mt-2 mb-1 px-1 text-xs">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus?.present ? 'bg-green-500' : 'bg-gray-600'}`} />
+              <span className="text-gray-500 flex-1">
+                {cookiesStatus?.present ? 'YouTube cookies loaded' : 'No YouTube cookies (may hit bot checks)'}
+              </span>
+              {cookiesStatus?.present ? (
+                <button onClick={clearCookies} disabled={uploadingCookies} className="text-gray-500 hover:text-red-300 disabled:opacity-50">
+                  Clear
+                </button>
+              ) : (
+                <label className="text-indigo-300 hover:text-indigo-200 cursor-pointer">
+                  {uploadingCookies ? 'Uploading…' : 'Upload'}
+                  <input type="file" accept=".txt" onChange={handleCookiesFile} disabled={uploadingCookies} className="hidden" />
+                </label>
+              )}
+            </div>
+            {cookiesError && <p className="text-xs text-red-400 mb-1 px-1">{cookiesError}</p>}
+          </details>
 
           {youtubeEmbeds.length > 0 && (
             <div className="flex flex-col gap-1">

@@ -45,9 +45,9 @@ export const downloadUrl    = (id) => `/api/recordings/${id}/download`
 export const getMultiviewJobs  = () => api.get('/multiview/jobs').then(r => r.data)
 export const stopMultiviewJob  = (jobId) => api.delete(`/multiview/jobs/${jobId}`)
 
-// --- External sources ---
+// --- External sources (SRT or YouTube-via-yt-dlp, auto-detected by URL) ---
 export const getExternalSources  = () => api.get('/sources').then(r => r.data)
-export const addYoutubeSource    = (name, url) => api.post('/sources/youtube', { name, url }).then(r => r.data)
+export const addExternalSource   = (name, url) => api.post('/sources', { name, url }).then(r => r.data)
 export const removeExternalSource = (name) => api.delete(`/sources/${name}`)
 
 export const getYoutubeCookiesStatus = () => api.get('/sources/youtube-cookies/status').then(r => r.data)

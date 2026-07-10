@@ -1,16 +1,24 @@
 """
-External source manager — ingests non-native sources (currently: YouTube
-URLs) into mediamtx as normal paths, so they behave exactly like any other
-live stream: WHEP-playable, listed in /api/streams, addable to the
-multiviewer.
+External source manager — ingests non-native sources into mediamtx as
+normal paths, so they behave exactly like any other live stream:
+WHEP-playable, listed in /api/streams, addable to the multiviewer.
 
-YouTube doesn't expose a stable, directly-ingestible media URL — yt-dlp
-resolves the actual underlying manifest URL from the page URL, and that
-resolved URL can expire (especially for live streams, where it's a
-time-limited token) or the pull can simply drop. So unlike a plain external
-SRT source (which mediamtx could just be configured to pull forever on its
-own), a YouTube source needs an actively-supervised loop here: resolve,
-spawn ffmpeg, and if it ever exits, re-resolve and restart with backoff.
+Two kinds, dispatched by URL scheme:
+
+- srt://...  — mediamtx can just be configured to pull this forever on its
+  own (add_path with source=the URL); no process of ours to supervise at
+  all, mediamtx handles reconnects transparently.
+- anything else (currently: YouTube URLs) — yt-dlp resolves the actual
+  underlying manifest URL from the page URL, and that resolved URL can
+  expire (especially for live streams, where it's a time-limited token) or
+  the pull can simply drop, and YouTube's bot detection means it isn't
+  even reliably resolvable at all from many server IPs. So this needs an
+  actively-supervised loop: resolve, spawn ffmpeg, and if it ever exits,
+  re-resolve and restart with backoff. (The multiviewer's primary way of
+  showing a YouTube video is actually the client-side iframe embed in
+  MultiviewerPage/MultiviewWatchPage, which has none of these problems —
+  this yt-dlp path exists for whoever wants a real ingested/composited
+  YouTube source anyway.)
 
 API:
     await get_external_sources().add(name: str, url: str) -> None
@@ -168,16 +176,35 @@ class _YoutubeSource:
         self.proc = None
 
 
+class _SrtSource:
+    """No process to supervise — mediamtx pulls the SRT URL itself and
+    handles reconnects transparently. This just tracks that we're
+    responsible for the path, for listing/removal/reconciliation."""
+
+    def __init__(self, name: str, url: str) -> None:
+        self.name = name
+        self.url = url
+        self.created_at = time.monotonic()
+
+
 class ExternalSourceManager:
     def __init__(self) -> None:
         self._sources: dict[str, _YoutubeSource] = {}
+        self._srt_sources: dict[str, _SrtSource] = {}
         self._lock = asyncio.Lock()
 
     async def add(self, name: str, url: str) -> None:
         async with self._lock:
-            if name in self._sources:
+            if name in self._sources or name in self._srt_sources:
                 raise ValueError(f"Source '{name}' already exists")
             client = get_client()
+
+            if url.lower().startswith("srt://"):
+                await client.add_path(name, {"source": url})
+                register_path(name, ManagedPathType.external_source)
+                self._srt_sources[name] = _SrtSource(name, url)
+                return
+
             try:
                 await client.add_path(name, {"source": "publisher"})
             except Exception as exc:
@@ -189,10 +216,15 @@ class ExternalSourceManager:
 
     async def remove(self, name: str) -> bool:
         async with self._lock:
-            source = self._sources.pop(name, None)
-        if source is None:
-            return False
-        await source.stop()
+            if name in self._srt_sources:
+                del self._srt_sources[name]
+                source = None
+            else:
+                source = self._sources.pop(name, None)
+                if source is None:
+                    return False
+        if source is not None:
+            await source.stop()
         try:
             await get_client().remove_path(name)
         except Exception:
@@ -201,7 +233,7 @@ class ExternalSourceManager:
         return True
 
     def list(self) -> list[dict]:
-        return [
+        youtube = [
             {
                 "name": s.name,
                 "url": s.url,
@@ -211,11 +243,24 @@ class ExternalSourceManager:
             }
             for s in self._sources.values()
         ]
+        srt = [
+            {
+                "name": s.name,
+                "url": s.url,
+                "status": "srt",
+                "last_error": None,
+                "age_seconds": round(time.monotonic() - s.created_at, 1),
+            }
+            for s in self._srt_sources.values()
+        ]
+        return youtube + srt
 
     async def stop_all(self) -> None:
         async with self._lock:
             sources = list(self._sources.values())
+            srt_names = list(self._srt_sources.keys())
             self._sources.clear()
+            self._srt_sources.clear()
         client = get_client()
         for s in sources:
             await s.stop()
@@ -224,6 +269,12 @@ class ExternalSourceManager:
             except Exception:
                 pass
             unregister_path(s.name)
+        for name in srt_names:
+            try:
+                await client.remove_path(name)
+            except Exception:
+                pass
+            unregister_path(name)
 
 
 _manager: ExternalSourceManager | None = None
