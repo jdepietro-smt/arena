@@ -78,11 +78,19 @@ class _Job:
         for path in self.paths:
             cmd += ["-rtsp_transport", "tcp", "-i", f"rtsp://localhost:{_RTSP_PORT}/{path}"]
 
-        scale_parts = [f"[{i}:v]scale={cell_w}:{cell_h}[v{i}]" for i in range(len(self.paths))]
-        stack_inputs = "".join(f"[v{i}]" for i in range(len(self.paths)))
+        n = len(self.paths)
+        scale_parts = [f"[{i}:v]scale={cell_w}:{cell_h}[v{i}]" for i in range(n)]
+        stack_inputs = "".join(f"[v{i}]" for i in range(n))
+
+        # Explicit pixel-offset layout instead of xstack's grid=/fill= shorthand
+        # — those were only added in FFmpeg 5.1, and this server's build predates
+        # it. layout=x_y|x_y|... has been supported since xstack was introduced.
+        layout = "|".join(
+            f"{(i % cols) * cell_w}_{(i // cols) * cell_h}" for i in range(n)
+        )
         filter_complex = (
             ";".join(scale_parts)
-            + f";{stack_inputs}xstack=inputs={len(self.paths)}:grid={cols}x{rows}[outv]"
+            + f";{stack_inputs}xstack=inputs={n}:layout={layout}[outv]"
         )
 
         return cmd + [
