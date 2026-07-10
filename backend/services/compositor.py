@@ -129,7 +129,34 @@ class CompositorManager:
                 logger.warning("add_path failed for %s (may already exist): %s", job_id, exc)
             await job.start()
             self._jobs[job_id] = job
+            asyncio.create_task(self._watch_job(job))
             return job_id
+
+    async def _watch_job(self, job: _Job) -> None:
+        """
+        Drain the job's stderr pipe for its whole lifetime (a PIPE that's
+        never read can fill and block ffmpeg's write() calls forever — a
+        silent hang, not a crash) and log the tail if it exits unexpectedly.
+        """
+        proc = job.proc
+        if proc is None:
+            return
+        try:
+            _, stderr_bytes = await proc.communicate()
+        except Exception:
+            return
+
+        async with self._lock:
+            if self._jobs.get(job.job_id) is job and job.proc is proc:
+                self._jobs.pop(job.job_id, None)
+            else:
+                return  # replaced or stopped intentionally — nothing to log
+
+        stderr = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
+        logger.error(
+            "Composite job %s exited unexpectedly (rc=%s): %s",
+            job.job_id, proc.returncode, stderr[-2000:],
+        )
 
     async def _reap_once(self) -> None:
         client = get_client()

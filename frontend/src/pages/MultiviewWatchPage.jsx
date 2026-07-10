@@ -69,7 +69,6 @@ export default function MultiviewWatchPage() {
     let retryTimer = null
 
     const requestJob = async () => {
-      setJobError(null)
       try {
         const res = await fetch('/api/multiview/jobs', {
           method: 'POST',
@@ -78,7 +77,10 @@ export default function MultiviewWatchPage() {
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        if (alive) setJobId(data.job_id)
+        if (alive) {
+          setJobId(data.job_id)
+          setJobError(null)
+        }
       } catch (e) {
         if (!alive) return
         setJobError(e.message || 'failed to start composite')
@@ -87,9 +89,15 @@ export default function MultiviewWatchPage() {
     }
 
     requestJob()
+    // Re-assert the job periodically — ensure_job is a no-op if it's already
+    // running, but transparently restarts it if the ffmpeg process died, so
+    // the page recovers on its own instead of needing a reload.
+    const healthTimer = setInterval(requestJob, 15000)
+
     return () => {
       alive = false
       clearTimeout(retryTimer)
+      clearInterval(healthTimer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get('streams')])
