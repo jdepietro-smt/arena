@@ -24,11 +24,69 @@ function cellRect(index, cols, rows) {
   }
 }
 
-function YoutubeTile({ videoId, style }) {
+const YT_AUDIO_PREFIX = 'yt:'
+
+// Loaded once globally — every YoutubeTile shares the same API script/promise.
+let ytApiPromise = null
+function loadYoutubeApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT)
+  if (ytApiPromise) return ytApiPromise
+  ytApiPromise = new Promise((resolve) => {
+    const prev = window.onYouTubeIframeAPIReady
+    window.onYouTubeIframeAPIReady = () => {
+      prev?.()
+      resolve(window.YT)
+    }
+    const tag = document.createElement('script')
+    tag.src = 'https://www.youtube.com/iframe_api'
+    document.head.appendChild(tag)
+  })
+  return ytApiPromise
+}
+
+function useYoutubeApiReady() {
+  const [ready, setReady] = useState(!!window.YT?.Player)
+  useEffect(() => {
+    if (ready) return
+    let cancelled = false
+    loadYoutubeApi().then(() => { if (!cancelled) setReady(true) })
+    return () => { cancelled = true }
+  }, [ready])
+  return ready
+}
+
+// Wraps the iframe with the YouTube IFrame Player API (enablejsapi=1) so the
+// audio dropdown can mute/unmute it directly, in place — reloading the
+// iframe's src to toggle mute would restart playback from the beginning.
+function YoutubeTile({ videoId, style, active, registerPlayer }) {
+  const iframeId = `yt-tile-${videoId}`
+  const apiReady = useYoutubeApiReady()
+  const activeRef = useRef(active)
+  activeRef.current = active
+
+  useEffect(() => {
+    if (!apiReady) return
+    const player = new window.YT.Player(iframeId, {
+      events: {
+        onReady: (e) => {
+          registerPlayer(videoId, e.target)
+          if (activeRef.current) e.target.unMute()
+          else e.target.mute()
+        },
+      },
+    })
+    return () => {
+      try { player.destroy?.() } catch { /* ignore */ }
+      registerPlayer(videoId, null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiReady, videoId])
+
   return (
     <div className="absolute bg-black overflow-hidden" style={{ ...style, zIndex: 50 }}>
       <iframe
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`}
+        id={iframeId}
+        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&playsinline=1&origin=${window.location.origin}`}
         className="w-full h-full"
         title={videoId}
         frameBorder="0"
@@ -45,8 +103,9 @@ export default function MultiviewWatchPage() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [jobId, setJobId] = useState(null)
   const [jobError, setJobError] = useState(null)
-  const [audioPath, setAudioPath] = useState('')
-  const [muted, setMuted] = useState(true)
+  // '' (muted), a plain SDI path, or `yt:<videoId>` — one control for every
+  // feed, SDI or YouTube, instead of separate mute switches per tile.
+  const [activeAudio, setActiveAudio] = useState('')
 
   const paths = (searchParams.get('streams') || '')
     .split(',')
@@ -56,6 +115,10 @@ export default function MultiviewWatchPage() {
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean)
+
+  const audioPath = paths.includes(activeAudio) ? activeAudio : ''
+  const activeYoutubeId = activeAudio.startsWith(YT_AUDIO_PREFIX) ? activeAudio.slice(YT_AUDIO_PREFIX.length) : null
+  const compositeMuted = !audioPath
 
   // Same grid the backend computed the composite with: real streams first,
   // then any genuinely-wasted rounding cells, then one reserved cell per
@@ -69,11 +132,31 @@ export default function MultiviewWatchPage() {
     rect: cellRect(paths.length + wasted + i, cols, rows),
   }))
 
-  // Deselect if the chosen audio source drops out of the current stream list.
+  const ytPlayersRef = useRef({}) // videoId -> YT.Player
+  const registerPlayer = (videoId, player) => {
+    if (player) ytPlayersRef.current[videoId] = player
+    else delete ytPlayersRef.current[videoId]
+  }
+
+  // Whenever the selection changes, sync every already-ready YouTube player
+  // (new players apply the current selection themselves in onReady).
   useEffect(() => {
-    if (audioPath && !paths.includes(audioPath)) setAudioPath('')
+    Object.entries(ytPlayersRef.current).forEach(([id, player]) => {
+      if (!player?.mute) return
+      if (id === activeYoutubeId) player.unMute()
+      else player.mute()
+    })
+  }, [activeYoutubeId])
+
+  // Deselect if the chosen audio source drops out of the current selection.
+  useEffect(() => {
+    if (activeAudio && !audioPath && activeYoutubeId && !youtubeIds.includes(activeYoutubeId)) {
+      setActiveAudio('')
+    } else if (activeAudio && !audioPath && !activeYoutubeId) {
+      setActiveAudio('')
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('streams')])
+  }, [searchParams.get('streams'), searchParams.get('youtube')])
 
   // Switching audio means requesting a different composite job — rather than
   // unmounting the current video while the new one spins up (a blank/
@@ -170,7 +253,7 @@ export default function MultiviewWatchPage() {
           path={l.jobId}
           fill
           showLabel={false}
-          muted={muted}
+          muted={compositeMuted}
           onReady={() => promoteLayer(l.jobId)}
         />
       </div>
@@ -196,7 +279,13 @@ export default function MultiviewWatchPage() {
                 YouTube overlays below land, via the same grid math. */}
             {sdiLayer}
             {youtubeRects.map(({ id, rect }) => (
-              <YoutubeTile key={id} videoId={id} style={rect} />
+              <YoutubeTile
+                key={id}
+                videoId={id}
+                style={rect}
+                active={activeYoutubeId === id}
+                registerPlayer={registerPlayer}
+              />
             ))}
           </div>
         )}
@@ -209,45 +298,23 @@ export default function MultiviewWatchPage() {
           </span>
 
           <div className="flex items-center gap-3 shrink-0 pointer-events-auto">
-            {paths.length > 0 && (
+            {(paths.length > 0 || youtubeIds.length > 0) && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400">Audio:</span>
                 <select
-                  value={audioPath}
-                  onChange={(e) => {
-                    setAudioPath(e.target.value)
-                    setMuted(!e.target.value)
-                  }}
+                  value={activeAudio}
+                  onChange={(e) => setActiveAudio(e.target.value)}
                   className="text-xs bg-black/60 border border-white/20 text-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500/50"
                 >
                   <option value="">Muted</option>
                   {paths.map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
+                  {youtubeIds.map((id) => (
+                    <option key={id} value={`${YT_AUDIO_PREFIX}${id}`}>YouTube: {id}</option>
+                  ))}
                 </select>
               </div>
-            )}
-
-            {audioPath && (
-              <button
-                onClick={() => setMuted((m) => !m)}
-                className="flex items-center justify-center w-8 h-8 rounded-lg text-xs font-semibold transition-colors
-                  bg-white/10 text-white/80 border border-white/20 hover:bg-white/20"
-                title={muted ? 'Unmute' : 'Mute'}
-              >
-                {muted ? (
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                      d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                      d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                  </svg>
-                )}
-              </button>
             )}
 
             <button
