@@ -149,3 +149,16 @@ async def delete_youtube_cookies(_admin: User = Depends(require_admin)) -> dict:
         os.remove(COOKIES_PATH)
         return {"removed": True}
     return {"removed": False}
+
+
+@router.get("/debug/plugin-dir", summary="Debug: what yt-dlp's plugin dir actually looks like")
+async def debug_plugin_dir(_admin: User = Depends(require_admin)) -> dict:
+    home = os.environ.get("HOME")
+    plugins_dir = os.path.join(home or "/root", ".yt-dlp", "plugins")
+    entries = []
+    if os.path.isdir(plugins_dir):
+        for name in os.listdir(plugins_dir):
+            full = os.path.join(plugins_dir, name)
+            entries.append({"name": name, "size_bytes": os.path.getsize(full) if os.path.isfile(full) else None,
+                             "is_dir": os.path.isdir(full)})
+    return {"HOME": home, "plugins_dir": plugins_dir, "plugins_dir_exists": os.path.isdir(plugins_dir), "entries": entries}
