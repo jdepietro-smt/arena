@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getRecordings, deleteRecording, downloadUrl } from '../api/client'
+import { getRecordings, deleteRecording, fetchRecordingBlobUrl } from '../api/client'
 
 function formatDuration(seconds) {
   if (seconds == null) return '—'
@@ -55,7 +55,25 @@ function StatusBadge({ status }) {
   )
 }
 
-function RecordingCard({ rec, onDelete }) {
+function RecordingCard({ rec, onDelete, onPreview }) {
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      const url = await fetchRecordingBlobUrl(rec.id)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = rec.filename || rec.name || `recording-${rec.id}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="bg-[#111118] border border-[#222233] rounded-xl p-4 flex flex-col gap-3 hover:border-[#333355] transition-colors">
       <div className="flex items-start justify-between gap-2">
@@ -95,13 +113,21 @@ function RecordingCard({ rec, onDelete }) {
       </div>
       <div className="flex gap-2 pt-1 border-t border-[#222233]">
         {rec.status !== 'recording' && (
-          <a
-            href={downloadUrl(rec.id)}
-            className="flex-1 text-center text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/60 py-1.5 rounded-lg transition-colors"
-            download
-          >
-            Download
-          </a>
+          <>
+            <button
+              onClick={() => onPreview(rec)}
+              className="flex-1 text-xs text-gray-300 hover:text-white border border-[#333355] hover:border-[#555577] py-1.5 rounded-lg transition-colors"
+            >
+              Preview
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex-1 text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/60 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {downloading ? 'Preparing…' : 'Download'}
+            </button>
+          </>
         )}
         <button
           onClick={() => onDelete(rec)}
@@ -114,9 +140,52 @@ function RecordingCard({ rec, onDelete }) {
   )
 }
 
+function PreviewModal({ rec, onClose }) {
+  const [url, setUrl] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    let objectUrl = null
+    fetchRecordingBlobUrl(rec.id, { inline: true })
+      .then((u) => {
+        if (!alive) { URL.revokeObjectURL(u); return }
+        objectUrl = u
+        setUrl(u)
+      })
+      .catch(() => alive && setError('Could not load recording'))
+    return () => {
+      alive = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rec.id])
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={onClose}>
+      <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-300 truncate">{rec.filename || rec.name}</span>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-sm px-2 py-1">✕ Close</button>
+        </div>
+        <div className="bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
+          {error ? (
+            <span className="text-red-400 text-sm">{error}</span>
+          ) : url ? (
+            <video src={url} controls autoPlay className="w-full h-full" />
+          ) : (
+            <span className="text-gray-600 text-sm">Loading…</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function RecordingsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [previewRec, setPreviewRec] = useState(null)
 
   const { data: recordings = [], isLoading } = useQuery({
     queryKey: ['recordings'],
@@ -177,7 +246,7 @@ export default function RecordingsPage() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             {active.map(rec => (
-              <RecordingCard key={rec.id} rec={rec} onDelete={handleDelete} />
+              <RecordingCard key={rec.id} rec={rec} onDelete={handleDelete} onPreview={setPreviewRec} />
             ))}
           </div>
         </div>
@@ -211,10 +280,12 @@ export default function RecordingsPage() {
 
         <div className="grid grid-cols-3 gap-3">
           {filtered.map(rec => (
-            <RecordingCard key={rec.id} rec={rec} onDelete={handleDelete} />
+            <RecordingCard key={rec.id} rec={rec} onDelete={handleDelete} onPreview={setPreviewRec} />
           ))}
         </div>
       </div>
+
+      {previewRec && <PreviewModal rec={previewRec} onClose={() => setPreviewRec(null)} />}
     </div>
   )
 }

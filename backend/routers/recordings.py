@@ -216,6 +216,42 @@ async def download_recording(
 
 
 @router.get(
+    "/{recording_id}/stream",
+    summary="Stream a recording inline for browser preview",
+)
+async def stream_recording(
+    recording_id: int,
+    session: Session = Depends(get_session),
+    _user: User = Depends(get_current_active_user),
+) -> FileResponse:
+    """
+    Same file as /download, but without Content-Disposition: attachment —
+    lets a <video> element play it in place instead of the browser treating
+    every request as a save-to-disk. FileResponse (Starlette) already
+    supports Range requests, so seeking works normally.
+    """
+    recording = await _get_recording_or_404(session, recording_id)
+    file_path = _resolve_path(recording.filename)
+
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recording file not found on disk",
+        )
+
+    suffix = file_path.suffix.lower()
+    media_type_map = {
+        ".mp4": "video/mp4",
+        ".mkv": "video/x-matroska",
+        ".ts": "video/mp2t",
+        ".mov": "video/quicktime",
+    }
+    media_type = media_type_map.get(suffix, "application/octet-stream")
+
+    return FileResponse(path=str(file_path), media_type=media_type)
+
+
+@router.get(
     "/{recording_id}/thumbnail",
     summary="Return recording thumbnail image",
 )

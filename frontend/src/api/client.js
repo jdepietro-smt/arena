@@ -37,9 +37,15 @@ export const deactivateRoute = (id) => api.put(`/routes/${id}/deactivate`).then(
 export const deleteRoute  = (id) => api.delete(`/routes/${id}`)
 
 // --- Recordings ---
+// download/stream endpoints require the Authorization header, which a plain
+// <a href>/<video src> can't send (browsers only attach it via fetch/axios).
+// Fetch as a blob through the authenticated client instead, then hand the
+// caller an object URL — works for both playback and triggering a save.
 export const getRecordings  = () => api.get('/recordings').then(r => r.data)
 export const deleteRecording = (id) => api.delete(`/recordings/${id}`)
-export const downloadUrl    = (id) => `/api/recordings/${id}/download`
+export const fetchRecordingBlobUrl = (id, { inline = false } = {}) =>
+  api.get(`/recordings/${id}/${inline ? 'stream' : 'download'}`, { responseType: 'blob' })
+    .then(r => URL.createObjectURL(r.data))
 
 // --- Multiview ---
 export const getMultiviewJobs  = () => api.get('/multiview/jobs').then(r => r.data)
