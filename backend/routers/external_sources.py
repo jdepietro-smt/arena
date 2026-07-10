@@ -208,3 +208,30 @@ async def debug_fetch_plugin(_admin: User = Depends(require_admin)) -> dict:
         f.write(data)
 
     return {"saved_to": dest, "size_bytes": len(data)}
+
+
+@router.get("/debug/stale-paths", summary="Debug: mediamtx paths that never went ready")
+async def list_stale_paths(_admin: User = Depends(require_admin)) -> list[dict]:
+    """
+    Anything sitting at ready=false is either still starting up or
+    permanently dead — this is a quick way to see (and then clean up via
+    the force-remove endpoint below) leftovers from failed attempts,
+    without needing server console access at all.
+    """
+    from ..services.mediamtx import get_client as get_mediamtx_client
+
+    paths = await get_mediamtx_client().get_paths()
+    return [{"name": p.get("name"), "ready": p.get("ready", False)} for p in paths if not p.get("ready")]
+
+
+@router.post("/debug/force-remove-path/{name}", summary="Force-remove any mediamtx path by name, tracked or not")
+async def force_remove_path(name: str, _admin: User = Depends(require_admin)) -> dict:
+    from ..services.mediamtx import get_client as get_mediamtx_client
+    from ..services.managed_paths import unregister_path
+
+    try:
+        await get_mediamtx_client().remove_path(name)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    unregister_path(name)  # harmless no-op if it was never tracked here
+    return {"removed": name}

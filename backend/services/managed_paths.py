@@ -22,7 +22,7 @@ from sqlmodel import Session, select
 
 from ..database import engine
 from ..models import ManagedPath, ManagedPathType
-from .mediamtx import get_client
+from .mediamtx import MediaMTXError, get_client
 
 logger = logging.getLogger(__name__)
 
@@ -61,19 +61,29 @@ async def reconcile_orphans() -> None:
         return
 
     client = get_client()
-    removed = 0
+    # Only drop tracking for paths we actually confirmed gone (removed, or
+    # already 404 — mediamtx's own notion of "not there" counts as success).
+    # A row whose removal genuinely failed must stay tracked so the *next*
+    # startup retries it — silently untracking on failure is exactly how
+    # these turn into permanent, nothing-ever-cleans-this-up orphans.
+    resolved_ids = []
     for orphan in orphans:
         try:
             await client.remove_path(orphan.name)
-            removed += 1
+            resolved_ids.append(orphan.id)
+        except MediaMTXError as exc:
+            if exc.status_code == 404:
+                resolved_ids.append(orphan.id)
+            else:
+                logger.warning("Startup reconciliation: failed to remove orphan path %s: %s", orphan.name, exc)
         except Exception as exc:
             logger.warning("Startup reconciliation: failed to remove orphan path %s: %s", orphan.name, exc)
 
     with Session(engine) as session:
-        for orphan in orphans:
-            row = session.get(ManagedPath, orphan.id)
+        for oid in resolved_ids:
+            row = session.get(ManagedPath, oid)
             if row is not None:
                 session.delete(row)
         session.commit()
 
-    logger.info("Startup reconciliation: removed %d/%d orphaned mediamtx path(s)", removed, len(orphans))
+    logger.info("Startup reconciliation: removed %d/%d orphaned mediamtx path(s)", len(resolved_ids), len(orphans))
