@@ -1,7 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getStreams } from '../api/client'
 import { startWhep } from '../utils/whep'
+
+function parseStreamsParam(searchParams) {
+  return new Set(
+    (searchParams.get('streams') || '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+  )
+}
 
 function MultiviewTile({ stream }) {
   const videoRef = useRef(null)
@@ -95,7 +105,9 @@ const GRID_COLS = {
 }
 
 export default function MultiviewerPage() {
-  const [pinned, setPinned] = useState(() => new Set())
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [pinned, setPinned] = useState(() => parseStreamsParam(searchParams))
+  const [copied, setCopied] = useState(false)
 
   const { data: streams = [] } = useQuery({
     queryKey: ['streams'],
@@ -107,13 +119,22 @@ export default function MultiviewerPage() {
   const liveStreams = streams.filter((s) => s.ready)
   const pinnedStreams = liveStreams.filter((s) => pinned.has(s.path))
 
+  function applyPinned(next) {
+    setPinned(next)
+    setSearchParams(next.size ? { streams: Array.from(next).join(',') } : {}, { replace: true })
+  }
+
   function togglePin(path) {
-    setPinned((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
+    const next = new Set(pinned)
+    if (next.has(path)) next.delete(path)
+    else next.add(path)
+    applyPinned(next)
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(window.location.href)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
   const gridColsClass = GRID_COLS[Math.min(pinnedStreams.length, 9)] || GRID_COLS[9]
@@ -127,13 +148,21 @@ export default function MultiviewerPage() {
           </h2>
           {pinned.size > 0 && (
             <button
-              onClick={() => setPinned(new Set())}
+              onClick={() => applyPinned(new Set())}
               className="text-xs text-gray-500 hover:text-gray-300"
             >
               Clear
             </button>
           )}
         </div>
+        {pinned.size > 0 && (
+          <button
+            onClick={copyLink}
+            className="w-full mb-3 px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+          >
+            {copied ? 'Link copied' : 'Copy shareable link'}
+          </button>
+        )}
         {liveStreams.length === 0 && (
           <p className="text-sm text-gray-600 px-1">No live streams right now.</p>
         )}
