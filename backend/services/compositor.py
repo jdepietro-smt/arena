@@ -40,8 +40,20 @@ def _job_id(paths: list[str]) -> str:
 
 
 def _grid(n: int) -> tuple[int, int]:
+    """
+    Pick cols/rows whose product is exactly n (no leftover cells).
+
+    xstack's `grid=WxH` shorthand requires exactly cols*rows inputs; the
+    `fill` option that pads a partial grid only exists in FFmpeg 5.1+, and
+    this server's build doesn't have it, so we can't rely on it. Search
+    upward from sqrt(n) for the first exact divisor instead — a "most
+    square" factor pair when n has one, otherwise a single row (e.g. a
+    prime count like 5 or 7 renders 5x1 rather than crashing).
+    """
     cols = math.ceil(math.sqrt(n))
-    rows = math.ceil(n / cols)
+    while n % cols != 0:
+        cols += 1
+    rows = n // cols
     return cols, rows
 
 
@@ -70,7 +82,7 @@ class _Job:
         stack_inputs = "".join(f"[v{i}]" for i in range(len(self.paths)))
         filter_complex = (
             ";".join(scale_parts)
-            + f";{stack_inputs}xstack=inputs={len(self.paths)}:grid={cols}x{rows}:fill=black[outv]"
+            + f";{stack_inputs}xstack=inputs={len(self.paths)}:grid={cols}x{rows}[outv]"
         )
 
         return cmd + [
