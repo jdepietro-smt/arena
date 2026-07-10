@@ -252,6 +252,23 @@ async def stream_recording(
 
 
 @router.get(
+    "/debug/hls-dir",
+    summary="Debug: what's actually in /tmp/arena-hls right now",
+)
+async def debug_hls_dir(_admin: User = Depends(require_admin)) -> dict:
+    base = Path("/tmp/arena-hls")
+    if not base.is_dir():
+        return {"exists": False, "path": str(base)}
+    entries = {}
+    for stream_dir in base.iterdir():
+        if not stream_dir.is_dir():
+            continue
+        files = sorted(p.name for p in stream_dir.iterdir())
+        entries[stream_dir.name] = files
+    return {"exists": True, "path": str(base), "entries": entries}
+
+
+@router.get(
     "/{recording_id}/debug/probe",
     summary="Debug: ffprobe the recording's actual codecs",
 )
