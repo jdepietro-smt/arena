@@ -355,11 +355,11 @@ export default function MultiviewerPage() {
             </button>
           </form>
 
-          {externalSources.length > 0 && (
-            <div className="flex flex-col gap-1 mb-3">
+          {(externalSources.length > 0 || youtubeEmbeds.length > 0) && (
+            <div className="flex flex-col gap-1 mb-2">
               {externalSources.map((s) => (
                 <div
-                  key={s.name}
+                  key={`src-${s.name}`}
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -375,37 +375,10 @@ export default function MultiviewerPage() {
                   </button>
                 </div>
               ))}
-            </div>
-          )}
 
-          <details className="mb-2">
-            <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-400 px-1">
-              Advanced: YouTube cookies (only needed if ingesting YouTube as a real composited stream, not an embed)
-            </summary>
-            <div className="flex items-center gap-2 mt-2 mb-1 px-1 text-xs">
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus?.present ? 'bg-green-500' : 'bg-gray-600'}`} />
-              <span className="text-gray-500 flex-1">
-                {cookiesStatus?.present ? 'YouTube cookies loaded' : 'No YouTube cookies (may hit bot checks)'}
-              </span>
-              {cookiesStatus?.present ? (
-                <button onClick={clearCookies} disabled={uploadingCookies} className="text-gray-500 hover:text-red-300 disabled:opacity-50">
-                  Clear
-                </button>
-              ) : (
-                <label className="text-indigo-300 hover:text-indigo-200 cursor-pointer">
-                  {uploadingCookies ? 'Uploading…' : 'Upload'}
-                  <input type="file" accept=".txt" onChange={handleCookiesFile} disabled={uploadingCookies} className="hidden" />
-                </label>
-              )}
-            </div>
-            {cookiesError && <p className="text-xs text-red-400 mb-1 px-1">{cookiesError}</p>}
-          </details>
-
-          {youtubeEmbeds.length > 0 && (
-            <div className="flex flex-col gap-1">
               {youtubeEmbeds.map((y) => (
                 <div
-                  key={y.videoId}
+                  key={`yt-${y.videoId}`}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border transition-colors ${
                     pinnedYoutubeIds.has(y.videoId)
                       ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
@@ -446,6 +419,29 @@ export default function MultiviewerPage() {
               ))}
             </div>
           )}
+
+          <details>
+            <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-400 px-1">
+              Advanced: YouTube cookies (only needed if ingesting YouTube as a real composited stream, not an embed)
+            </summary>
+            <div className="flex items-center gap-2 mt-2 mb-1 px-1 text-xs">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus?.present ? 'bg-green-500' : 'bg-gray-600'}`} />
+              <span className="text-gray-500 flex-1">
+                {cookiesStatus?.present ? 'YouTube cookies loaded' : 'No YouTube cookies (may hit bot checks)'}
+              </span>
+              {cookiesStatus?.present ? (
+                <button onClick={clearCookies} disabled={uploadingCookies} className="text-gray-500 hover:text-red-300 disabled:opacity-50">
+                  Clear
+                </button>
+              ) : (
+                <label className="text-indigo-300 hover:text-indigo-200 cursor-pointer">
+                  {uploadingCookies ? 'Uploading…' : 'Upload'}
+                  <input type="file" accept=".txt" onChange={handleCookiesFile} disabled={uploadingCookies} className="hidden" />
+                </label>
+              )}
+            </div>
+            {cookiesError && <p className="text-xs text-red-400 mb-1 px-1">{cookiesError}</p>}
+          </details>
         </div>
 
         {liveStreams.length === 0 && (
