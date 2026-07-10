@@ -4,7 +4,7 @@ import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
 
 function YoutubeTile({ videoId }) {
   return (
-    <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
+    <div className="relative w-full h-full bg-black overflow-hidden">
       <iframe
         src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`}
         className="w-full h-full"
@@ -129,15 +129,15 @@ export default function MultiviewWatchPage() {
   }, [])
 
   const sdiCell = paths.length === 0 ? null : jobError ? (
-    <div className="w-full h-full flex items-center justify-center text-red-400 text-sm bg-black rounded-lg">
+    <div className="w-full h-full flex items-center justify-center text-red-400 text-sm bg-black">
       Could not start composite: {jobError} — retrying…
     </div>
   ) : layers.length === 0 ? (
-    <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm bg-black rounded-lg">
+    <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm bg-black">
       Compositing streams…
     </div>
   ) : (
-    <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
+    <div className="relative w-full h-full bg-black overflow-hidden">
       {layers.map((l, i) => (
         <div key={l.jobId} className="absolute inset-0" style={{ zIndex: layers.length - i }}>
           <MultiviewTile
@@ -165,7 +165,7 @@ export default function MultiviewWatchPage() {
             No streams specified — add ?streams=path1,path2 and/or ?youtube=videoId to the URL.
           </div>
         ) : gridMode ? (
-          <div className={`absolute inset-0 grid ${gridColsClass} content-start gap-2 p-2`}>
+          <div className={`absolute inset-0 grid ${gridColsClass} auto-rows-fr gap-px bg-[#222233]`}>
             {sdiCell}
             {youtubeIds.map((id) => (
               <YoutubeTile key={id} videoId={id} />
