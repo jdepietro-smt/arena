@@ -85,6 +85,11 @@ async def list_streams(
             detail=f"MediaMTX unavailable: {exc.detail}",
         )
 
+    # Multiview composite paths (mv_<hash>) are internal plumbing, not real
+    # sources — they shouldn't clutter the dashboard/streams list, live or
+    # not. They're surfaced separately via GET /api/multiview/jobs instead.
+    raw_paths = [p for p in raw_paths if not p.get("name", "").startswith("mv_")]
+
     presets_by_name: dict[str, StreamPreset] = {
         p.name: p
         for p in session.exec(select(StreamPreset)).all()
