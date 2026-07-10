@@ -1,10 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
+import MultiviewTile from '../components/MultiviewTile'
 
-function YoutubeTile({ videoId }) {
+// Mirrors backend/services/compositor.py's _grid(): smallest near-square
+// cols x rows with cols*rows >= n. Must stay identical to that function —
+// the server bakes its own black filler cells into the composited video
+// using this exact math, and YouTube tiles are overlaid client-side on top
+// of wherever that grid says the reserved cells landed.
+function computeGrid(n) {
+  const cols = Math.ceil(Math.sqrt(n))
+  const rows = Math.ceil(n / cols)
+  return [cols, rows]
+}
+
+function cellRect(index, cols, rows) {
+  const col = index % cols
+  const row = Math.floor(index / cols)
+  return {
+    left: `${(col / cols) * 100}%`,
+    top: `${(row / rows) * 100}%`,
+    width: `${(1 / cols) * 100}%`,
+    height: `${(1 / rows) * 100}%`,
+  }
+}
+
+function YoutubeTile({ videoId, style }) {
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden">
+    <div className="absolute bg-black overflow-hidden" style={style}>
       <iframe
         src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`}
         className="w-full h-full"
@@ -35,12 +57,17 @@ export default function MultiviewWatchPage() {
     .map((p) => p.trim())
     .filter(Boolean)
 
-  // Grid mode (composited SDI tile + separate YouTube iframe tiles) only
-  // kicks in once a YouTube embed is actually present — a pure-SDI link
-  // keeps the original single full-bleed composited video untouched.
-  const gridMode = youtubeIds.length > 0
-  const totalCells = (paths.length > 0 ? 1 : 0) + youtubeIds.length
-  const gridColsClass = gridColsClassFor(totalCells || 1)
+  // Same grid the backend computed the composite with: real streams first,
+  // then any genuinely-wasted rounding cells, then one reserved cell per
+  // YouTube embed — always last, i.e. bottom-right-most in the grid.
+  const needed = paths.length + youtubeIds.length
+  const [cols, rows] = computeGrid(Math.max(needed, 1))
+  const capacity = cols * rows
+  const wasted = capacity - needed
+  const youtubeRects = youtubeIds.map((id, i) => ({
+    id,
+    rect: cellRect(paths.length + wasted + i, cols, rows),
+  }))
 
   // Deselect if the chosen audio source drops out of the current stream list.
   useEffect(() => {
@@ -80,7 +107,7 @@ export default function MultiviewWatchPage() {
         const res = await fetch('/api/multiview/jobs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paths, audio_path: audioPath || null }),
+          body: JSON.stringify({ paths, audio_path: audioPath || null, blank_slots: youtubeIds.length }),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
@@ -107,7 +134,7 @@ export default function MultiviewWatchPage() {
       clearInterval(healthTimer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('streams'), audioPath])
+  }, [searchParams.get('streams'), searchParams.get('youtube'), audioPath])
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -128,28 +155,26 @@ export default function MultiviewWatchPage() {
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
 
-  const sdiCell = paths.length === 0 ? null : jobError ? (
-    <div className="w-full h-full flex items-center justify-center text-red-400 text-sm bg-black">
+  const sdiLayer = paths.length === 0 ? null : jobError ? (
+    <div className="absolute inset-0 flex items-center justify-center text-red-400 text-sm bg-black">
       Could not start composite: {jobError} — retrying…
     </div>
   ) : layers.length === 0 ? (
-    <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm bg-black">
+    <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm bg-black">
       Compositing streams…
     </div>
   ) : (
-    <div className="relative w-full h-full bg-black overflow-hidden">
-      {layers.map((l, i) => (
-        <div key={l.jobId} className="absolute inset-0" style={{ zIndex: layers.length - i }}>
-          <MultiviewTile
-            path={l.jobId}
-            fill
-            showLabel={false}
-            muted={muted}
-            onReady={() => promoteLayer(l.jobId)}
-          />
-        </div>
-      ))}
-    </div>
+    layers.map((l, i) => (
+      <div key={l.jobId} className="absolute inset-0" style={{ zIndex: layers.length - i }}>
+        <MultiviewTile
+          path={l.jobId}
+          fill
+          showLabel={false}
+          muted={muted}
+          onReady={() => promoteLayer(l.jobId)}
+        />
+      </div>
+    ))
   )
 
   return (
@@ -164,15 +189,16 @@ export default function MultiviewWatchPage() {
           <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
             No streams specified — add ?streams=path1,path2 and/or ?youtube=videoId to the URL.
           </div>
-        ) : gridMode ? (
-          <div className={`absolute inset-0 grid ${gridColsClass} auto-rows-fr gap-px bg-[#222233]`}>
-            {sdiCell}
-            {youtubeIds.map((id) => (
-              <YoutubeTile key={id} videoId={id} />
+        ) : (
+          <div className="absolute inset-0">
+            {/* One full-bleed composited video (or placeholder) underneath —
+                it already has black cells baked in exactly where the
+                YouTube overlays below land, via the same grid math. */}
+            {sdiLayer}
+            {youtubeRects.map(({ id, rect }) => (
+              <YoutubeTile key={id} videoId={id} style={rect} />
             ))}
           </div>
-        ) : (
-          sdiCell
         )}
 
         <div className="absolute top-0 left-0 right-0 z-[100] flex items-center justify-between px-4 py-3 gap-3

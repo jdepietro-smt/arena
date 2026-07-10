@@ -31,6 +31,10 @@ router = APIRouter(tags=["multiview"])
 class CompositeJobRequest(BaseModel):
     paths: list[str] = Field(..., min_length=1, max_length=16)
     audio_path: str | None = Field(default=None, description="One of paths, or null for no audio")
+    blank_slots: int = Field(
+        default=0, ge=0, le=16,
+        description="Grid cells to reserve (always last/bottom-right-most) for client-side overlays, e.g. YouTube embeds",
+    )
 
 
 class CompositeJobResponse(BaseModel):
@@ -56,7 +60,7 @@ async def create_job(body: CompositeJobRequest) -> CompositeJobResponse:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="audio_path must be one of paths")
 
     try:
-        job_id = await get_compositor().ensure_job(paths, audio_path)
+        job_id = await get_compositor().ensure_job(paths, audio_path, body.blank_slots)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

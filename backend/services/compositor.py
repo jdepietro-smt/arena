@@ -41,26 +41,24 @@ _REAP_INTERVAL_S = 20
 _REAP_GRACE_S = 30  # don't reap a job younger than this — give the first viewer time to connect
 
 
-def _job_id(paths: list[str], audio_path: str | None) -> str:
-    key = "|".join(sorted(paths)) + "::audio=" + (audio_path or "")
+def _job_id(paths: list[str], audio_path: str | None, blank_slots: int) -> str:
+    key = "|".join(sorted(paths)) + "::audio=" + (audio_path or "") + f"::blanks={blank_slots}"
     return "mv_" + hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
 def _grid(n: int) -> tuple[int, int]:
     """
-    Pick cols/rows whose product is exactly n (no leftover cells).
+    Smallest near-square cols x rows with cols*rows >= n.
 
-    xstack's `grid=WxH` shorthand requires exactly cols*rows inputs; the
-    `fill` option that pads a partial grid only exists in FFmpeg 5.1+, and
-    this server's build doesn't have it, so we can't rely on it. Search
-    upward from sqrt(n) for the first exact divisor instead — a "most
-    square" factor pair when n has one, otherwise a single row (e.g. a
-    prime count like 5 or 7 renders 5x1 rather than crashing).
+    Any cells beyond n are filled with a black lavfi source rather than left
+    to xstack's grid=/fill= shorthand (added in FFmpeg 5.1+, unsupported on
+    this server's build, and previously required an exact cols*rows == n
+    factorization — producing an awkward single-row layout for prime counts
+    like 3 or 5). Providing our own filler frames means any near-square
+    layout is fine regardless of the real/reserved cell count.
     """
     cols = math.ceil(math.sqrt(n))
-    while n % cols != 0:
-        cols += 1
-    rows = n // cols
+    rows = math.ceil(n / cols)
     return cols, rows
 
 
@@ -69,16 +67,29 @@ def _even(n: int) -> int:
 
 
 class _Job:
-    def __init__(self, job_id: str, paths: list[str], audio_path: str | None) -> None:
+    def __init__(self, job_id: str, paths: list[str], audio_path: str | None, blank_slots: int = 0) -> None:
         self.job_id = job_id
         self.paths = paths
         self.audio_path = audio_path
+        self.blank_slots = blank_slots
         self.created_at = time.monotonic()
         self.proc: asyncio.subprocess.Process | None = None
         self.zero_reader_hits = 0
 
     def _build_cmd(self) -> list[str]:
-        cols, rows = _grid(len(self.paths))
+        n_real = len(self.paths)
+        # blank_slots are cells reserved for something the frontend overlays
+        # client-side (a YouTube iframe) — the grid is sized to fit real +
+        # reserved cells, and any leftover cells from rounding up to a
+        # near-square shape are genuinely wasted (always solid black).
+        # Reserved cells are placed LAST (after real streams AND after any
+        # genuinely-wasted filler), so they land at the end of row-major
+        # order — bottom-right-most for a typical near-square grid, matching
+        # where a human would expect an "extra" tile to go.
+        needed = n_real + self.blank_slots
+        cols, rows = _grid(needed)
+        grid_capacity = cols * rows
+        wasted_slots = grid_capacity - needed
         cell_w = _even(_CANVAS_W // cols)
         cell_h = _even(_CANVAS_H // rows)
 
@@ -97,8 +108,13 @@ class _Job:
                 "-use_wallclock_as_timestamps", "1",
                 "-i", f"rtsp://localhost:{_RTSP_PORT}/{path}",
             ]
+        # Every non-real cell (wasted rounding + reserved) is a solid black
+        # lavfi source at the exact cell size — keeps xstack's canvas math
+        # (and every other cell's position) correct without a real input.
+        total_fillers = wasted_slots + self.blank_slots
+        for _ in range(total_fillers):
+            cmd += ["-f", "lavfi", "-i", f"color=black:size={cell_w}x{cell_h}:rate={_OUTPUT_FPS}"]
 
-        n = len(self.paths)
         # fps= normalizes each source to a common, fixed rate independently
         # (duplicating/dropping frames per-stream) before they reach xstack —
         # without it, two sources with slightly different or drifting frame
@@ -110,19 +126,25 @@ class _Job:
             f"[{i}:v]fps={_OUTPUT_FPS},"
             f"scale={cell_w}:{cell_h}:force_original_aspect_ratio=decrease,"
             f"pad={cell_w}:{cell_h}:(ow-iw)/2:(oh-ih)/2:color=black[v{i}]"
-            for i in range(n)
+            for i in range(n_real)
         ]
-        stack_inputs = "".join(f"[v{i}]" for i in range(n))
+        # Filler (lavfi) inputs are already exactly cell_w x cell_h — reference
+        # them directly, no scale/pad needed.
+        stack_inputs = (
+            "".join(f"[v{i}]" for i in range(n_real))
+            + "".join(f"[{n_real + j}:v]" for j in range(total_fillers))
+        )
 
         # Explicit pixel-offset layout instead of xstack's grid=/fill= shorthand
         # — those were only added in FFmpeg 5.1, and this server's build predates
         # it. layout=x_y|x_y|... has been supported since xstack was introduced.
         layout = "|".join(
-            f"{(i % cols) * cell_w}_{(i // cols) * cell_h}" for i in range(n)
+            f"{(i % cols) * cell_w}_{(i // cols) * cell_h}" for i in range(grid_capacity)
         )
         filter_complex = (
             ";".join(scale_parts)
-            + f";{stack_inputs}xstack=inputs={n}:layout={layout}[outv]"
+            + (";" if scale_parts else "")
+            + f"{stack_inputs}xstack=inputs={grid_capacity}:layout={layout}[outv]"
         )
 
         cmd += ["-filter_complex", filter_complex, "-map", "[outv]"]
@@ -179,15 +201,17 @@ class CompositorManager:
         self._lock = asyncio.Lock()
         self._reaper_task: asyncio.Task | None = None
 
-    async def ensure_job(self, paths: list[str], audio_path: str | None = None) -> str:
-        job_id = _job_id(paths, audio_path)
+    async def ensure_job(
+        self, paths: list[str], audio_path: str | None = None, blank_slots: int = 0
+    ) -> str:
+        job_id = _job_id(paths, audio_path, blank_slots)
         is_new = False
         async with self._lock:
             job = self._jobs.get(job_id)
             if job is not None and job.running:
                 return job_id
 
-            job = _Job(job_id, paths, audio_path)
+            job = _Job(job_id, paths, audio_path, blank_slots)
             client = get_client()
             try:
                 await client.add_path(job_id, {"source": "publisher"})
