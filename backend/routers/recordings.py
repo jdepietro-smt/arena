@@ -252,6 +252,34 @@ async def stream_recording(
 
 
 @router.get(
+    "/{recording_id}/debug/probe",
+    summary="Debug: ffprobe the recording's actual codecs",
+)
+async def probe_recording(
+    recording_id: int,
+    session: Session = Depends(get_session),
+    _admin: User = Depends(require_admin),
+) -> dict:
+    import asyncio
+    import json
+
+    recording = await _get_recording_or_404(session, recording_id)
+    file_path = _resolve_path(recording.filename)
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording file not found on disk")
+
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", "-show_format", str(file_path),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                             detail=(stderr or b"").decode("utf-8", errors="replace")[-1000:])
+    return json.loads(stdout.decode("utf-8", errors="replace"))
+
+
+@router.get(
     "/{recording_id}/thumbnail",
     summary="Return recording thumbnail image",
 )
