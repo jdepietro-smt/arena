@@ -19,22 +19,20 @@ function useAudioSelector(paths) {
   const [status, setStatus] = useState('idle') // idle | connecting | live | error
   const [delayMs, setDelayMs] = useState(DEFAULT_AUDIO_DELAY_MS)
 
-  // Lazily build the delay graph and route the <audio> element's output
-  // through it. Must happen inside a user-gesture call stack (the <select>'s
-  // onChange) or the AudioContext stays suspended under autoplay policy.
+  // Lazily build the delay graph (source nodes get attached per-connection,
+  // once the incoming stream is known — see onStream below). Must happen
+  // inside a user-gesture call stack (the <select>'s onChange) or the
+  // AudioContext stays suspended under autoplay policy.
   const ensureAudioGraph = () => {
-    if (audioCtxRef.current || !audioRef.current) return
+    if (audioCtxRef.current) return
     const Ctx = window.AudioContext || window.webkitAudioContext
     if (!Ctx) return
     const ctx = new Ctx()
-    const source = ctx.createMediaElementSource(audioRef.current)
     const delay = ctx.createDelay(10)
     delay.delayTime.value = delayMs / 1000
-    source.connect(delay)
     delay.connect(ctx.destination)
     audioCtxRef.current = ctx
     delayNodeRef.current = delay
-    audioRef.current.muted = true // playback goes through the graph instead
   }
 
   useEffect(() => {
@@ -60,7 +58,10 @@ function useAudioSelector(paths) {
     setStatus('connecting')
     const connect = async () => {
       try {
-        const pc = await startWhepAudioOnly(`/api/whep/${selected}/whep`, audioRef.current)
+        const pc = await startWhepAudioOnly(`/api/whep/${selected}/whep`, audioRef.current, (stream) => {
+          if (!alive || !audioCtxRef.current || !delayNodeRef.current) return
+          audioCtxRef.current.createMediaStreamSource(stream).connect(delayNodeRef.current)
+        })
         if (!alive) {
           pc.close()
           return

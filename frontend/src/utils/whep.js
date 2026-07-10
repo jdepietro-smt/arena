@@ -57,12 +57,18 @@ export async function startWhep(url, videoEl) {
 }
 
 /**
- * Same as startWhep, but negotiates audio only (no video transceiver) and
- * attaches the incoming track to an <audio> element. Used to let a viewer
- * pick one source's audio out of several without decoding every source's
- * video just to hear it.
+ * Same as startWhep, but negotiates audio only (no video transceiver). Used
+ * to let a viewer pick one source's audio out of several without decoding
+ * every source's video just to hear it.
+ *
+ * audioEl gets the raw stream attached (muted) purely to keep the track
+ * flowing reliably across browsers — actual audible output should come from
+ * onStream(stream), fed into a Web Audio graph via createMediaStreamSource.
+ * (createMediaElementSource on an element whose source is a live srcObject
+ * MediaStream, rather than a src="" file, is unreliable and often silent —
+ * it's the wrong API for this case.)
  */
-export async function startWhepAudioOnly(url, audioEl) {
+export async function startWhepAudioOnly(url, audioEl, onStream) {
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
   })
@@ -73,6 +79,7 @@ export async function startWhepAudioOnly(url, audioEl) {
     if (streams[0] && audioEl.srcObject !== streams[0]) {
       audioEl.srcObject = streams[0]
       audioEl.play().catch(() => {})
+      onStream?.(streams[0])
     }
   }
 
