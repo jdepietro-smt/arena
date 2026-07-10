@@ -179,6 +179,15 @@ class MediaMTXClient:
     # Path configuration (dynamic path API)
     # ------------------------------------------------------------------
 
+    async def get_path_config(self, name: str) -> dict[str, Any]:
+        """
+        Return the configuration (source, runOnReady, record, etc.) mediamtx
+        is actually running a given path with right now.
+
+        mediamtx v3: GET /v3/config/paths/get/{name}
+        """
+        return await self._get(f"/v3/config/paths/get/{name}")
+
     async def add_path(self, name: str, config: dict[str, Any]) -> None:
         """
         Add a new path configuration.

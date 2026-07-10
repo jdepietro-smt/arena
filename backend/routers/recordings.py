@@ -252,6 +252,16 @@ async def stream_recording(
 
 
 @router.get(
+    "/debug/path-config/{path_name}",
+    summary="Debug: mediamtx's actual running config for a path (source, runOnReady, etc.)",
+)
+async def debug_path_config(path_name: str, _admin: User = Depends(require_admin)) -> dict:
+    from ..services.mediamtx import get_client as get_mediamtx_client
+
+    return await get_mediamtx_client().get_path_config(path_name)
+
+
+@router.get(
     "/debug/hls-dir",
     summary="Debug: what's actually in /tmp/arena-hls right now",
 )
