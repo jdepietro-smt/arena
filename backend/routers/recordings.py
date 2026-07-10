@@ -256,9 +256,27 @@ async def stream_recording(
     summary="Debug: mediamtx's actual running config for a path (source, runOnReady, etc.)",
 )
 async def debug_path_config(path_name: str, _admin: User = Depends(require_admin)) -> dict:
-    from ..services.mediamtx import get_client as get_mediamtx_client
+    from ..services.mediamtx import MediaMTXError, get_client as get_mediamtx_client
 
-    return await get_mediamtx_client().get_path_config(path_name)
+    client = get_mediamtx_client()
+    try:
+        return await client.get_path_config(path_name)
+    except MediaMTXError as exc:
+        # Live streams usually aren't individually configured — they match a
+        # wildcard entry (e.g. "all") rather than having their own named
+        # config — so also try that, and fall back to the full global config
+        # (which includes the paths section) so there's always something to
+        # compare rather than a bare error.
+        try:
+            wildcard = await client.get_path_config("all")
+        except Exception:
+            wildcard = None
+        return {
+            "error_for_exact_name": str(exc),
+            "wildcard_all_config": wildcard,
+        }
+    except Exception as exc:
+        return {"unexpected_error": f"{type(exc).__name__}: {exc}"}
 
 
 @router.get(
