@@ -62,8 +62,14 @@ class _YoutubeSource:
         # --verbose so we can tell whether the PO-token plugin actually
         # loaded (yt-dlp prints that at the very start of stderr) — without
         # it we can only see the final extractor error, not why the plugin
-        # path didn't help.
-        cmd = ["yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist", "--verbose"]
+        # path didn't help. The bgutil plugin also registers a script-based
+        # provider (needs a locally cloned repo we don't have) alongside the
+        # HTTP one (our Docker container) — force the HTTP one explicitly
+        # rather than letting it pick whichever it tries first.
+        cmd = [
+            "yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist", "--verbose",
+            "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+        ]
         if os.path.isfile(COOKIES_PATH):
             cmd += ["--cookies", COOKIES_PATH]
         cmd.append(self.url)
@@ -76,11 +82,14 @@ class _YoutubeSource:
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
             text = (stderr or b"").decode("utf-8", errors="replace").strip()
-            # Keep the plugin-loading header (start of output) *and* the
-            # actual error (end of output) — a plain tail truncation drops
-            # the header entirely on verbose runs.
-            head, tail = text[:1200], text[-800:]
-            raise RuntimeError(f"{head}\n...\n{tail}" if len(text) > 2000 else text)
+            lines = text.splitlines()
+            # Keep every line mentioning the PO-token machinery in full,
+            # plus the final error — head/tail slicing was dropping the
+            # middle where the actual provider attempt/failure shows up.
+            pot_lines = [ln for ln in lines if "pot" in ln.lower() or "bgutil" in ln.lower()]
+            tail = "\n".join(lines[-15:])
+            summary = "\n".join(pot_lines) if pot_lines else text[:800]
+            raise RuntimeError(f"{summary}\n...\n{tail}")
         urls = [u for u in stdout.decode().strip().splitlines() if u]
         if not urls:
             raise RuntimeError("yt-dlp returned no stream URL")
