@@ -78,14 +78,16 @@ class _Job:
         cmd = ["ffmpeg", "-y", "-loglevel", "warning"]
         for path in self.paths:
             # thread_queue_size avoids input buffers overflowing/blocking when
-            # several independent live sources feed one filter graph; genpts
-            # regenerates timestamps so xstack (which needs a synced frame from
-            # every input to produce one output frame) doesn't stall waiting on
-            # a source whose clock has drifted from the others.
+            # several independent live sources feed one filter graph.
+            # use_wallclock_as_timestamps stamps each frame with real arrival
+            # time instead of trusting the source's own PTS — genpts (tried
+            # first) instead *interpolated* timestamps from an assumed frame
+            # rate, and when that guess didn't match the source, the fps=
+            # filter below stretched playback against it, causing slow motion.
             cmd += [
                 "-thread_queue_size", "512",
                 "-rtsp_transport", "tcp",
-                "-fflags", "+genpts",
+                "-use_wallclock_as_timestamps", "1",
                 "-i", f"rtsp://localhost:{_RTSP_PORT}/{path}",
             ]
 
@@ -94,8 +96,14 @@ class _Job:
         # (duplicating/dropping frames per-stream) before they reach xstack —
         # without it, two sources with slightly different or drifting frame
         # rates make the combined output freeze whenever they fall out of step.
+        # scale uses force_original_aspect_ratio+pad rather than a flat WxH,
+        # since a flat scale stretches/squishes the source to fill the cell
+        # whenever the cell's aspect ratio doesn't match the source's own.
         scale_parts = [
-            f"[{i}:v]fps={_OUTPUT_FPS},scale={cell_w}:{cell_h}[v{i}]" for i in range(n)
+            f"[{i}:v]fps={_OUTPUT_FPS},"
+            f"scale={cell_w}:{cell_h}:force_original_aspect_ratio=decrease,"
+            f"pad={cell_w}:{cell_h}:(ow-iw)/2:(oh-ih)/2:color=black[v{i}]"
+            for i in range(n)
         ]
         stack_inputs = "".join(f"[v{i}]" for i in range(n))
 
