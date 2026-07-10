@@ -7,7 +7,8 @@ import os
 
 from .database import create_db_and_tables, seed_default_admin
 from .services.srt_stats import get_collector
-from .routers import streams, routes, recordings, stats, users, hls_proxy, whep_proxy
+from .services.compositor import get_compositor
+from .routers import streams, routes, recordings, stats, users, hls_proxy, whep_proxy, multiview
 from .auth import router as auth_router
 
 
@@ -17,9 +18,11 @@ async def lifespan(app: FastAPI):
     create_db_and_tables()
     seed_default_admin()
     await get_collector().start()
+    get_compositor().start_reaper()
     yield
     # Shutdown
     await get_collector().stop()
+    await get_compositor().stop()
 
 
 app = FastAPI(
@@ -46,6 +49,7 @@ app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(hls_proxy.router, prefix="/api/hls", tags=["hls"])
 app.include_router(whep_proxy.router, prefix="/api/whep", tags=["whep"])
+app.include_router(multiview.router, prefix="/api/multiview", tags=["multiview"])
 
 
 @app.get("/api/health", tags=["health"])

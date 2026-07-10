@@ -55,3 +55,56 @@ export async function startWhep(url, videoEl) {
   await pc.setRemoteDescription({ type: 'answer', sdp })
   return pc
 }
+
+/**
+ * Same as startWhep, but negotiates audio only (no video transceiver) and
+ * attaches the incoming track to an <audio> element. Used to let a viewer
+ * pick one source's audio out of several without decoding every source's
+ * video just to hear it.
+ */
+export async function startWhepAudioOnly(url, audioEl) {
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  })
+
+  pc.addTransceiver('audio', { direction: 'recvonly' })
+
+  pc.ontrack = ({ streams }) => {
+    if (streams[0] && audioEl.srcObject !== streams[0]) {
+      audioEl.srcObject = streams[0]
+      audioEl.play().catch(() => {})
+    }
+  }
+
+  const offer = await pc.createOffer()
+  await pc.setLocalDescription(offer)
+
+  await new Promise(resolve => {
+    if (pc.iceGatheringState === 'complete') { resolve(); return }
+    const check = () => { if (pc.iceGatheringState === 'complete') resolve() }
+    pc.addEventListener('icegatheringstatechange', check)
+    setTimeout(resolve, 2000)
+  })
+
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/sdp' },
+      body: pc.localDescription.sdp,
+    })
+  } catch (e) {
+    pc.close()
+    throw new Error(`WHEP fetch failed: ${e.message}`)
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    pc.close()
+    throw new Error(`WHEP ${res.status}${body ? ': ' + body.trim() : ''}`)
+  }
+
+  const answerSdp = await res.text()
+  await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+  return pc
+}

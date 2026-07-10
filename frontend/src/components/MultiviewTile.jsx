@@ -17,7 +17,7 @@ export function gridColsClassFor(count) {
   return GRID_COLS[Math.min(count, 9)] || GRID_COLS[9]
 }
 
-export default function MultiviewTile({ path, label }) {
+export default function MultiviewTile({ path, label, fill = false, showLabel = true }) {
   const videoRef = useRef(null)
   const pcRef = useRef(null)
   const retryTimer = useRef(null)
@@ -74,7 +74,7 @@ export default function MultiviewTile({ path, label }) {
   }, [whepUrl])
 
   return (
-    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+    <div className={`relative w-full bg-black rounded-lg overflow-hidden ${fill ? 'h-full' : 'aspect-video'}`}>
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
@@ -88,10 +88,12 @@ export default function MultiviewTile({ path, label }) {
           <span className="text-xs text-gray-500">{error || 'Connecting…'}</span>
         </div>
       )}
-      <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white">
-        <span className={`w-2 h-2 rounded-full ${loaded ? 'bg-green-500' : 'bg-gray-500'}`} />
-        {label || path}
-      </div>
+      {showLabel && (
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white">
+          <span className={`w-2 h-2 rounded-full ${loaded ? 'bg-green-500' : 'bg-gray-500'}`} />
+          {label || path}
+        </div>
+      )}
     </div>
   )
 }
