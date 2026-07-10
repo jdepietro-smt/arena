@@ -132,7 +132,28 @@ export default function MultiviewerPage() {
   }
 
   function copyLink() {
-    navigator.clipboard.writeText(window.location.href)
+    const url = window.location.href
+
+    const fallbackCopy = () => {
+      const textarea = document.createElement('textarea')
+      textarea.value = url
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      try {
+        document.execCommand('copy')
+      } finally {
+        document.body.removeChild(textarea)
+      }
+    }
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).catch(fallbackCopy)
+    } else {
+      fallbackCopy()
+    }
+
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
