@@ -58,7 +58,7 @@ function useYoutubeApiReady() {
 // Wraps the iframe with the YouTube IFrame Player API (enablejsapi=1) so the
 // audio dropdown can mute/unmute it directly, in place — reloading the
 // iframe's src to toggle mute would restart playback from the beginning.
-function YoutubeTile({ videoId, style, active, registerPlayer }) {
+function YoutubeTile({ videoId, label, style, active, registerPlayer }) {
   const iframeId = `yt-tile-${videoId}`
   const apiReady = useYoutubeApiReady()
   const activeRef = useRef(active)
@@ -88,11 +88,15 @@ function YoutubeTile({ videoId, style, active, registerPlayer }) {
         id={iframeId}
         src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&enablejsapi=1&playsinline=1&origin=${window.location.origin}`}
         className="w-full h-full"
-        title={videoId}
+        title={label || videoId}
         frameBorder="0"
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
       />
+      <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white pointer-events-none">
+        <span className="w-2 h-2 rounded-full bg-green-500" />
+        {label || videoId}
+      </div>
     </div>
   )
 }
@@ -115,6 +119,15 @@ export default function MultiviewWatchPage() {
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean)
+  const youtubeLabels = (searchParams.get('ytLabels') || '')
+    .split(',')
+    .map((l) => {
+      try {
+        return decodeURIComponent(l)
+      } catch {
+        return l
+      }
+    })
 
   const audioPath = paths.includes(activeAudio) ? activeAudio : ''
   const activeYoutubeId = activeAudio.startsWith(YT_AUDIO_PREFIX) ? activeAudio.slice(YT_AUDIO_PREFIX.length) : null
@@ -129,6 +142,7 @@ export default function MultiviewWatchPage() {
   const wasted = capacity - needed
   const youtubeRects = youtubeIds.map((id, i) => ({
     id,
+    label: youtubeLabels[i] || id,
     rect: cellRect(paths.length + wasted + i, cols, rows),
   }))
 
@@ -278,10 +292,11 @@ export default function MultiviewWatchPage() {
                 it already has black cells baked in exactly where the
                 YouTube overlays below land, via the same grid math. */}
             {sdiLayer}
-            {youtubeRects.map(({ id, rect }) => (
+            {youtubeRects.map(({ id, label, rect }) => (
               <YoutubeTile
                 key={id}
                 videoId={id}
+                label={label}
                 style={rect}
                 active={activeYoutubeId === id}
                 registerPlayer={registerPlayer}
@@ -310,8 +325,8 @@ export default function MultiviewWatchPage() {
                   {paths.map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
-                  {youtubeIds.map((id) => (
-                    <option key={id} value={`${YT_AUDIO_PREFIX}${id}`}>YouTube: {id}</option>
+                  {youtubeRects.map(({ id, label }) => (
+                    <option key={id} value={`${YT_AUDIO_PREFIX}${id}`}>{label}</option>
                   ))}
                 </select>
               </div>

@@ -143,7 +143,10 @@ export default function MultiviewerPage() {
   const [youtubeEmbeds, setYoutubeEmbeds] = useState(loadYoutubeEmbeds)
   const [pinnedYoutubeIds, setPinnedYoutubeIds] = useState(() => new Set())
   const [embedUrl, setEmbedUrl] = useState('')
+  const [embedName, setEmbedName] = useState('')
   const [embedError, setEmbedError] = useState(null)
+  const [renamingId, setRenamingId] = useState(null)
+  const [renameValue, setRenameValue] = useState('')
 
   function persistEmbeds(next) {
     setYoutubeEmbeds(next)
@@ -162,8 +165,9 @@ export default function MultiviewerPage() {
       setEmbedError('Already added')
       return
     }
-    persistEmbeds([...youtubeEmbeds, { videoId, url: embedUrl.trim() }])
+    persistEmbeds([...youtubeEmbeds, { videoId, url: embedUrl.trim(), label: embedName.trim() || videoId }])
     setEmbedUrl('')
+    setEmbedName('')
   }
 
   function removeYoutubeEmbed(videoId) {
@@ -182,6 +186,17 @@ export default function MultiviewerPage() {
       else next.add(videoId)
       return next
     })
+  }
+
+  function startRenaming(y) {
+    setRenamingId(y.videoId)
+    setRenameValue(y.label || y.videoId)
+  }
+
+  function saveRename(videoId) {
+    const label = renameValue.trim() || videoId
+    persistEmbeds(youtubeEmbeds.map((y) => (y.videoId === videoId ? { ...y, label } : y)))
+    setRenamingId(null)
   }
 
   const liveStreams = streams.filter((s) => s.ready)
@@ -203,7 +218,10 @@ export default function MultiviewerPage() {
   function standaloneUrl() {
     const params = new URLSearchParams()
     if (pinned.size > 0) params.set('streams', Array.from(pinned).join(','))
-    if (pinnedYoutubeIds.size > 0) params.set('youtube', Array.from(pinnedYoutubeIds).join(','))
+    if (pinnedYoutubeEmbeds.length > 0) {
+      params.set('youtube', pinnedYoutubeEmbeds.map((y) => y.videoId).join(','))
+      params.set('ytLabels', pinnedYoutubeEmbeds.map((y) => encodeURIComponent(y.label || y.videoId)).join(','))
+    }
     return `${window.location.origin}/multiview?${params.toString()}`
   }
 
@@ -387,13 +405,19 @@ export default function MultiviewerPage() {
             YouTube Embeds
           </h2>
           <p className="text-xs text-gray-600 mb-2 px-1">
-            Plays via YouTube's own embedded player — no bot-check issues, but preview only (not included in the composited standalone link yet).
+            Plays via YouTube's own embedded player — no bot-check issues, included in both the preview here and the composited standalone link.
           </p>
           <form onSubmit={addYoutubeEmbed} className="flex flex-col gap-1.5 mb-2 px-1">
             <input
               value={embedUrl}
               onChange={(e) => setEmbedUrl(e.target.value)}
               placeholder="YouTube URL"
+              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+            />
+            <input
+              value={embedName}
+              onChange={(e) => setEmbedName(e.target.value)}
+              placeholder="Name (optional)"
               className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
             />
             {embedError && <p className="text-xs text-red-400">{embedError}</p>}
@@ -410,15 +434,36 @@ export default function MultiviewerPage() {
               {youtubeEmbeds.map((y) => (
                 <div
                   key={y.videoId}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border cursor-pointer transition-colors ${
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border transition-colors ${
                     pinnedYoutubeIds.has(y.videoId)
                       ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
                       : 'text-gray-300 hover:bg-[#1a1a2e] border-[#222233]'
-                  }`}
-                  onClick={() => toggleYoutubePin(y.videoId)}
+                  } ${renamingId === y.videoId ? '' : 'cursor-pointer'}`}
+                  onClick={renamingId === y.videoId ? undefined : () => toggleYoutubePin(y.videoId)}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pinnedYoutubeIds.has(y.videoId) ? 'bg-indigo-400' : 'bg-gray-600'}`} />
-                  <span className="truncate flex-1" title={y.url}>{y.videoId}</span>
+                  {renamingId === y.videoId ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveRename(y.videoId); if (e.key === 'Escape') setRenamingId(null) }}
+                      onBlur={() => saveRename(y.videoId)}
+                      className="flex-1 min-w-0 bg-[#1a1a2e] border border-indigo-500/40 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none"
+                    />
+                  ) : (
+                    <span className="truncate flex-1" title={y.url}>{y.label || y.videoId}</span>
+                  )}
+                  {renamingId !== y.videoId && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); startRenaming(y) }}
+                      className="shrink-0 text-gray-500 hover:text-gray-300"
+                      title="Rename"
+                    >
+                      ✎
+                    </button>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); removeYoutubeEmbed(y.videoId) }}
                     className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-red-500/40 bg-red-600/20 text-red-300 hover:bg-red-600/30 transition-colors"
@@ -471,11 +516,15 @@ export default function MultiviewerPage() {
                 <iframe
                   src={`https://www.youtube.com/embed/${y.videoId}?autoplay=1&mute=1`}
                   className="w-full h-full"
-                  title={y.videoId}
+                  title={y.label || y.videoId}
                   frameBorder="0"
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
                 />
+                <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white pointer-events-none">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  {y.label || y.videoId}
+                </div>
               </div>
             ))}
           </div>
