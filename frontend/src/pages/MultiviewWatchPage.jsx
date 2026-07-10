@@ -1,0 +1,74 @@
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
+
+export default function MultiviewWatchPage() {
+  const [searchParams] = useSearchParams()
+  const containerRef = useRef(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const paths = (searchParams.get('streams') || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().catch(() => {})
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+  }
+
+  // Native fullscreen (not CSS position:fixed) sizes correctly against the
+  // real screen regardless of browser chrome/viewport quirks.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  const gridColsClass = gridColsClassFor(paths.length || 1)
+
+  return (
+    <div ref={containerRef} className="min-h-screen w-screen bg-[#0a0a0f] flex flex-col">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[#222233] shrink-0">
+        <span className="text-sm text-gray-400 font-mono">
+          Multiviewer — {paths.length} stream{paths.length !== 1 ? 's' : ''}
+        </span>
+        <button
+          onClick={toggleFullscreen}
+          className="flex items-center justify-center w-8 h-8 rounded-lg text-xs font-semibold transition-colors
+            bg-white/10 text-white/80 border border-white/20 hover:bg-white/20"
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {isFullscreen ? (
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      <div className="flex-1 p-3 overflow-auto min-h-0">
+        {paths.length === 0 ? (
+          <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
+            No streams specified — add ?streams=path1,path2 to the URL.
+          </div>
+        ) : (
+          <div className={`grid ${gridColsClass} content-start gap-3 w-full`}>
+            {paths.map((p) => (
+              <MultiviewTile key={p} path={p} label={p} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

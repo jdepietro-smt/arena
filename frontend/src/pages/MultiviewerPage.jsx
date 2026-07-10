@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getStreams } from '../api/client'
-import { startWhep } from '../utils/whep'
+import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
 
 function parseStreamsParam(searchParams) {
   return new Set(
@@ -11,97 +11,6 @@ function parseStreamsParam(searchParams) {
       .map((p) => p.trim())
       .filter(Boolean)
   )
-}
-
-function MultiviewTile({ stream }) {
-  const videoRef = useRef(null)
-  const pcRef = useRef(null)
-  const retryTimer = useRef(null)
-  const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(null)
-
-  const whepUrl = `/api/whep/${stream.path}/whep`
-
-  useEffect(() => {
-    let alive = true
-
-    const connect = async () => {
-      clearTimeout(retryTimer.current)
-      if (pcRef.current) {
-        pcRef.current.close()
-        pcRef.current = null
-      }
-      if (!alive || !videoRef.current) return
-      setError(null)
-      try {
-        const pc = await startWhep(whepUrl, videoRef.current)
-        if (!alive) {
-          pc.close()
-          return
-        }
-        pcRef.current = pc
-        pc.addEventListener('connectionstatechange', () => {
-          if (!alive) return
-          const s = pc.connectionState
-          if (s === 'failed' || s === 'disconnected') {
-            setLoaded(false)
-            retryTimer.current = setTimeout(connect, s === 'failed' ? 4000 : 3000)
-          }
-        })
-      } catch (e) {
-        if (!alive) return
-        setError(e.message || 'connect failed')
-        retryTimer.current = setTimeout(connect, 5000)
-      }
-    }
-
-    const video = videoRef.current
-    const onPlaying = () => alive && setLoaded(true)
-    video?.addEventListener('playing', onPlaying)
-    connect()
-
-    return () => {
-      alive = false
-      clearTimeout(retryTimer.current)
-      video?.removeEventListener('playing', onPlaying)
-      pcRef.current?.close()
-      pcRef.current = null
-    }
-  }, [whepUrl])
-
-  return (
-    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        muted
-        autoPlay
-        playsInline
-        style={{ display: loaded ? 'block' : 'none' }}
-      />
-      {!loaded && (
-        <div className="absolute inset-0 flex items-center justify-center px-2 text-center">
-          <span className="text-xs text-gray-500">{error || 'Connecting…'}</span>
-        </div>
-      )}
-      <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white">
-        <span className={`w-2 h-2 rounded-full ${loaded ? 'bg-green-500' : 'bg-gray-500'}`} />
-        {stream.name || stream.path}
-      </div>
-    </div>
-  )
-}
-
-const GRID_COLS = {
-  1: 'grid-cols-1',
-  2: 'grid-cols-2',
-  3: 'grid-cols-2',
-  4: 'grid-cols-2',
-  5: 'grid-cols-3',
-  6: 'grid-cols-3',
-  7: 'grid-cols-3',
-  8: 'grid-cols-4',
-  9: 'grid-cols-3',
 }
 
 export default function MultiviewerPage() {
@@ -131,8 +40,16 @@ export default function MultiviewerPage() {
     applyPinned(next)
   }
 
+  function standaloneUrl() {
+    return `${window.location.origin}/multiview?streams=${Array.from(pinned).join(',')}`
+  }
+
+  function openStandalone() {
+    window.open(standaloneUrl(), '_blank', 'noopener')
+  }
+
   function copyLink() {
-    const url = window.location.href
+    const url = standaloneUrl()
 
     const fallbackCopy = () => {
       const textarea = document.createElement('textarea')
@@ -158,7 +75,7 @@ export default function MultiviewerPage() {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const gridColsClass = GRID_COLS[Math.min(pinnedStreams.length, 9)] || GRID_COLS[9]
+  const gridColsClass = gridColsClassFor(pinnedStreams.length)
 
   return (
     <div className="flex h-full min-h-0">
@@ -177,12 +94,20 @@ export default function MultiviewerPage() {
           )}
         </div>
         {pinned.size > 0 && (
-          <button
-            onClick={copyLink}
-            className="w-full mb-3 px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
-          >
-            {copied ? 'Link copied' : 'Copy shareable link'}
-          </button>
+          <div className="flex flex-col gap-1.5 mb-3">
+            <button
+              onClick={copyLink}
+              className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+            >
+              {copied ? 'Link copied' : 'Copy standalone link'}
+            </button>
+            <button
+              onClick={openStandalone}
+              className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold border border-[#222233] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a2e] transition-colors"
+            >
+              Open standalone view
+            </button>
+          </div>
         )}
         {liveStreams.length === 0 && (
           <p className="text-sm text-gray-600 px-1">No live streams right now.</p>
@@ -217,7 +142,7 @@ export default function MultiviewerPage() {
         ) : (
           <div className={`grid ${gridColsClass} content-start gap-3 w-full`}>
             {pinnedStreams.map((s) => (
-              <MultiviewTile key={s.path} stream={s} />
+              <MultiviewTile key={s.path} path={s.path} label={s.name || s.path} />
             ))}
           </div>
         )}
