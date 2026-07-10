@@ -136,7 +136,7 @@ export default function MultiviewWatchPage() {
           ))
         )}
 
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 gap-3
+        <div className="absolute top-0 left-0 right-0 z-[100] flex items-center justify-between px-4 py-3 gap-3
           bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
           <span className="text-sm text-white/80 font-mono truncate pointer-events-none">
             Multiviewer — {paths.length} stream{paths.length !== 1 ? 's' : ''}
