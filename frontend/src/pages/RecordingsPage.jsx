@@ -16,6 +16,11 @@ function formatSize(bytes) {
   return `${(bytes / 1e6).toFixed(1)} MB`
 }
 
+function fileFormat(filename) {
+  const ext = (filename || '').split('.').pop()
+  return ext ? ext.toUpperCase() : '—'
+}
+
 function formatRelative(ts) {
   if (!ts) return '—'
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
@@ -108,7 +113,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-600 uppercase tracking-wider">Format</span>
-          <span className="text-sm text-gray-300">{rec.format || 'mkv'}</span>
+          <span className="text-sm text-gray-300">{fileFormat(rec.filename || rec.name)}</span>
         </div>
       </div>
       <div className="flex gap-2 pt-1 border-t border-[#222233]">
