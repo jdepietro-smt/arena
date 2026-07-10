@@ -23,7 +23,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=$DEPLOY_DIR
-ExecStart=$VENV/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8001 --workers 2
+ExecStart=$VENV/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8001 --workers 1
 Restart=always
 RestartSec=5
 Environment=PYTHONPATH=$DEPLOY_DIR
