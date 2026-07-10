@@ -162,6 +162,19 @@ async def delete_youtube_cookies(_admin: User = Depends(require_admin)) -> dict:
     return {"removed": False}
 
 
+@router.get("/debug/pot-provider-health", summary="Debug: is the bgutil Docker provider actually reachable")
+async def pot_provider_health(_admin: User = Depends(require_admin)) -> dict:
+    # Any HTTP response (even a 404) proves the port is open and something's
+    # listening — we don't need to guess the server's exact route layout,
+    # just rule out "container isn't actually up/reachable" as the cause.
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get("http://127.0.0.1:4416/")
+            return {"reachable": True, "status_code": resp.status_code, "body": resp.text[:500]}
+    except Exception as exc:
+        return {"reachable": False, "error": str(exc)}
+
+
 @router.get("/debug/plugin-dir", summary="Debug: what yt-dlp's plugin dir actually looks like")
 async def debug_plugin_dir(_admin: User = Depends(require_admin)) -> dict:
     plugins_dir = _plugin_dir()
