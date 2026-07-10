@@ -17,6 +17,24 @@ function parseStreamsParam(searchParams) {
   )
 }
 
+// Matches watch?v=, youtu.be/, embed/, live/, and shorts/ URL forms.
+function extractYoutubeId(url) {
+  const m = url.match(
+    /(?:youtube\.com\/(?:watch\?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  )
+  return m ? m[1] : null
+}
+
+const YOUTUBE_EMBEDS_KEY = 'arena-youtube-embeds'
+
+function loadYoutubeEmbeds() {
+  try {
+    return JSON.parse(localStorage.getItem(YOUTUBE_EMBEDS_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
 export default function MultiviewerPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [pinned, setPinned] = useState(() => parseStreamsParam(searchParams))
@@ -122,8 +140,53 @@ export default function MultiviewerPage() {
     }
   }
 
+  const [youtubeEmbeds, setYoutubeEmbeds] = useState(loadYoutubeEmbeds)
+  const [pinnedYoutubeIds, setPinnedYoutubeIds] = useState(() => new Set())
+  const [embedUrl, setEmbedUrl] = useState('')
+  const [embedError, setEmbedError] = useState(null)
+
+  function persistEmbeds(next) {
+    setYoutubeEmbeds(next)
+    localStorage.setItem(YOUTUBE_EMBEDS_KEY, JSON.stringify(next))
+  }
+
+  function addYoutubeEmbed(e) {
+    e.preventDefault()
+    setEmbedError(null)
+    const videoId = extractYoutubeId(embedUrl.trim())
+    if (!videoId) {
+      setEmbedError('Could not find a video ID in that URL')
+      return
+    }
+    if (youtubeEmbeds.some((y) => y.videoId === videoId)) {
+      setEmbedError('Already added')
+      return
+    }
+    persistEmbeds([...youtubeEmbeds, { videoId, url: embedUrl.trim() }])
+    setEmbedUrl('')
+  }
+
+  function removeYoutubeEmbed(videoId) {
+    persistEmbeds(youtubeEmbeds.filter((y) => y.videoId !== videoId))
+    setPinnedYoutubeIds((prev) => {
+      const next = new Set(prev)
+      next.delete(videoId)
+      return next
+    })
+  }
+
+  function toggleYoutubePin(videoId) {
+    setPinnedYoutubeIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(videoId)) next.delete(videoId)
+      else next.add(videoId)
+      return next
+    })
+  }
+
   const liveStreams = streams.filter((s) => s.ready)
   const pinnedStreams = liveStreams.filter((s) => pinned.has(s.path))
+  const pinnedYoutubeEmbeds = youtubeEmbeds.filter((y) => pinnedYoutubeIds.has(y.videoId))
 
   function applyPinned(next) {
     setPinned(next)
@@ -172,7 +235,7 @@ export default function MultiviewerPage() {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const gridColsClass = gridColsClassFor(pinnedStreams.length)
+  const gridColsClass = gridColsClassFor(pinnedStreams.length + pinnedYoutubeEmbeds.length)
 
   return (
     <div className="flex h-full min-h-0">
@@ -316,6 +379,55 @@ export default function MultiviewerPage() {
           )}
         </div>
 
+        <div className="mb-4">
+          <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
+            YouTube Embeds
+          </h2>
+          <p className="text-xs text-gray-600 mb-2 px-1">
+            Plays via YouTube's own embedded player — no bot-check issues, but preview only (not included in the composited standalone link yet).
+          </p>
+          <form onSubmit={addYoutubeEmbed} className="flex flex-col gap-1.5 mb-2 px-1">
+            <input
+              value={embedUrl}
+              onChange={(e) => setEmbedUrl(e.target.value)}
+              placeholder="YouTube URL"
+              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+            />
+            {embedError && <p className="text-xs text-red-400">{embedError}</p>}
+            <button
+              type="submit"
+              className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+            >
+              Add embed
+            </button>
+          </form>
+
+          {youtubeEmbeds.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {youtubeEmbeds.map((y) => (
+                <div
+                  key={y.videoId}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border cursor-pointer transition-colors ${
+                    pinnedYoutubeIds.has(y.videoId)
+                      ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
+                      : 'text-gray-300 hover:bg-[#1a1a2e] border-[#222233]'
+                  }`}
+                  onClick={() => toggleYoutubePin(y.videoId)}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pinnedYoutubeIds.has(y.videoId) ? 'bg-indigo-400' : 'bg-gray-600'}`} />
+                  <span className="truncate flex-1" title={y.url}>{y.videoId}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeYoutubeEmbed(y.videoId) }}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-red-500/40 bg-red-600/20 text-red-300 hover:bg-red-600/30 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {liveStreams.length === 0 && (
           <p className="text-sm text-gray-600 px-1">No live streams right now.</p>
         )}
@@ -342,14 +454,26 @@ export default function MultiviewerPage() {
       </div>
 
       <div className="flex-1 p-4 overflow-auto">
-        {pinnedStreams.length === 0 ? (
+        {pinnedStreams.length === 0 && pinnedYoutubeEmbeds.length === 0 ? (
           <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
-            Select streams from the left to add them to the multiviewer.
+            Select streams or YouTube embeds from the left to add them to the multiviewer.
           </div>
         ) : (
           <div className={`grid ${gridColsClass} content-start gap-3 w-full`}>
             {pinnedStreams.map((s) => (
               <MultiviewTile key={s.path} path={s.path} label={s.name || s.path} />
+            ))}
+            {pinnedYoutubeEmbeds.map((y) => (
+              <div key={y.videoId} className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+                <iframe
+                  src={`https://www.youtube.com/embed/${y.videoId}?autoplay=1&mute=1`}
+                  className="w-full h-full"
+                  title={y.videoId}
+                  frameBorder="0"
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
             ))}
           </div>
         )}
