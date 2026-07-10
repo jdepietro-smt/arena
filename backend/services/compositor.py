@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 _RTSP_PORT = 8554
 _CANVAS_W = 1920
 _CANVAS_H = 1080
+_OUTPUT_FPS = 30
 _REAP_INTERVAL_S = 20
 _REAP_GRACE_S = 30  # don't reap a job younger than this — give the first viewer time to connect
 
@@ -76,10 +77,26 @@ class _Job:
 
         cmd = ["ffmpeg", "-y", "-loglevel", "warning"]
         for path in self.paths:
-            cmd += ["-rtsp_transport", "tcp", "-i", f"rtsp://localhost:{_RTSP_PORT}/{path}"]
+            # thread_queue_size avoids input buffers overflowing/blocking when
+            # several independent live sources feed one filter graph; genpts
+            # regenerates timestamps so xstack (which needs a synced frame from
+            # every input to produce one output frame) doesn't stall waiting on
+            # a source whose clock has drifted from the others.
+            cmd += [
+                "-thread_queue_size", "512",
+                "-rtsp_transport", "tcp",
+                "-fflags", "+genpts",
+                "-i", f"rtsp://localhost:{_RTSP_PORT}/{path}",
+            ]
 
         n = len(self.paths)
-        scale_parts = [f"[{i}:v]scale={cell_w}:{cell_h}[v{i}]" for i in range(n)]
+        # fps= normalizes each source to a common, fixed rate independently
+        # (duplicating/dropping frames per-stream) before they reach xstack —
+        # without it, two sources with slightly different or drifting frame
+        # rates make the combined output freeze whenever they fall out of step.
+        scale_parts = [
+            f"[{i}:v]fps={_OUTPUT_FPS},scale={cell_w}:{cell_h}[v{i}]" for i in range(n)
+        ]
         stack_inputs = "".join(f"[v{i}]" for i in range(n))
 
         # Explicit pixel-offset layout instead of xstack's grid=/fill= shorthand
@@ -96,8 +113,10 @@ class _Job:
         return cmd + [
             "-filter_complex", filter_complex,
             "-map", "[outv]", "-an",
-            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-            "-g", "60", "-b:v", "4M",
+            "-r", str(_OUTPUT_FPS),
+            "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+            "-g", str(_OUTPUT_FPS * 2),
+            "-b:v", "6M", "-maxrate", "6M", "-bufsize", "6M",
             "-f", "rtsp", f"rtsp://localhost:{_RTSP_PORT}/{self.job_id}",
         ]
 
