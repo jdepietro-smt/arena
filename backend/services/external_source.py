@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 
 from ..models import ManagedPathType
@@ -39,6 +40,12 @@ _MAX_BACKOFF_S = 60.0
 # decode it, not match any particular downstream codec requirement.
 _YTDLP_FORMAT = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
 
+# YouTube frequently challenges requests from datacenter IPs (like this
+# server's) with a "confirm you're not a bot" gate that a plain request
+# can't pass. Exporting cookies from a real signed-in browser session and
+# dropping the file here lets yt-dlp authenticate as that session instead.
+_COOKIES_PATH = "/opt/arena/youtube_cookies.txt"
+
 
 class _YoutubeSource:
     def __init__(self, name: str, url: str) -> None:
@@ -52,8 +59,13 @@ class _YoutubeSource:
         self._task: asyncio.Task | None = None
 
     async def _resolve(self) -> list[str]:
+        cmd = ["yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist"]
+        if os.path.isfile(_COOKIES_PATH):
+            cmd += ["--cookies", _COOKIES_PATH]
+        cmd.append(self.url)
+
         proc = await asyncio.create_subprocess_exec(
-            "yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist", self.url,
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
