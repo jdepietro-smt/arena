@@ -119,13 +119,17 @@ class _Job:
         # (duplicating/dropping frames per-stream) before they reach xstack —
         # without it, two sources with slightly different or drifting frame
         # rates make the combined output freeze whenever they fall out of step.
-        # scale uses force_original_aspect_ratio+pad rather than a flat WxH,
-        # since a flat scale stretches/squishes the source to fill the cell
-        # whenever the cell's aspect ratio doesn't match the source's own.
+        # scale uses force_original_aspect_ratio=increase+crop (cover) rather
+        # than decrease+pad (letterbox/contain): grids beyond 2x2 have cells
+        # noticeably more square than 16:9, and padding every 16:9 source to
+        # fit put visible black bars top/bottom of every cell — bars from
+        # adjacent rows stacked into what read as one big gap across the
+        # screen. Cropping fills every cell edge to edge at the cost of
+        # trimming the source's extreme edges instead.
         scale_parts = [
             f"[{i}:v]fps={_OUTPUT_FPS},"
-            f"scale={cell_w}:{cell_h}:force_original_aspect_ratio=decrease,"
-            f"pad={cell_w}:{cell_h}:(ow-iw)/2:(oh-ih)/2:color=black[v{i}]"
+            f"scale={cell_w}:{cell_h}:force_original_aspect_ratio=increase,"
+            f"crop={cell_w}:{cell_h}[v{i}]"
             for i in range(n_real)
         ]
         # Filler (lavfi) inputs are already exactly cell_w x cell_h — reference
