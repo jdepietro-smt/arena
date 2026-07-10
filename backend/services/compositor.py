@@ -1,14 +1,18 @@
 """
 Composite multiviewer manager.
 
-Combines N live stream paths into a single tiled, video-only stream via
-FFmpeg + mediamtx's dynamic path API, so any number of browsers can watch
-one WHEP connection instead of each decoding N streams individually. Audio
-is deliberately dropped here — the frontend picks one source's audio at a
-time via a separate lightweight audio-only WHEP connection.
+Combines N live stream paths into a single tiled video via FFmpeg +
+mediamtx's dynamic path API, so any number of browsers can watch one WHEP
+connection instead of each decoding N streams individually. Optionally
+muxes in ONE selected source's audio directly in the same FFmpeg process
+that produces the video — deliberately not a separate audio pipeline, so
+audio and video share one encode and one timeline and sync the same way
+the main SDI encoder's muxed output does. Switching which source's audio
+plays means requesting a different job (a few seconds to restart), which
+is the tradeoff for getting real sync instead of a guessed delay.
 
 API expected by the multiview router:
-    await get_compositor().ensure_job(paths: list[str]) -> str   # mediamtx path name
+    await get_compositor().ensure_job(paths: list[str], audio_path: str | None) -> str
 
 A background reaper stops a job once mediamtx reports zero readers on its
 composite path for two consecutive checks, so nothing has to be told
@@ -35,8 +39,8 @@ _REAP_INTERVAL_S = 20
 _REAP_GRACE_S = 30  # don't reap a job younger than this — give the first viewer time to connect
 
 
-def _job_id(paths: list[str]) -> str:
-    key = "|".join(sorted(paths))
+def _job_id(paths: list[str], audio_path: str | None) -> str:
+    key = "|".join(sorted(paths)) + "::audio=" + (audio_path or "")
     return "mv_" + hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
@@ -63,9 +67,10 @@ def _even(n: int) -> int:
 
 
 class _Job:
-    def __init__(self, job_id: str, paths: list[str]) -> None:
+    def __init__(self, job_id: str, paths: list[str], audio_path: str | None) -> None:
         self.job_id = job_id
         self.paths = paths
+        self.audio_path = audio_path
         self.created_at = time.monotonic()
         self.proc: asyncio.subprocess.Process | None = None
         self.zero_reader_hits = 0
@@ -118,9 +123,20 @@ class _Job:
             + f";{stack_inputs}xstack=inputs={n}:layout={layout}[outv]"
         )
 
+        cmd += ["-filter_complex", filter_complex, "-map", "[outv]"]
+
+        # Map the selected source's audio straight off its own input — it's
+        # already being pulled for video, so this costs nothing extra to
+        # decode. Re-encoding to Opus (not copy) because the composite muxes
+        # into a fresh container on a fresh timeline; Opus is also what the
+        # browser side actually expects for WebRTC audio.
+        if self.audio_path is not None and self.audio_path in self.paths:
+            audio_idx = self.paths.index(self.audio_path)
+            cmd += ["-map", f"{audio_idx}:a", "-c:a", "libopus", "-b:a", "128k", "-ar", "48000"]
+        else:
+            cmd += ["-an"]
+
         return cmd + [
-            "-filter_complex", filter_complex,
-            "-map", "[outv]", "-an",
             "-r", str(_OUTPUT_FPS),
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-g", str(_OUTPUT_FPS * 2),
@@ -161,15 +177,15 @@ class CompositorManager:
         self._lock = asyncio.Lock()
         self._reaper_task: asyncio.Task | None = None
 
-    async def ensure_job(self, paths: list[str]) -> str:
-        job_id = _job_id(paths)
+    async def ensure_job(self, paths: list[str], audio_path: str | None = None) -> str:
+        job_id = _job_id(paths, audio_path)
         is_new = False
         async with self._lock:
             job = self._jobs.get(job_id)
             if job is not None and job.running:
                 return job_id
 
-            job = _Job(job_id, paths)
+            job = _Job(job_id, paths, audio_path)
             client = get_client()
             try:
                 await client.add_path(job_id, {"source": "publisher"})

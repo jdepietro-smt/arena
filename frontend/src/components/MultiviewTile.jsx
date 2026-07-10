@@ -17,7 +17,7 @@ export function gridColsClassFor(count) {
   return GRID_COLS[Math.min(count, 9)] || GRID_COLS[9]
 }
 
-export default function MultiviewTile({ path, label, fill = false, showLabel = true }) {
+export default function MultiviewTile({ path, label, fill = false, showLabel = true, muted = true }) {
   const videoRef = useRef(null)
   const pcRef = useRef(null)
   const retryTimer = useRef(null)
@@ -25,6 +25,13 @@ export default function MultiviewTile({ path, label, fill = false, showLabel = t
   const [error, setError] = useState(null)
 
   const whepUrl = `/api/whep/${path}/whep`
+
+  // Set imperatively via ref, not the JSX muted attribute — React re-applies
+  // JSX attributes on every render and would fight a later imperative change
+  // (same gotcha PlayerPage's mute toggle already ran into).
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted
+  }, [muted])
 
   useEffect(() => {
     let alive = true
@@ -78,7 +85,6 @@ export default function MultiviewTile({ path, label, fill = false, showLabel = t
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
-        muted
         autoPlay
         playsInline
         style={{ display: loaded ? 'block' : 'none' }}

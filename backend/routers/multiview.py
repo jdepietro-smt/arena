@@ -22,6 +22,7 @@ router = APIRouter(tags=["multiview"])
 
 class CompositeJobRequest(BaseModel):
     paths: list[str] = Field(..., min_length=1, max_length=16)
+    audio_path: str | None = Field(default=None, description="One of paths, or null for no audio")
 
 
 class CompositeJobResponse(BaseModel):
@@ -34,8 +35,12 @@ async def create_job(body: CompositeJobRequest) -> CompositeJobResponse:
     if not paths:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No stream paths supplied")
 
+    audio_path = body.audio_path.strip() if body.audio_path else None
+    if audio_path and audio_path not in paths:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="audio_path must be one of paths")
+
     try:
-        job_id = await get_compositor().ensure_job(paths)
+        job_id = await get_compositor().ensure_job(paths, audio_path)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

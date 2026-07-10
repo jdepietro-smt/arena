@@ -1,92 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import MultiviewTile from '../components/MultiviewTile'
-import { startWhepAudioOnly } from '../utils/whep'
-
-// The composite video goes through a real transcode pipeline (decode, scale,
-// pad, stack, re-encode) that the audio-only WHEP connection bypasses — audio
-// reaches the browser well ahead of its matching video. A DelayNode holds
-// audio back by an adjustable amount to compensate; the right value depends
-// on network/encoder conditions so it's a manual control, not a constant.
-const DEFAULT_AUDIO_DELAY_MS = 1200
-
-function useAudioSelector(paths) {
-  const audioRef = useRef(null)
-  const pcRef = useRef(null)
-  const audioCtxRef = useRef(null)
-  const delayNodeRef = useRef(null)
-  const [selected, setSelected] = useState('')
-  const [status, setStatus] = useState('idle') // idle | connecting | live | error
-  const [delayMs, setDelayMs] = useState(DEFAULT_AUDIO_DELAY_MS)
-
-  // Lazily build the delay graph (source nodes get attached per-connection,
-  // once the incoming stream is known — see onStream below). Must happen
-  // inside a user-gesture call stack (the <select>'s onChange) or the
-  // AudioContext stays suspended under autoplay policy.
-  const ensureAudioGraph = () => {
-    if (audioCtxRef.current) return
-    const Ctx = window.AudioContext || window.webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
-    const delay = ctx.createDelay(10)
-    delay.delayTime.value = delayMs / 1000
-    delay.connect(ctx.destination)
-    audioCtxRef.current = ctx
-    delayNodeRef.current = delay
-  }
-
-  useEffect(() => {
-    if (delayNodeRef.current) delayNodeRef.current.delayTime.value = delayMs / 1000
-  }, [delayMs])
-
-  const selectStream = (path) => {
-    ensureAudioGraph()
-    audioCtxRef.current?.resume().catch(() => {})
-    setSelected(path)
-  }
-
-  useEffect(() => {
-    let alive = true
-    if (pcRef.current) {
-      pcRef.current.close()
-      pcRef.current = null
-    }
-    if (!selected) {
-      setStatus('idle')
-      return
-    }
-    setStatus('connecting')
-    const connect = async () => {
-      try {
-        const pc = await startWhepAudioOnly(`/api/whep/${selected}/whep`, audioRef.current, (stream) => {
-          if (!alive || !audioCtxRef.current || !delayNodeRef.current) return
-          audioCtxRef.current.createMediaStreamSource(stream).connect(delayNodeRef.current)
-        })
-        if (!alive) {
-          pc.close()
-          return
-        }
-        pcRef.current = pc
-        setStatus('live')
-      } catch {
-        if (alive) setStatus('error')
-      }
-    }
-    connect()
-    return () => {
-      alive = false
-      pcRef.current?.close()
-      pcRef.current = null
-    }
-  }, [selected])
-
-  // Deselect if the chosen path drops out of the current stream list.
-  useEffect(() => {
-    if (selected && !paths.includes(selected)) setSelected('')
-  }, [paths, selected])
-
-  return { audioRef, selected, selectStream, status, delayMs, setDelayMs }
-}
 
 export default function MultiviewWatchPage() {
   const [searchParams] = useSearchParams()
@@ -94,13 +8,19 @@ export default function MultiviewWatchPage() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [jobId, setJobId] = useState(null)
   const [jobError, setJobError] = useState(null)
+  const [audioPath, setAudioPath] = useState('')
+  const [muted, setMuted] = useState(true)
 
   const paths = (searchParams.get('streams') || '')
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean)
 
-  const { audioRef, selected, selectStream, status: audioStatus, delayMs, setDelayMs } = useAudioSelector(paths)
+  // Deselect if the chosen audio source drops out of the current stream list.
+  useEffect(() => {
+    if (audioPath && !paths.includes(audioPath)) setAudioPath('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('streams')])
 
   useEffect(() => {
     if (paths.length === 0) return
@@ -112,7 +32,7 @@ export default function MultiviewWatchPage() {
         const res = await fetch('/api/multiview/jobs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paths }),
+          body: JSON.stringify({ paths, audio_path: audioPath || null }),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
@@ -139,7 +59,7 @@ export default function MultiviewWatchPage() {
       clearInterval(healthTimer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('streams')])
+  }, [searchParams.get('streams'), audioPath])
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -181,7 +101,11 @@ export default function MultiviewWatchPage() {
             Compositing streams…
           </div>
         ) : (
-          <MultiviewTile path={jobId} fill showLabel={false} />
+          // key={jobId} forces a clean reconnect when the audio selection
+          // changes the underlying job — audio and video are muxed together
+          // server-side, so switching audio means watching a different job,
+          // not swapping a track on the existing one.
+          <MultiviewTile key={jobId} path={jobId} fill showLabel={false} muted={muted} />
         )}
 
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 gap-3
@@ -195,8 +119,11 @@ export default function MultiviewWatchPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400">Audio:</span>
                 <select
-                  value={selected}
-                  onChange={(e) => selectStream(e.target.value)}
+                  value={audioPath}
+                  onChange={(e) => {
+                    setAudioPath(e.target.value)
+                    setMuted(!e.target.value)
+                  }}
                   className="text-xs bg-black/60 border border-white/20 text-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500/50"
                 >
                   <option value="">Muted</option>
@@ -204,25 +131,29 @@ export default function MultiviewWatchPage() {
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
-                {selected && (
-                  <>
-                    <span className={`w-2 h-2 rounded-full ${
-                      audioStatus === 'live' ? 'bg-green-500' : audioStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
-                    }`} title={audioStatus} />
-                    <div className="flex items-center gap-1" title="Audio delay — compensates for the composite video's extra transcode latency">
-                      <button
-                        onClick={() => setDelayMs((d) => Math.max(0, d - 100))}
-                        className="w-5 h-5 flex items-center justify-center rounded bg-white/10 text-white/70 hover:bg-white/20 text-xs"
-                      >−</button>
-                      <span className="text-xs text-gray-400 w-14 text-center font-mono">{delayMs}ms</span>
-                      <button
-                        onClick={() => setDelayMs((d) => Math.min(10000, d + 100))}
-                        className="w-5 h-5 flex items-center justify-center rounded bg-white/10 text-white/70 hover:bg-white/20 text-xs"
-                      >+</button>
-                    </div>
-                  </>
-                )}
               </div>
+            )}
+
+            {audioPath && (
+              <button
+                onClick={() => setMuted((m) => !m)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-xs font-semibold transition-colors
+                  bg-white/10 text-white/80 border border-white/20 hover:bg-white/20"
+                title={muted ? 'Unmute' : 'Mute'}
+              >
+                {muted ? (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                      d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                      d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  </svg>
+                )}
+              </button>
             )}
 
             <button
@@ -245,10 +176,6 @@ export default function MultiviewWatchPage() {
             </button>
           </div>
         </div>
-
-        {/* Always muted directly — actual output is routed through the Web
-            Audio delay graph in useAudioSelector, straight to speakers. */}
-        <audio ref={audioRef} muted autoPlay />
       </div>
     </div>
   )
