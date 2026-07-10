@@ -201,7 +201,10 @@ export default function MultiviewerPage() {
   }
 
   function standaloneUrl() {
-    return `${window.location.origin}/multiview?streams=${Array.from(pinned).join(',')}`
+    const params = new URLSearchParams()
+    if (pinned.size > 0) params.set('streams', Array.from(pinned).join(','))
+    if (pinnedYoutubeIds.size > 0) params.set('youtube', Array.from(pinnedYoutubeIds).join(','))
+    return `${window.location.origin}/multiview?${params.toString()}`
   }
 
   function openStandalone() {
@@ -253,7 +256,7 @@ export default function MultiviewerPage() {
             </button>
           )}
         </div>
-        {pinned.size > 0 && (
+        {(pinned.size > 0 || pinnedYoutubeIds.size > 0) && (
           <div className="flex flex-col gap-1.5 mb-3">
             <button
               onClick={copyLink}

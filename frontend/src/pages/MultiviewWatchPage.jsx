@@ -1,6 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import MultiviewTile from '../components/MultiviewTile'
+import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
+
+function YoutubeTile({ videoId }) {
+  return (
+    <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
+      <iframe
+        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`}
+        className="w-full h-full"
+        title={videoId}
+        frameBorder="0"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        allowFullScreen
+      />
+    </div>
+  )
+}
 
 export default function MultiviewWatchPage() {
   const [searchParams] = useSearchParams()
@@ -15,6 +30,17 @@ export default function MultiviewWatchPage() {
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean)
+  const youtubeIds = (searchParams.get('youtube') || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+
+  // Grid mode (composited SDI tile + separate YouTube iframe tiles) only
+  // kicks in once a YouTube embed is actually present — a pure-SDI link
+  // keeps the original single full-bleed composited video untouched.
+  const gridMode = youtubeIds.length > 0
+  const totalCells = (paths.length > 0 ? 1 : 0) + youtubeIds.length
+  const gridColsClass = gridColsClassFor(totalCells || 1)
 
   // Deselect if the chosen audio source drops out of the current stream list.
   useEffect(() => {
@@ -102,6 +128,30 @@ export default function MultiviewWatchPage() {
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
 
+  const sdiCell = paths.length === 0 ? null : jobError ? (
+    <div className="w-full h-full flex items-center justify-center text-red-400 text-sm bg-black rounded-lg">
+      Could not start composite: {jobError} — retrying…
+    </div>
+  ) : layers.length === 0 ? (
+    <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm bg-black rounded-lg">
+      Compositing streams…
+    </div>
+  ) : (
+    <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
+      {layers.map((l, i) => (
+        <div key={l.jobId} className="absolute inset-0" style={{ zIndex: layers.length - i }}>
+          <MultiviewTile
+            path={l.jobId}
+            fill
+            showLabel={false}
+            muted={muted}
+            onReady={() => promoteLayer(l.jobId)}
+          />
+        </div>
+      ))}
+    </div>
+  )
+
   return (
     <div className="min-h-screen w-screen bg-[#0a0a0f] flex items-center justify-center p-3">
       <div
@@ -110,36 +160,26 @@ export default function MultiviewWatchPage() {
           ? 'relative w-screen h-screen bg-black flex items-center justify-center'
           : 'relative w-full max-w-6xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl'}
       >
-        {paths.length === 0 ? (
+        {paths.length === 0 && youtubeIds.length === 0 ? (
           <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
-            No streams specified — add ?streams=path1,path2 to the URL.
+            No streams specified — add ?streams=path1,path2 and/or ?youtube=videoId to the URL.
           </div>
-        ) : jobError ? (
-          <div className="w-full h-full flex items-center justify-center text-red-400 text-sm">
-            Could not start composite: {jobError} — retrying…
-          </div>
-        ) : layers.length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
-            Compositing streams…
+        ) : gridMode ? (
+          <div className={`absolute inset-0 grid ${gridColsClass} content-start gap-2 p-2`}>
+            {sdiCell}
+            {youtubeIds.map((id) => (
+              <YoutubeTile key={id} videoId={id} />
+            ))}
           </div>
         ) : (
-          layers.map((l, i) => (
-            <div key={l.jobId} className="absolute inset-0" style={{ zIndex: layers.length - i }}>
-              <MultiviewTile
-                path={l.jobId}
-                fill
-                showLabel={false}
-                muted={muted}
-                onReady={() => promoteLayer(l.jobId)}
-              />
-            </div>
-          ))
+          sdiCell
         )}
 
         <div className="absolute top-0 left-0 right-0 z-[100] flex items-center justify-between px-4 py-3 gap-3
           bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
           <span className="text-sm text-white/80 font-mono truncate pointer-events-none">
             Multiviewer — {paths.length} stream{paths.length !== 1 ? 's' : ''}
+            {youtubeIds.length > 0 && `, ${youtubeIds.length} YouTube`}
           </span>
 
           <div className="flex items-center gap-3 shrink-0 pointer-events-auto">
