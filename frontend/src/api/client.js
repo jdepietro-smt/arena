@@ -50,6 +50,14 @@ export const getExternalSources  = () => api.get('/sources').then(r => r.data)
 export const addYoutubeSource    = (name, url) => api.post('/sources/youtube', { name, url }).then(r => r.data)
 export const removeExternalSource = (name) => api.delete(`/sources/${name}`)
 
+export const getYoutubeCookiesStatus = () => api.get('/sources/youtube-cookies/status').then(r => r.data)
+export const uploadYoutubeCookies = (file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post('/sources/youtube-cookies', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+}
+export const removeYoutubeCookies = () => api.delete('/sources/youtube-cookies')
+
 // --- Stats ---
 export const getStats        = (p) => api.get(`/stats/${p}`).then(r => r.data)
 export const getStatsHistory = (p, s) => api.get(`/stats/${p}/history`, { params: { seconds: s } }).then(r => r.data)

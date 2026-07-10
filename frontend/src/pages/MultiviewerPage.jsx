@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getStreams, getMultiviewJobs, stopMultiviewJob,
   getExternalSources, addYoutubeSource, removeExternalSource,
+  getYoutubeCookiesStatus, uploadYoutubeCookies, removeYoutubeCookies,
 } from '../api/client'
 import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
 
@@ -84,6 +85,40 @@ export default function MultiviewerPage() {
       queryClient.invalidateQueries({ queryKey: ['external-sources'] })
     } finally {
       setRemovingSource(null)
+    }
+  }
+
+  const { data: cookiesStatus } = useQuery({
+    queryKey: ['youtube-cookies-status'],
+    queryFn: getYoutubeCookiesStatus,
+    refetchInterval: 10000,
+  })
+  const [uploadingCookies, setUploadingCookies] = useState(false)
+  const [cookiesError, setCookiesError] = useState(null)
+
+  async function handleCookiesFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file later
+    if (!file) return
+    setUploadingCookies(true)
+    setCookiesError(null)
+    try {
+      await uploadYoutubeCookies(file)
+      queryClient.invalidateQueries({ queryKey: ['youtube-cookies-status'] })
+    } catch (err) {
+      setCookiesError(err.response?.data?.detail || err.message || 'Upload failed')
+    } finally {
+      setUploadingCookies(false)
+    }
+  }
+
+  async function clearCookies() {
+    setUploadingCookies(true)
+    try {
+      await removeYoutubeCookies()
+      queryClient.invalidateQueries({ queryKey: ['youtube-cookies-status'] })
+    } finally {
+      setUploadingCookies(false)
     }
   }
 
@@ -211,6 +246,24 @@ export default function MultiviewerPage() {
               {showAddSource ? 'Cancel' : '+ Add'}
             </button>
           </div>
+
+          <div className="flex items-center gap-2 mb-2 px-1 text-xs">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus?.present ? 'bg-green-500' : 'bg-gray-600'}`} />
+            <span className="text-gray-500 flex-1">
+              {cookiesStatus?.present ? 'YouTube cookies loaded' : 'No YouTube cookies (may hit bot checks)'}
+            </span>
+            {cookiesStatus?.present ? (
+              <button onClick={clearCookies} disabled={uploadingCookies} className="text-gray-500 hover:text-red-300 disabled:opacity-50">
+                Clear
+              </button>
+            ) : (
+              <label className="text-indigo-300 hover:text-indigo-200 cursor-pointer">
+                {uploadingCookies ? 'Uploading…' : 'Upload'}
+                <input type="file" accept=".txt" onChange={handleCookiesFile} disabled={uploadingCookies} className="hidden" />
+              </label>
+            )}
+          </div>
+          {cookiesError && <p className="text-xs text-red-400 mb-2 px-1">{cookiesError}</p>}
 
           {showAddSource && (
             <form onSubmit={submitYoutubeSource} className="flex flex-col gap-1.5 mb-2 px-1">

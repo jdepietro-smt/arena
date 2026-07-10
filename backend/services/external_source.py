@@ -44,7 +44,7 @@ _YTDLP_FORMAT = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
 # server's) with a "confirm you're not a bot" gate that a plain request
 # can't pass. Exporting cookies from a real signed-in browser session and
 # dropping the file here lets yt-dlp authenticate as that session instead.
-_COOKIES_PATH = "/opt/arena/youtube_cookies.txt"
+COOKIES_PATH = "/opt/arena/youtube_cookies.txt"
 
 
 class _YoutubeSource:
@@ -60,8 +60,8 @@ class _YoutubeSource:
 
     async def _resolve(self) -> list[str]:
         cmd = ["yt-dlp", "-g", "-f", _YTDLP_FORMAT, "--no-playlist"]
-        if os.path.isfile(_COOKIES_PATH):
-            cmd += ["--cookies", _COOKIES_PATH]
+        if os.path.isfile(COOKIES_PATH):
+            cmd += ["--cookies", COOKIES_PATH]
         cmd.append(self.url)
 
         proc = await asyncio.create_subprocess_exec(
