@@ -3,11 +3,49 @@ import { useSearchParams } from 'react-router-dom'
 import MultiviewTile from '../components/MultiviewTile'
 import { startWhepAudioOnly } from '../utils/whep'
 
+// The composite video goes through a real transcode pipeline (decode, scale,
+// pad, stack, re-encode) that the audio-only WHEP connection bypasses — audio
+// reaches the browser well ahead of its matching video. A DelayNode holds
+// audio back by an adjustable amount to compensate; the right value depends
+// on network/encoder conditions so it's a manual control, not a constant.
+const DEFAULT_AUDIO_DELAY_MS = 1200
+
 function useAudioSelector(paths) {
   const audioRef = useRef(null)
   const pcRef = useRef(null)
+  const audioCtxRef = useRef(null)
+  const delayNodeRef = useRef(null)
   const [selected, setSelected] = useState('')
   const [status, setStatus] = useState('idle') // idle | connecting | live | error
+  const [delayMs, setDelayMs] = useState(DEFAULT_AUDIO_DELAY_MS)
+
+  // Lazily build the delay graph and route the <audio> element's output
+  // through it. Must happen inside a user-gesture call stack (the <select>'s
+  // onChange) or the AudioContext stays suspended under autoplay policy.
+  const ensureAudioGraph = () => {
+    if (audioCtxRef.current || !audioRef.current) return
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const source = ctx.createMediaElementSource(audioRef.current)
+    const delay = ctx.createDelay(10)
+    delay.delayTime.value = delayMs / 1000
+    source.connect(delay)
+    delay.connect(ctx.destination)
+    audioCtxRef.current = ctx
+    delayNodeRef.current = delay
+    audioRef.current.muted = true // playback goes through the graph instead
+  }
+
+  useEffect(() => {
+    if (delayNodeRef.current) delayNodeRef.current.delayTime.value = delayMs / 1000
+  }, [delayMs])
+
+  const selectStream = (path) => {
+    ensureAudioGraph()
+    audioCtxRef.current?.resume().catch(() => {})
+    setSelected(path)
+  }
 
   useEffect(() => {
     let alive = true
@@ -46,7 +84,7 @@ function useAudioSelector(paths) {
     if (selected && !paths.includes(selected)) setSelected('')
   }, [paths, selected])
 
-  return { audioRef, selected, setSelected, status }
+  return { audioRef, selected, selectStream, status, delayMs, setDelayMs }
 }
 
 export default function MultiviewWatchPage() {
@@ -61,7 +99,7 @@ export default function MultiviewWatchPage() {
     .map((p) => p.trim())
     .filter(Boolean)
 
-  const { audioRef, selected, setSelected, status: audioStatus } = useAudioSelector(paths)
+  const { audioRef, selected, selectStream, status: audioStatus, delayMs, setDelayMs } = useAudioSelector(paths)
 
   useEffect(() => {
     if (paths.length === 0) return
@@ -157,7 +195,7 @@ export default function MultiviewWatchPage() {
                 <span className="text-xs text-gray-400">Audio:</span>
                 <select
                   value={selected}
-                  onChange={(e) => setSelected(e.target.value)}
+                  onChange={(e) => selectStream(e.target.value)}
                   className="text-xs bg-black/60 border border-white/20 text-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500/50"
                 >
                   <option value="">Muted</option>
@@ -166,9 +204,22 @@ export default function MultiviewWatchPage() {
                   ))}
                 </select>
                 {selected && (
-                  <span className={`w-2 h-2 rounded-full ${
-                    audioStatus === 'live' ? 'bg-green-500' : audioStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
-                  }`} title={audioStatus} />
+                  <>
+                    <span className={`w-2 h-2 rounded-full ${
+                      audioStatus === 'live' ? 'bg-green-500' : audioStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                    }`} title={audioStatus} />
+                    <div className="flex items-center gap-1" title="Audio delay — compensates for the composite video's extra transcode latency">
+                      <button
+                        onClick={() => setDelayMs((d) => Math.max(0, d - 100))}
+                        className="w-5 h-5 flex items-center justify-center rounded bg-white/10 text-white/70 hover:bg-white/20 text-xs"
+                      >−</button>
+                      <span className="text-xs text-gray-400 w-14 text-center font-mono">{delayMs}ms</span>
+                      <button
+                        onClick={() => setDelayMs((d) => Math.min(10000, d + 100))}
+                        className="w-5 h-5 flex items-center justify-center rounded bg-white/10 text-white/70 hover:bg-white/20 text-xs"
+                      >+</button>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -194,7 +245,9 @@ export default function MultiviewWatchPage() {
           </div>
         </div>
 
-        <audio ref={audioRef} muted={!selected} autoPlay />
+        {/* Always muted directly — actual output is routed through the Web
+            Audio delay graph in useAudioSelector, straight to speakers. */}
+        <audio ref={audioRef} muted autoPlay />
       </div>
     </div>
   )
