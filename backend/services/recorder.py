@@ -18,13 +18,20 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from ..config import settings
 from ..models import Recording, RecordingStatus
 
 logger = logging.getLogger(__name__)
 
 _OUTPUT_DIR = Path("/opt/arena/recordings")
-_HLS_BASE = settings.MEDIAMTX_HLS.rstrip("/")
+# NOT settings.MEDIAMTX_HLS — mediamtx's own native HLS muxer breaks for this
+# encoder's video specifically (see hls_proxy.py's docstring: 8s keyframe
+# interval vs mediamtx's 1s segment boundary means the muxer waits for a
+# keyframe that never comes in time and the segment grows until it crashes).
+# A separate ffmpeg process (started via mediamtx's runOnReady hook) forces
+# 1s keyframes and writes working HLS here instead — recordings need to
+# pull from the same fixed source live preview already uses, or they
+# silently inherit the same "video never shows up" bug (audio-only files).
+_HLS_DIR = Path("/tmp/arena-hls")
 
 # In-memory process tracking  (recording_id -> ...)
 _processes: dict[int, asyncio.subprocess.Process] = {}
@@ -36,11 +43,19 @@ _lock = asyncio.Lock()
 async def start_recording(session: Session, stream_path: str) -> Recording:
     _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    input_path = _HLS_DIR / stream_path / "index.m3u8"
+    if not input_path.is_file():
+        raise RuntimeError(
+            f"No HLS output yet for '{stream_path}' at {input_path} — "
+            "the per-stream HLS generator (mediamtx runOnReady hook) may not "
+            "have started for this path yet."
+        )
+
     timestamp = int(time.time())
     safe = stream_path.replace("/", "_")
     filename = f"{safe}_{timestamp}.mp4"
     output_path = _OUTPUT_DIR / filename
-    input_url = f"{_HLS_BASE}/{stream_path}/index.m3u8"
+    input_url = str(input_path)
 
     recording = Recording(
         stream_path=stream_path,
