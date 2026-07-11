@@ -66,7 +66,12 @@ class _Job:
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-force_key_frames", "expr:gte(t,n_forced*1)",
             "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
-            "-f", "hls", "-hls_time", "1", "-hls_list_size", "6",
+            # 30s retained (vs. the old 6s) — recorder.py briefly probes the
+            # playlist before it starts copying; too small a window here and
+            # the earliest segments it looked at get deleted before it can
+            # read them, corrupting the recording's timeline (stretched/
+            # duplicated video PTS, or a missing initial keyframe entirely).
+            "-f", "hls", "-hls_time", "1", "-hls_list_size", "30",
             "-hls_flags", "delete_segments+independent_segments",
             "-hls_segment_filename", os.path.join(out_dir, "index%d.ts"),
             os.path.join(out_dir, "index.m3u8"),

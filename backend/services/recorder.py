@@ -80,12 +80,13 @@ async def start_recording(session: Session, stream_path: str) -> Recording:
 
     cmd = [
         "ffmpeg", "-y", "-loglevel", "warning",
-        # Default analyzeduration/probesize can commit to an audio-only
-        # stream mapping before a live HLS input's video track has produced
-        # enough data to be detected — confirmed happening even when the
-        # live source demonstrably has video (ffprobe'd separately). Give it
-        # much more data/time to see both tracks before -c copy locks in.
-        "-analyzeduration", "10000000", "-probesize", "10000000",
+        # A few seconds of headroom to see both tracks before -c copy locks
+        # in mappings — but kept well under hls_generator.py's 30s segment
+        # retention window. The old value here (10s) was wide enough to
+        # outlast that window's previous 6s size, so the earliest segments
+        # this probe looked at were already deleted by the time copying
+        # started, corrupting the recording's timeline.
+        "-analyzeduration", "3000000", "-probesize", "3000000",
         "-i", input_url,
         # Explicit maps (rather than default auto-selection) so both tracks
         # are always included once detected; "?" makes each optional so a
