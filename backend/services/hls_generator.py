@@ -68,11 +68,22 @@ class _Job:
             # elapsed wall-clock time on one stream, audio timestamps
             # under-counted on another, both consistent with bad/wrapping
             # source timestamps rather than an encoder problem. Stamping
-            # with wall-clock arrival time instead, and passing video
-            # frames through without CFR duplication, fixes both.
+            # with wall-clock arrival time instead fixes that.
+            #
+            # But raw wallclock timestamps aren't evenly spaced — frames
+            # that arrive in the same tick (more likely at 60fps than 30fps)
+            # get equal/decreasing timestamps. "-vsync 0" (strict passthrough)
+            # let those collide straight into the muxer — confirmed via a
+            # full decode pass (ffmpeg -f null -), not just ffprobe: "non
+            # monotonically increasing dts to muxer" throughout the file,
+            # which is exactly the kind of corruption that makes a browser
+            # refuse to play the file at all rather than just stutter.
+            # "-vsync vfr" keeps real frame count (no CFR duplication) but
+            # drops any frame whose timestamp doesn't strictly advance,
+            # guaranteeing a valid monotonic timeline for the muxer.
             "-use_wallclock_as_timestamps", "1",
             "-i", input_url,
-            "-vsync", "0",
+            "-vsync", "vfr",
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-force_key_frames", "expr:gte(t,n_forced*1)",
             "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-af", "aresample=async=1",
