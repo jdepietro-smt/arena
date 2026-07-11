@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlmodel import Session, select
 
 from ..auth import get_current_active_user, get_current_user_flexible, require_admin
@@ -69,6 +70,61 @@ def _thumbnail_path(filename: str) -> Optional[Path]:
     stem = Path(filename).stem
     thumb = base / f"{stem}.jpg"
     return thumb if thumb.exists() else None
+
+
+_RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
+_CHUNK_SIZE = 256 * 1024
+
+
+def _ranged_file_response(file_path: Path, media_type: str, range_header: Optional[str]) -> StreamingResponse:
+    """
+    Serve a file with real byte-range support.
+
+    Confirmed via direct curl test that this server's installed Starlette
+    version does NOT implement Range requests on FileResponse despite an
+    earlier assumption that it did — it silently returns a full 200 for
+    every request, ignoring the Range header entirely. That breaks seeking
+    in the <video> preview player for any recording longer than a couple
+    minutes. Handling it explicitly here doesn't depend on the library
+    version.
+    """
+    file_size = file_path.stat().st_size
+    start, end = 0, file_size - 1
+    status_code = status.HTTP_200_OK
+
+    if range_header:
+        match = _RANGE_RE.match(range_header.strip())
+        if match:
+            start_s, end_s = match.groups()
+            if start_s:
+                start = int(start_s)
+            if end_s:
+                end = int(end_s)
+            start = max(0, min(start, file_size - 1))
+            end = max(start, min(end, file_size - 1))
+            status_code = status.HTTP_206_PARTIAL_CONTENT
+
+    content_length = end - start + 1
+
+    def _iter_range():
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            remaining = content_length
+            while remaining > 0:
+                data = f.read(min(_CHUNK_SIZE, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(content_length),
+    }
+    if status_code == status.HTTP_206_PARTIAL_CONTENT:
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+
+    return StreamingResponse(_iter_range(), status_code=status_code, media_type=media_type, headers=headers)
 
 
 async def _get_recording_or_404(session: Session, recording_id: int) -> Recording:
@@ -221,18 +277,21 @@ async def download_recording(
 )
 async def stream_recording(
     recording_id: int,
+    range: Optional[str] = Header(default=None),
     session: Session = Depends(get_session),
     _user: User = Depends(get_current_user_flexible),
-) -> FileResponse:
+) -> StreamingResponse:
     """
     Same file as /download, but without Content-Disposition: attachment —
     lets a <video> element play it in place instead of the browser treating
-    every request as a save-to-disk. FileResponse (Starlette) already
-    supports Range requests, so seeking works normally — but only if the
-    caller is an actual <video src>/range-requesting client and not a blob
-    fetch, which pulls the whole file before resolving. Auth accepts a
-    `token` query param (via get_current_user_flexible) for exactly that
-    reason: a <video> element can't send an Authorization header.
+    every request as a save-to-disk. Range requests are handled manually
+    (see _ranged_file_response) rather than via FileResponse, since this
+    server's installed Starlette doesn't implement Range on FileResponse —
+    confirmed by direct test: it silently ignored the Range header and
+    returned a full 200 every time. Without real 206 support, seeking in
+    the preview player doesn't work for anything longer than a couple
+    minutes. Auth accepts a `token` query param (via get_current_user_flexible)
+    since a <video> element can't send an Authorization header.
     """
     recording = await _get_recording_or_404(session, recording_id)
     file_path = _resolve_path(recording.filename)
@@ -252,7 +311,7 @@ async def stream_recording(
     }
     media_type = media_type_map.get(suffix, "application/octet-stream")
 
-    return FileResponse(path=str(file_path), media_type=media_type)
+    return _ranged_file_response(file_path, media_type, range)
 
 
 @router.get(
