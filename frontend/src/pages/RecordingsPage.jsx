@@ -21,13 +21,17 @@ function fileFormat(filename) {
   return ext ? ext.toUpperCase() : '—'
 }
 
-function formatRelative(ts) {
+function formatTimestamp(ts) {
   if (!ts) return '—'
-  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
-  if (diff < 60) return `${diff}s ago`
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  return `${Math.floor(diff / 86400)}d ago`
+  // Backend sends naive UTC (datetime.utcnow(), no "Z"/offset) — JS's Date
+  // parser treats a timezone-less ISO string as local time, not UTC, so
+  // without this it silently renders several hours off depending on the
+  // viewer's UTC offset.
+  const iso = /Z$|[+-]\d{2}:\d{2}$/.test(ts) ? ts : `${ts}Z`
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
 function ElapsedTimer({ startedAt }) {
@@ -109,7 +113,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-600 uppercase tracking-wider">Recorded</span>
-          <span className="text-sm text-gray-300">{formatRelative(rec.started_at || rec.created_at)}</span>
+          <span className="text-sm text-gray-300">{formatTimestamp(rec.started_at || rec.created_at)}</span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-600 uppercase tracking-wider">Format</span>
