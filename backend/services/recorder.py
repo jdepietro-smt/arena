@@ -40,7 +40,12 @@ _MEDIAMTX_HLS_BASE = settings.MEDIAMTX_HLS.rstrip("/")
 _processes: dict[int, asyncio.subprocess.Process] = {}
 _output_paths: dict[int, Path] = {}
 _start_times: dict[int, float] = {}
+_last_errors: dict[int, str] = {}  # kept even after the process is gone, for debugging
 _lock = asyncio.Lock()
+
+
+def get_last_error(recording_id: int) -> str | None:
+    return _last_errors.get(recording_id)
 
 
 async def start_recording(session: Session, stream_path: str) -> Recording:
@@ -168,6 +173,7 @@ async def _monitor(recording_id: int, proc: asyncio.subprocess.Process) -> None:
             return  # normal stop via stop_recording
 
     stderr = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
+    _last_errors[recording_id] = f"rc={proc.returncode}: {stderr[-2000:]}"
     logger.error(
         "FFmpeg exited unexpectedly for recording id=%d (rc=%d): %s",
         recording_id, proc.returncode, stderr[-300:],

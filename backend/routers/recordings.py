@@ -280,6 +280,16 @@ async def debug_path_config(path_name: str, _admin: User = Depends(require_admin
 
 
 @router.get(
+    "/{recording_id}/debug/last-error",
+    summary="Debug: the last ffmpeg error for this recording, if it exited unexpectedly",
+)
+async def debug_recording_last_error(recording_id: int, _admin: User = Depends(require_admin)) -> dict:
+    from ..services.recorder import get_last_error
+
+    return {"last_error": get_last_error(recording_id)}
+
+
+@router.get(
     "/debug/hls-generators",
     summary="Debug: status of the per-stream keyframe-forcing HLS generators",
 )
