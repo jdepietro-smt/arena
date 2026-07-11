@@ -10,6 +10,7 @@ from .services.managed_paths import reconcile_orphans
 from .services.srt_stats import get_collector
 from .services.compositor import get_compositor
 from .services.external_source import get_external_sources
+from .services.hls_generator import get_hls_generator
 from .routers import streams, routes, recordings, stats, users, hls_proxy, whep_proxy, multiview, external_sources
 from .auth import router as auth_router
 
@@ -22,11 +23,13 @@ async def lifespan(app: FastAPI):
     await reconcile_orphans()
     await get_collector().start()
     get_compositor().start_reaper()
+    get_hls_generator().start()
     yield
     # Shutdown
     await get_collector().stop()
     await get_compositor().stop()
     await get_external_sources().stop_all()
+    await get_hls_generator().stop_all()
 
 
 app = FastAPI(

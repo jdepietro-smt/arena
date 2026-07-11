@@ -280,6 +280,16 @@ async def debug_path_config(path_name: str, _admin: User = Depends(require_admin
 
 
 @router.get(
+    "/debug/hls-generators",
+    summary="Debug: status of the per-stream keyframe-forcing HLS generators",
+)
+async def debug_hls_generators(_admin: User = Depends(require_admin)) -> list[dict]:
+    from ..services.hls_generator import get_hls_generator
+
+    return get_hls_generator().list_jobs()
+
+
+@router.get(
     "/debug/probe-native-hls/{path_name}",
     summary="Debug: ffprobe mediamtx's own native HLS output for a path, live",
 )
