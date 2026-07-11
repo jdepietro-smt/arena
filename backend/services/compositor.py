@@ -172,9 +172,20 @@ class _Job:
         # decode. Re-encoding to Opus (not copy) because the composite muxes
         # into a fresh container on a fresh timeline; Opus is also what the
         # browser side actually expects for WebRTC audio.
+        #
+        # aresample=async=1 stretches/compresses audio slightly to absorb
+        # small timestamp gaps/overlaps from the live source instead of
+        # passing them straight to the encoder — the same class of bad
+        # source-timestamp issue confirmed via ffprobe in the recording
+        # pipeline (hls_generator.py), which caused audio dropouts there
+        # until it got the same filter. Without it here, those gaps surface
+        # as intermittent audio cutting out during otherwise steady viewing.
         if self.audio_path is not None and self.audio_path in self.paths:
             audio_idx = self.paths.index(self.audio_path)
-            cmd += ["-map", f"{audio_idx}:a", "-c:a", "libopus", "-b:a", "128k", "-ar", "48000"]
+            cmd += [
+                "-map", f"{audio_idx}:a", "-af", "aresample=async=1",
+                "-c:a", "libopus", "-b:a", "128k", "-ar", "48000",
+            ]
         else:
             cmd += ["-an"]
 
