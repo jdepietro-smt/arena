@@ -26,10 +26,19 @@ function extractYoutubeId(url) {
 }
 
 const YOUTUBE_EMBEDS_KEY = 'arena-youtube-embeds'
+const SAVED_MULTIVIEWERS_KEY = 'arena-saved-multiviewers'
 
 function loadYoutubeEmbeds() {
   try {
     return JSON.parse(localStorage.getItem(YOUTUBE_EMBEDS_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function loadSavedMultiviewers() {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_MULTIVIEWERS_KEY) || '[]')
   } catch {
     return []
   }
@@ -127,6 +136,75 @@ export default function MultiviewerPage() {
   const [renamingId, setRenamingId] = useState(null)
   const [renameValue, setRenameValue] = useState('')
 
+  // Named, saved selections — the picker only ever edits one live selection
+  // at a time (the `pinned`/`pinnedYoutubeIds` state above), so without
+  // this there's no way to keep more than one multiviewer combo around;
+  // picking a new set of streams just overwrites what you had. Saving
+  // snapshots the current selection under a name so several can coexist,
+  // each independently loadable/openable — each is still just a distinct
+  // streams=/youtube= URL under the hood, same as today.
+  const [savedMultiviewers, setSavedMultiviewers] = useState(loadSavedMultiviewers)
+  const [savingName, setSavingName] = useState('')
+  const [savingError, setSavingError] = useState(null)
+
+  function persistSavedMultiviewers(next) {
+    setSavedMultiviewers(next)
+    localStorage.setItem(SAVED_MULTIVIEWERS_KEY, JSON.stringify(next))
+  }
+
+  function saveCurrentAsMultiviewer(e) {
+    e.preventDefault()
+    const name = savingName.trim()
+    if (!name) {
+      setSavingError('Name is required')
+      return
+    }
+    if (pinned.size === 0 && pinnedYoutubeIds.size === 0) {
+      setSavingError('Select at least one stream or embed first')
+      return
+    }
+    setSavingError(null)
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      streams: Array.from(pinned),
+      youtube: youtubeEmbeds.filter((y) => pinnedYoutubeIds.has(y.videoId)),
+    }
+    persistSavedMultiviewers([...savedMultiviewers, entry])
+    setSavingName('')
+  }
+
+  function deleteSavedMultiviewer(id) {
+    persistSavedMultiviewers(savedMultiviewers.filter((m) => m.id !== id))
+  }
+
+  function loadSavedMultiviewer(entry) {
+    // Any YouTube embeds this saved combo references but that aren't in
+    // the current embeds list anymore (e.g. removed since) get restored.
+    const missing = entry.youtube.filter(
+      (y) => !youtubeEmbeds.some((existing) => existing.videoId === y.videoId)
+    )
+    if (missing.length > 0) {
+      persistEmbeds([...youtubeEmbeds, ...missing])
+    }
+    applyPinned(new Set(entry.streams))
+    setPinnedYoutubeIds(new Set(entry.youtube.map((y) => y.videoId)))
+  }
+
+  function buildStandaloneUrl(streamPaths, youtubeList) {
+    const params = new URLSearchParams()
+    if (streamPaths.length > 0) params.set('streams', streamPaths.join(','))
+    if (youtubeList.length > 0) {
+      params.set('youtube', youtubeList.map((y) => y.videoId).join(','))
+      params.set('ytLabels', youtubeList.map((y) => encodeURIComponent(y.label || y.videoId)).join(','))
+    }
+    return `${window.location.origin}/multiview?${params.toString()}`
+  }
+
+  function openSavedMultiviewer(entry) {
+    window.open(buildStandaloneUrl(entry.streams, entry.youtube), '_blank', 'noopener')
+  }
+
   function persistEmbeds(next) {
     setYoutubeEmbeds(next)
     localStorage.setItem(YOUTUBE_EMBEDS_KEY, JSON.stringify(next))
@@ -222,13 +300,7 @@ export default function MultiviewerPage() {
   }
 
   function standaloneUrl() {
-    const params = new URLSearchParams()
-    if (pinned.size > 0) params.set('streams', Array.from(pinned).join(','))
-    if (pinnedYoutubeEmbeds.length > 0) {
-      params.set('youtube', pinnedYoutubeEmbeds.map((y) => y.videoId).join(','))
-      params.set('ytLabels', pinnedYoutubeEmbeds.map((y) => encodeURIComponent(y.label || y.videoId)).join(','))
-    }
-    return `${window.location.origin}/multiview?${params.toString()}`
+    return buildStandaloneUrl(Array.from(pinned), pinnedYoutubeEmbeds)
   }
 
   function openStandalone() {
@@ -294,6 +366,58 @@ export default function MultiviewerPage() {
             >
               Open standalone view
             </button>
+            <form onSubmit={saveCurrentAsMultiviewer} className="flex gap-1.5">
+              <input
+                value={savingName}
+                onChange={(e) => setSavingName(e.target.value)}
+                placeholder="Save as…"
+                className="flex-1 min-w-0 text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+              />
+              <button
+                type="submit"
+                className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-semibold border border-[#222233] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a2e] transition-colors"
+              >
+                Save
+              </button>
+            </form>
+            {savingError && <p className="text-xs text-red-400 px-1">{savingError}</p>}
+          </div>
+        )}
+        {savedMultiviewers.length > 0 && (
+          <div className="mb-4">
+            <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
+              Saved Multiviewers
+            </h2>
+            <div className="flex flex-col gap-1">
+              {savedMultiviewers.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
+                >
+                  <span className="truncate flex-1 text-gray-300" title={[...m.streams, ...m.youtube.map((y) => y.label)].join(', ')}>
+                    {m.name}
+                  </span>
+                  <button
+                    onClick={() => loadSavedMultiviewer(m)}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => openSavedMultiviewer(m)}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-[#222233] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a2e] transition-colors"
+                  >
+                    Open
+                  </button>
+                  <button
+                    onClick={() => deleteSavedMultiviewer(m.id)}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-red-500/40 bg-red-600/20 text-red-300 hover:bg-red-600/30 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {activeJobs.length > 0 && (
