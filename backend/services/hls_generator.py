@@ -62,10 +62,20 @@ class _Job:
         input_url = f"srt://localhost:{_SRT_PORT}?streamid={streamid}"
         return [
             "ffmpeg", "-y", "-loglevel", "warning",
+            # This SRT source's own embedded PTS turned out to be unreliable
+            # over longer live captures — confirmed via ffprobe on real
+            # recordings: video frame counts inflated to ~3x the actual
+            # elapsed wall-clock time on one stream, audio timestamps
+            # under-counted on another, both consistent with bad/wrapping
+            # source timestamps rather than an encoder problem. Stamping
+            # with wall-clock arrival time instead, and passing video
+            # frames through without CFR duplication, fixes both.
+            "-use_wallclock_as_timestamps", "1",
             "-i", input_url,
+            "-vsync", "0",
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-force_key_frames", "expr:gte(t,n_forced*1)",
-            "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-af", "aresample=async=1",
             # 30s retained (vs. the old 6s) — recorder.py briefly probes the
             # playlist before it starts copying; too small a window here and
             # the earliest segments it looked at get deleted before it can
