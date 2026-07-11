@@ -43,6 +43,12 @@ export const deleteRoute  = (id) => api.delete(`/routes/${id}`)
 // caller an object URL — works for both playback and triggering a save.
 export const getRecordings  = () => api.get('/recordings').then(r => r.data)
 export const deleteRecording = (id) => api.delete(`/recordings/${id}`)
+
+// Direct URL (token in query, since <video src> can't send an Authorization
+// header) — lets the browser range-request the file instead of blob-fetching
+// the whole thing up front, so playback starts immediately and seeking works.
+export const getRecordingStreamUrl = (id) =>
+  `/api/recordings/${id}/stream?token=${encodeURIComponent(useAuthStore.getState().token)}`
 export const fetchRecordingBlobUrl = (id, { inline = false } = {}) =>
   api.get(`/recordings/${id}/${inline ? 'stream' : 'download'}`, { responseType: 'blob' })
     .then(r => URL.createObjectURL(r.data))

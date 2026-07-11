@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getRecordings, deleteRecording, fetchRecordingBlobUrl } from '../api/client'
+import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl } from '../api/client'
 
 function formatDuration(seconds) {
   if (seconds == null) return '—'
@@ -146,25 +146,8 @@ function RecordingCard({ rec, onDelete, onPreview }) {
 }
 
 function PreviewModal({ rec, onClose }) {
-  const [url, setUrl] = useState(null)
   const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let alive = true
-    let objectUrl = null
-    fetchRecordingBlobUrl(rec.id, { inline: true })
-      .then((u) => {
-        if (!alive) { URL.revokeObjectURL(u); return }
-        objectUrl = u
-        setUrl(u)
-      })
-      .catch(() => alive && setError('Could not load recording'))
-    return () => {
-      alive = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rec.id])
+  const url = getRecordingStreamUrl(rec.id)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={onClose}>
@@ -176,10 +159,14 @@ function PreviewModal({ rec, onClose }) {
         <div className="bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
           {error ? (
             <span className="text-red-400 text-sm">{error}</span>
-          ) : url ? (
-            <video src={url} controls autoPlay className="w-full h-full" />
           ) : (
-            <span className="text-gray-600 text-sm">Loading…</span>
+            <video
+              src={url}
+              controls
+              autoPlay
+              className="w-full h-full"
+              onError={() => setError('Could not load recording')}
+            />
           )}
         </div>
       </div>

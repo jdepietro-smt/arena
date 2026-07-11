@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -82,6 +82,43 @@ async def get_current_user(
         raise credentials_exception
 
     user = session.exec(select(User).where(User.username == token_data.username)).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+
+_optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
+
+
+async def get_current_user_flexible(
+    header_token: Optional[str] = Depends(_optional_oauth2_scheme),
+    query_token: Optional[str] = Query(default=None, alias="token"),
+    session: Session = Depends(get_session),
+) -> User:
+    """
+    Same validation as get_current_user, but also accepts the JWT via a
+    `token` query param. Needed for <video src>/<a href> media playback,
+    which can't attach an Authorization header the way fetch/axios can —
+    without this, previewing a recording requires blob-fetching the whole
+    file up front instead of letting the browser range-request it.
+    """
+    token = header_token or query_token
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if token is None:
+        raise credentials_exception
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        username: Optional[str] = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = session.exec(select(User).where(User.username == username)).first()
     if user is None:
         raise credentials_exception
     return user

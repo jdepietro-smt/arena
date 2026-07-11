@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
-from ..auth import get_current_active_user, require_admin
+from ..auth import get_current_active_user, get_current_user_flexible, require_admin
 from ..config import settings
 from ..database import get_session
 from ..models import Recording, RecordingRead, User
@@ -222,13 +222,17 @@ async def download_recording(
 async def stream_recording(
     recording_id: int,
     session: Session = Depends(get_session),
-    _user: User = Depends(get_current_active_user),
+    _user: User = Depends(get_current_user_flexible),
 ) -> FileResponse:
     """
     Same file as /download, but without Content-Disposition: attachment —
     lets a <video> element play it in place instead of the browser treating
     every request as a save-to-disk. FileResponse (Starlette) already
-    supports Range requests, so seeking works normally.
+    supports Range requests, so seeking works normally — but only if the
+    caller is an actual <video src>/range-requesting client and not a blob
+    fetch, which pulls the whole file before resolving. Auth accepts a
+    `token` query param (via get_current_user_flexible) for exactly that
+    reason: a <video> element can't send an Authorization header.
     """
     recording = await _get_recording_or_404(session, recording_id)
     file_path = _resolve_path(recording.filename)
