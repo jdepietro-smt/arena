@@ -9,22 +9,29 @@ video track silently doesn't make it into recordings pulled from that
 source, even with explicit stream mapping and generous ffmpeg probe
 settings.
 
-This runs one ffmpeg process per currently-live stream that pulls it back
-in via SRT, forces a real keyframe every 1s (independent of the source's
-own GOP), and writes properly segmented HLS to /tmp/arena-hls — the same
-place hls_proxy.py already serves from and recorder.py already prefers,
-so both live preview and recording get real, complete HLS without either
-needing to know this exists.
+This runs one ffmpeg process per stream that actually has an active
+recording, pulling it back in via SRT, forcing a real keyframe every 1s
+(independent of the source's own GOP), and writing properly segmented HLS
+to /tmp/arena-hls — the same place hls_proxy.py already serves from and
+recorder.py already prefers, so both live preview and recording get real,
+complete HLS without either needing to know this exists.
 
-A background reconciliation loop keeps exactly one generator running per
-currently-live stream: starting one the moment a stream goes ready,
-stopping it when the stream goes away, and restarting it (with backoff)
-if the ffmpeg process itself dies — nothing needs to be wired up per
-stream by hand.
+Scoped to active recordings only — NOT every live stream — via
+want()/unwant(), called from recorder.py at recording start/stop. It used
+to reconcile against every live mediamtx path, keeping a generator running
+per stream at all times whether or not anyone was recording it: a
+permanent extra real-time transcode per stream, confirmed (via
+/api/recordings/debug/hls-generators showing jobs running with zero active
+recordings) to be silently eating CPU the multiviewer compositor needed,
+causing frame-rate slowdown and audio desync there. The background
+reconciliation loop now only restarts a *wanted* path's generator if its
+ffmpeg process died — it doesn't start new ones on its own.
 
 API:
-    get_hls_generator().start()             # once, at app startup
-    await get_hls_generator().stop_all()     # once, at app shutdown
+    get_hls_generator().start()               # once, at app startup
+    await get_hls_generator().stop_all()       # once, at app shutdown
+    await get_hls_generator().want(path)       # call when a recording starts
+    await get_hls_generator().unwant(path)     # call when the last recording on path stops
     get_hls_generator().list_jobs() -> list[dict]
 """
 
@@ -36,7 +43,6 @@ import os
 import shutil
 
 from ..config import settings
-from .mediamtx import get_client
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +164,25 @@ class _Job:
 
 
 class HlsGeneratorManager:
+    """
+    Runs one ffmpeg generator per path that actually needs one — i.e. a path
+    with at least one active recording — not per live path.
+
+    Originally this reconciled against every live mediamtx path, keeping a
+    generator running for every stream at all times regardless of whether
+    anyone was recording it. That silently added a permanent, always-on
+    real-time transcode per stream (confirmed via /debug/hls-generators
+    showing jobs "running":true with zero active recordings) — extra CPU
+    load competing with anything else doing real-time encoding on the same
+    box, like the multiviewer compositor. want()/unwant() (called from
+    recorder.py at recording start/stop) scope this to only what's actually
+    needed; the reconcile loop now just restarts a wanted path's generator
+    if its ffmpeg process died, instead of discovering new work on its own.
+    """
+
     def __init__(self) -> None:
         self._jobs: dict[str, _Job] = {}
+        self._wanted: set[str] = set()
         self._lock = asyncio.Lock()
         self._reconcile_task: asyncio.Task | None = None
 
@@ -180,22 +203,25 @@ class HlsGeneratorManager:
         await job.stop()
         return True
 
+    async def want(self, path: str) -> None:
+        """Start (or keep alive) a generator for `path` — call when a
+        recording begins on it."""
+        self._wanted.add(path)
+        await self.ensure_job(path)
+
+    async def unwant(self, path: str) -> None:
+        """Stop the generator for `path` — call once no recording needs it
+        anymore (recorder.py only calls this when the last active recording
+        on that path ends)."""
+        self._wanted.discard(path)
+        await self.stop_job(path)
+
     async def _reconcile_once(self) -> None:
-        try:
-            paths = await get_client().get_paths()
-        except Exception as exc:
-            logger.warning("HLS generator reconcile: could not list mediamtx paths: %s", exc)
-            return
-
-        # mv_* composite paths and anything not ready don't need HLS at all.
-        live = {p["name"] for p in paths if p.get("ready") and not p.get("name", "").startswith("mv_")}
-        async with self._lock:
-            tracked = set(self._jobs.keys())
-
-        for path in live - tracked:
+        # Only restart a wanted path's generator if its ffmpeg process died —
+        # doesn't discover new work from mediamtx's live path list anymore.
+        wanted = set(self._wanted)
+        for path in wanted:
             await self.ensure_job(path)
-        for path in tracked - live:
-            await self.stop_job(path)
 
     async def _reconcile_loop(self) -> None:
         while True:

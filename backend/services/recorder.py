@@ -20,6 +20,7 @@ from sqlmodel import Session
 
 from ..config import settings
 from ..models import Recording, RecordingStatus
+from .hls_generator import get_hls_generator
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,8 @@ _MEDIAMTX_HLS_BASE = settings.MEDIAMTX_HLS.rstrip("/")
 _processes: dict[int, asyncio.subprocess.Process] = {}
 _output_paths: dict[int, Path] = {}
 _start_times: dict[int, float] = {}
+_recording_paths: dict[int, str] = {}  # recording_id -> stream_path, for hls_generator ref-counting
+_path_refcounts: dict[str, int] = {}  # stream_path -> number of active recordings on it
 _last_errors: dict[int, str] = {}  # kept even after the process is gone, for debugging
 _lock = asyncio.Lock()
 
@@ -48,17 +51,45 @@ def get_last_error(recording_id: int) -> str | None:
     return _last_errors.get(recording_id)
 
 
+async def _release_path(stream_path: str) -> None:
+    """Drop this recording's hold on stream_path's HLS generator, stopping
+    it once nothing else is still recording that path."""
+    async with _lock:
+        count = _path_refcounts.get(stream_path, 0) - 1
+        if count <= 0:
+            _path_refcounts.pop(stream_path, None)
+        else:
+            _path_refcounts[stream_path] = count
+    if count <= 0:
+        await get_hls_generator().unwant(stream_path)
+
+
 async def start_recording(session: Session, stream_path: str) -> Recording:
     _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Only run hls_generator's transcode for paths actually being recorded —
+    # it used to run for every live path at all times, a permanent extra
+    # real-time transcode per stream that was silently eating CPU other
+    # real-time jobs on the box (the multiviewer compositor) needed.
+    async with _lock:
+        _path_refcounts[stream_path] = _path_refcounts.get(stream_path, 0) + 1
+    await get_hls_generator().want(stream_path)
+
     input_path = _HLS_DIR / stream_path / "index.m3u8"
+    # Give the generator a few seconds to actually produce output — it's
+    # started on-demand above now, not already running in the background.
+    for _ in range(10):
+        if input_path.is_file():
+            break
+        await asyncio.sleep(0.5)
+
     if input_path.is_file():
         input_url = str(input_path)
     else:
         logger.warning(
-            "No fixed HLS output for '%s' at %s (runOnReady generator not up "
-            "for this path) — falling back to mediamtx's native HLS, which "
-            "may record audio only",
+            "No fixed HLS output for '%s' at %s (generator didn't come up in "
+            "time) — falling back to mediamtx's native HLS, which may record "
+            "audio only",
             stream_path, input_path,
         )
         input_url = f"{_MEDIAMTX_HLS_BASE}/{stream_path}/index.m3u8"
@@ -106,12 +137,14 @@ async def start_recording(session: Session, stream_path: str) -> Recording:
         recording.status = RecordingStatus.error
         session.add(recording)
         session.commit()
+        await _release_path(stream_path)
         raise RuntimeError(f"ffmpeg failed to start: {exc}") from exc
 
     async with _lock:
         _processes[recording.id] = proc
         _output_paths[recording.id] = output_path
         _start_times[recording.id] = time.monotonic()
+        _recording_paths[recording.id] = stream_path
 
     asyncio.create_task(_monitor(recording.id, proc), name=f"rec-{recording.id}")
     logger.info("Recording started: id=%d path=%s -> %s", recording.id, stream_path, output_path)
@@ -123,6 +156,10 @@ async def stop_recording(session: Session, recording_id: int) -> Recording:
         proc = _processes.pop(recording_id, None)
         output_path = _output_paths.pop(recording_id, None)
         start_mono = _start_times.pop(recording_id, None)
+        stream_path = _recording_paths.pop(recording_id, None)
+
+    if stream_path is not None:
+        await _release_path(stream_path)
 
     if proc is not None:
         try:
@@ -170,8 +207,12 @@ async def _monitor(recording_id: int, proc: asyncio.subprocess.Process) -> None:
             _processes.pop(recording_id, None)
             _output_paths.pop(recording_id, None)
             _start_times.pop(recording_id, None)
+            stream_path = _recording_paths.pop(recording_id, None)
         else:
             return  # normal stop via stop_recording
+
+    if stream_path is not None:
+        await _release_path(stream_path)
 
     stderr = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
     _last_errors[recording_id] = f"rc={proc.returncode}: {stderr[-2000:]}"
