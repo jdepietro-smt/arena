@@ -280,6 +280,31 @@ async def debug_path_config(path_name: str, _admin: User = Depends(require_admin
 
 
 @router.get(
+    "/debug/probe-native-hls/{path_name}",
+    summary="Debug: ffprobe mediamtx's own native HLS output for a path, live",
+)
+async def debug_probe_native_hls(path_name: str, _admin: User = Depends(require_admin)) -> dict:
+    import asyncio
+    import json
+
+    from ..config import settings
+
+    url = f"{settings.MEDIAMTX_HLS.rstrip('/')}/{path_name}/index.m3u8"
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", "-timeout", "8000000", url,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+    except asyncio.TimeoutError:
+        proc.kill()
+        return {"url": url, "error": "ffprobe timed out"}
+    if proc.returncode != 0:
+        return {"url": url, "error": (stderr or b"").decode("utf-8", errors="replace")[-1000:]}
+    return {"url": url, "probe": json.loads(stdout.decode("utf-8", errors="replace"))}
+
+
+@router.get(
     "/debug/hls-dir",
     summary="Debug: what's actually in /tmp/arena-hls right now",
 )
