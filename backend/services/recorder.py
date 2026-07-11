@@ -75,7 +75,17 @@ async def start_recording(session: Session, stream_path: str) -> Recording:
 
     cmd = [
         "ffmpeg", "-y", "-loglevel", "warning",
+        # Default analyzeduration/probesize can commit to an audio-only
+        # stream mapping before a live HLS input's video track has produced
+        # enough data to be detected — confirmed happening even when the
+        # live source demonstrably has video (ffprobe'd separately). Give it
+        # much more data/time to see both tracks before -c copy locks in.
+        "-analyzeduration", "10000000", "-probesize", "10000000",
         "-i", input_url,
+        # Explicit maps (rather than default auto-selection) so both tracks
+        # are always included once detected; "?" makes each optional so a
+        # genuinely audio-only or video-only source doesn't fail outright.
+        "-map", "0:v:0?", "-map", "0:a:0?",
         "-c", "copy", "-movflags", "+faststart",
         str(output_path),
     ]
