@@ -119,17 +119,31 @@ class _Job:
         # (duplicating/dropping frames per-stream) before they reach xstack —
         # without it, two sources with slightly different or drifting frame
         # rates make the combined output freeze whenever they fall out of step.
-        # scale uses force_original_aspect_ratio=increase+crop (cover) rather
-        # than decrease+pad (letterbox/contain): grids beyond 2x2 have cells
-        # noticeably more square than 16:9, and padding every 16:9 source to
-        # fit put visible black bars top/bottom of every cell — bars from
-        # adjacent rows stacked into what read as one big gap across the
-        # screen. Cropping fills every cell edge to edge at the cost of
-        # trimming the source's extreme edges instead.
+        #
+        # Crop-to-fill (increase+crop) vs. letterbox (decrease+pad) depends
+        # on row count. With 2+ rows, cells end up noticeably more square
+        # than 16:9, and padding every 16:9 source to fit put visible black
+        # bars top/bottom of every cell — bars from adjacent rows stacked
+        # into what read as one big gap across the screen; cropping avoided
+        # that. But a single-row layout (e.g. exactly 2 real tiles: cols=2,
+        # rows=1 gives 960x1080 cells) has no such stacking risk — any bars
+        # only land at the very top/bottom of the whole canvas, normal
+        # letterboxing. Cropping a 960x1080 (portrait-ish) cell out of 16:9
+        # source there means zooming in ~2x and cutting away roughly half
+        # the picture's width, which reads as broken/zoomed aspect ratio
+        # rather than a sensible crop. Letterbox instead for rows == 1.
+        if rows == 1:
+            scale_filter = (
+                f"scale={cell_w}:{cell_h}:force_original_aspect_ratio=decrease,"
+                f"pad={cell_w}:{cell_h}:(ow-iw)/2:(oh-ih)/2:color=black"
+            )
+        else:
+            scale_filter = (
+                f"scale={cell_w}:{cell_h}:force_original_aspect_ratio=increase,"
+                f"crop={cell_w}:{cell_h}"
+            )
         scale_parts = [
-            f"[{i}:v]fps={_OUTPUT_FPS},"
-            f"scale={cell_w}:{cell_h}:force_original_aspect_ratio=increase,"
-            f"crop={cell_w}:{cell_h}[v{i}]"
+            f"[{i}:v]fps={_OUTPUT_FPS},{scale_filter}[v{i}]"
             for i in range(n_real)
         ]
         # Filler (lavfi) inputs are already exactly cell_w x cell_h — reference
