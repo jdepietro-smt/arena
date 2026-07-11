@@ -109,14 +109,24 @@ class _Job:
         cmd = ["ffmpeg", "-y", "-loglevel", "warning"]
         for path in self.paths:
             # thread_queue_size avoids input buffers overflowing/blocking when
-            # several independent live sources feed one filter graph.
+            # several independent live sources feed one filter graph. 512 was
+            # confirmed too small via a live job's captured stderr (get_job_log):
+            # "[rtsp] Thread message queue blocking; consider raising the
+            # thread_queue_size option" repeated continuously, and that
+            # blocking was cascading into real corruption downstream —
+            # "error while decoding MB", "corrupt decoded frame", "illegal
+            # short term buffer state" on both video streams, plus hundreds of
+            # "[libopus] Queue input is backward in time" on the audio track.
+            # This only showed up once a 2nd video decode plus audio decode/
+            # encode were competing for the same queue's capacity, which is
+            # exactly when the user's issue appeared. 4096 gives real slack.
             # use_wallclock_as_timestamps stamps each frame with real arrival
             # time instead of trusting the source's own PTS — genpts (tried
             # first) instead *interpolated* timestamps from an assumed frame
             # rate, and when that guess didn't match the source, the fps=
             # filter below stretched playback against it, causing slow motion.
             cmd += [
-                "-thread_queue_size", "512",
+                "-thread_queue_size", "4096",
                 "-rtsp_transport", "tcp",
                 "-use_wallclock_as_timestamps", "1",
                 "-i", f"rtsp://localhost:{_RTSP_PORT}/{path}",
@@ -186,19 +196,23 @@ class _Job:
         # into a fresh container on a fresh timeline; Opus is also what the
         # browser side actually expects for WebRTC audio.
         #
-        # Tried adding aresample=async=1 here to match a fix that helped the
-        # (non-realtime, single-input) recording pipeline — regressed this
-        # job instead: audio cutting out AND video stutter together as soon
-        # as audio_path was set, never when muted. This process runs -tune
-        # zerolatency compositing multiple live sources into one real-time
-        # RTSP muxer; audio and video share the same process/timeline here,
-        # unlike the recorder, so a resampler buffering/stretching to
-        # compensate for drift backs up the whole pipeline instead of just
-        # smoothing the audio track. Reverted — do not re-add without
-        # confirming it doesn't reproduce the stutter first.
+        # aresample=async=1 was tried, then reverted on a wrong hypothesis
+        # that it caused a stutter regression, then re-added here after
+        # actually capturing this job's stderr (get_job_log) and confirming
+        # the revert changed nothing — the real bug was already present:
+        # hundreds of "[libopus] Queue input is backward in time" warnings.
+        # use_wallclock_as_timestamps (below, per-input) stamps every packet
+        # with real arrival time regardless of stream, and audio/video
+        # packets interleaved from one RTSP session don't arrive in strict
+        # per-substream order, so audio's own timestamp sequence goes
+        # non-monotonic — exactly what aresample's async mode exists to
+        # absorb (inserting/dropping samples to keep it strictly increasing).
         if self.audio_path is not None and self.audio_path in self.paths:
             audio_idx = self.paths.index(self.audio_path)
-            cmd += ["-map", f"{audio_idx}:a", "-c:a", "libopus", "-b:a", "128k", "-ar", "48000"]
+            cmd += [
+                "-map", f"{audio_idx}:a", "-af", "aresample=async=1",
+                "-c:a", "libopus", "-b:a", "128k", "-ar", "48000",
+            ]
         else:
             cmd += ["-an"]
 
