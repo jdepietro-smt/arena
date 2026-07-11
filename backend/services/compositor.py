@@ -196,23 +196,26 @@ class _Job:
         # into a fresh container on a fresh timeline; Opus is also what the
         # browser side actually expects for WebRTC audio.
         #
-        # aresample=async=1 was tried, then reverted on a wrong hypothesis
-        # that it caused a stutter regression, then re-added here after
-        # actually capturing this job's stderr (get_job_log) and confirming
-        # the revert changed nothing — the real bug was already present:
-        # hundreds of "[libopus] Queue input is backward in time" warnings.
-        # use_wallclock_as_timestamps (below, per-input) stamps every packet
-        # with real arrival time regardless of stream, and audio/video
-        # packets interleaved from one RTSP session don't arrive in strict
-        # per-substream order, so audio's own timestamp sequence goes
-        # non-monotonic — exactly what aresample's async mode exists to
-        # absorb (inserting/dropping samples to keep it strictly increasing).
+        # DO NOT add an aresample=async filter here — tried it twice this
+        # round-trip and both times it made things worse (cutting out/
+        # stutter the first time, then full audio desync + video slow
+        # motion the second time, once thread_queue_size below was already
+        # fixed). Both times it looked justified from an isolated stderr
+        # capture ("[libopus] Queue input is backward in time"), but that
+        # warning traced back to the undersized thread_queue_size (512)
+        # causing blocking/reordering under load, not a real audio-timeline
+        # problem needing compensation — raising thread_queue_size to 4096
+        # fixed the reordering at the source, and the async filter's own
+        # sample-stretching to "fix" what was no longer actually broken is
+        # what desynced audio and dragged the whole muxed timeline into
+        # slow motion. A clean stderr log after this filter was added is
+        # NOT sufficient verification — slow motion/desync doesn't
+        # necessarily print a warning; verify against actual playback
+        # timing (e.g. record the composite output and compare wall-clock
+        # duration to file duration) before touching this again.
         if self.audio_path is not None and self.audio_path in self.paths:
             audio_idx = self.paths.index(self.audio_path)
-            cmd += [
-                "-map", f"{audio_idx}:a", "-af", "aresample=async=1",
-                "-c:a", "libopus", "-b:a", "128k", "-ar", "48000",
-            ]
+            cmd += ["-map", f"{audio_idx}:a", "-c:a", "libopus", "-b:a", "128k", "-ar", "48000"]
         else:
             cmd += ["-an"]
 
