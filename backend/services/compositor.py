@@ -26,6 +26,7 @@ import hashlib
 import logging
 import math
 import time
+from collections import deque
 
 from ..models import ManagedPathType
 from .managed_paths import register_path, unregister_path
@@ -39,6 +40,18 @@ _CANVAS_H = 1080
 _OUTPUT_FPS = 30
 _REAP_INTERVAL_S = 20
 _REAP_GRACE_S = 30  # don't reap a job younger than this — give the first viewer time to connect
+
+# Rolling stderr tail per job, updated continuously (not just captured on
+# exit) — for debugging things like audio/video stutter while a job is still
+# running, without needing server console access. Kept around briefly after
+# a job is torn down too.
+_STDERR_TAIL_LINES = 200
+_stderr_tails: dict[str, deque] = {}
+
+
+def get_job_log(job_id: str) -> str:
+    tail = _stderr_tails.get(job_id)
+    return "\n".join(tail) if tail else ""
 
 
 def _job_id(paths: list[str], audio_path: str | None, blank_slots: int) -> str:
@@ -173,19 +186,19 @@ class _Job:
         # into a fresh container on a fresh timeline; Opus is also what the
         # browser side actually expects for WebRTC audio.
         #
-        # aresample=async=1 stretches/compresses audio slightly to absorb
-        # small timestamp gaps/overlaps from the live source instead of
-        # passing them straight to the encoder — the same class of bad
-        # source-timestamp issue confirmed via ffprobe in the recording
-        # pipeline (hls_generator.py), which caused audio dropouts there
-        # until it got the same filter. Without it here, those gaps surface
-        # as intermittent audio cutting out during otherwise steady viewing.
+        # Tried adding aresample=async=1 here to match a fix that helped the
+        # (non-realtime, single-input) recording pipeline — regressed this
+        # job instead: audio cutting out AND video stutter together as soon
+        # as audio_path was set, never when muted. This process runs -tune
+        # zerolatency compositing multiple live sources into one real-time
+        # RTSP muxer; audio and video share the same process/timeline here,
+        # unlike the recorder, so a resampler buffering/stretching to
+        # compensate for drift backs up the whole pipeline instead of just
+        # smoothing the audio track. Reverted — do not re-add without
+        # confirming it doesn't reproduce the stutter first.
         if self.audio_path is not None and self.audio_path in self.paths:
             audio_idx = self.paths.index(self.audio_path)
-            cmd += [
-                "-map", f"{audio_idx}:a", "-af", "aresample=async=1",
-                "-c:a", "libopus", "-b:a", "128k", "-ar", "48000",
-            ]
+            cmd += ["-map", f"{audio_idx}:a", "-c:a", "libopus", "-b:a", "128k", "-ar", "48000"]
         else:
             cmd += ["-an"]
 
@@ -303,15 +316,22 @@ class CompositorManager:
         """
         Drain the job's stderr pipe for its whole lifetime (a PIPE that's
         never read can fill and block ffmpeg's write() calls forever — a
-        silent hang, not a crash) and log the tail if it exits unexpectedly.
+        silent hang, not a crash), keeping a rolling tail so things like
+        audio/video stutter can be diagnosed via get_job_log() while the
+        job is still running, not just after an unexpected exit.
         """
         proc = job.proc
-        if proc is None:
+        if proc is None or proc.stderr is None:
             return
+        tail = _stderr_tails.setdefault(job.job_id, deque(maxlen=_STDERR_TAIL_LINES))
         try:
-            _, stderr_bytes = await proc.communicate()
+            while True:
+                line = await proc.stderr.readline()
+                if not line:
+                    break
+                tail.append(line.decode("utf-8", errors="replace").rstrip())
         except Exception:
-            return
+            pass
 
         async with self._lock:
             if self._jobs.get(job.job_id) is job and job.proc is proc:
@@ -319,10 +339,9 @@ class CompositorManager:
             else:
                 return  # replaced or stopped intentionally — nothing to log
 
-        stderr = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
         logger.error(
             "Composite job %s exited unexpectedly (rc=%s): %s",
-            job.job_id, proc.returncode, stderr[-2000:],
+            job.job_id, proc.returncode, "\n".join(tail)[-2000:],
         )
 
     async def _reap_once(self) -> None:

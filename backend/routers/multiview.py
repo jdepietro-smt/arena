@@ -21,9 +21,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from ..auth import get_current_active_user
+from ..auth import get_current_active_user, require_admin
 from ..models import User
-from ..services.compositor import get_compositor
+from ..services.compositor import get_compositor, get_job_log
 
 router = APIRouter(tags=["multiview"])
 
@@ -81,3 +81,8 @@ async def stop_job(job_id: str, _user: User = Depends(get_current_active_user)) 
     if not stopped:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No running job '{job_id}'")
     return {"stopped": job_id}
+
+
+@router.get("/jobs/{job_id}/log", summary="Recent ffmpeg stderr for a composite job (debug)")
+async def job_log(job_id: str, _admin: User = Depends(require_admin)) -> dict:
+    return {"job_id": job_id, "log": get_job_log(job_id)}
