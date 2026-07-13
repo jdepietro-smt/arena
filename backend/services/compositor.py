@@ -176,17 +176,27 @@ class _Job:
             + "".join(f"[{n_real + j}:v]" for j in range(total_fillers))
         )
 
-        # Explicit pixel-offset layout instead of xstack's grid=/fill= shorthand
-        # — those were only added in FFmpeg 5.1, and this server's build predates
-        # it. layout=x_y|x_y|... has been supported since xstack was introduced.
-        layout = "|".join(
-            f"{(i % cols) * cell_w}_{(i // cols) * cell_h}" for i in range(grid_capacity)
-        )
-        filter_complex = (
-            ";".join(scale_parts)
-            + (";" if scale_parts else "")
-            + f"{stack_inputs}xstack=inputs={grid_capacity}:layout={layout}[outv]"
-        )
+        if grid_capacity == 1:
+            # xstack hard-requires 2+ inputs (confirmed via a live job's
+            # ffmpeg log: "Value 1.000000 for parameter 'inputs' out of
+            # range [2 - ...]", failing to initialize the filter graph
+            # entirely) — with exactly one real stream and no reserved/
+            # filler cells there's nothing to stack against, so skip it and
+            # use the one scaled stream's output directly.
+            filter_complex = scale_parts[0].replace("[v0]", "[outv]")
+        else:
+            # Explicit pixel-offset layout instead of xstack's grid=/fill=
+            # shorthand — those were only added in FFmpeg 5.1, and this
+            # server's build predates it. layout=x_y|x_y|... has been
+            # supported since xstack was introduced.
+            layout = "|".join(
+                f"{(i % cols) * cell_w}_{(i // cols) * cell_h}" for i in range(grid_capacity)
+            )
+            filter_complex = (
+                ";".join(scale_parts)
+                + (";" if scale_parts else "")
+                + f"{stack_inputs}xstack=inputs={grid_capacity}:layout={layout}[outv]"
+            )
 
         cmd += ["-filter_complex", filter_complex, "-map", "[outv]"]
 
