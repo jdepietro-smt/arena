@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -5,14 +7,38 @@ from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import os
 
+from .config import settings
 from .database import create_db_and_tables, seed_default_admin
 from .services.managed_paths import reconcile_orphans
 from .services.srt_stats import get_collector
 from .services.compositor import get_compositor
 from .services.external_source import get_external_sources
 from .services.hls_generator import get_hls_generator
+from .services.mediamtx import get_client
 from .routers import streams, routes, recordings, stats, users, hls_proxy, whep_proxy, multiview, external_sources
 from .auth import router as auth_router
+
+logger = logging.getLogger(__name__)
+
+
+async def _apply_srt_publish_passphrase() -> None:
+    # Without this, mediamtx's SRT listener accepts a publish under any
+    # streamid from anyone who reaches the port — confirmed live (an
+    # unrecognized stream showed up under an arbitrary name). Applied every
+    # startup so it survives a passphrase change in .env without needing a
+    # one-off manual API call, and so a fresh mediamtx instance is never left
+    # unconfigured.
+    if not settings.SRT_PUBLISH_PASSPHRASE:
+        logger.warning(
+            "SRT_PUBLISH_PASSPHRASE is unset — the SRT publish port accepts "
+            "a stream under any name from anyone who can reach it. Set "
+            "SRT_PUBLISH_PASSPHRASE in .env (10-79 chars) to close this."
+        )
+        return
+    try:
+        await get_client().patch_config({"srtPublishPassphrase": settings.SRT_PUBLISH_PASSPHRASE})
+    except Exception:
+        logger.exception("Failed to apply SRT_PUBLISH_PASSPHRASE to mediamtx")
 
 
 @asynccontextmanager
@@ -21,6 +47,7 @@ async def lifespan(app: FastAPI):
     create_db_and_tables()
     seed_default_admin()
     await reconcile_orphans()
+    await _apply_srt_publish_passphrase()
     await get_collector().start()
     get_compositor().start_reaper()
     get_hls_generator().start()

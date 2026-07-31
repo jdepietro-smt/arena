@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+venv_test/
+*.egg-info/
+
+# Local dev DB / secrets
+*.db
+.env
+
+# Node / frontend build artifacts (frontend/dist is intentionally committed —
+# see frontend/README or deploy.sh for why)
+frontend/node_modules/

@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     MEDIAMTX_WEBRTC: str = "http://localhost:8889"
     MEDIAMTX_SRT_PORT: int = 8890  # mediamtx SRT port; relay ingests on 8895
 
+    # SRT publish auth — without this, mediamtx's SRT listener accepts a
+    # publish under any streamid from anyone who reaches the port at all
+    # (confirmed live: an unrelated stream showed up under a name nobody on
+    # the team recognized). Set via .env; must be 10-79 chars per the SRT
+    # spec. Left blank leaves publish wide open — startup logs a warning in
+    # that case rather than silently doing nothing.
+    SRT_PUBLISH_PASSPHRASE: str = ""
+
     # JWT / Auth
     SECRET_KEY: str = "arena-secret-change-in-prod"
     ALGORITHM: str = "HS256"
