@@ -34,5 +34,12 @@ class Settings(BaseSettings):
     SERVER_IP: str = "5.78.236.254"
     ARENA_PORT: int = 8001
 
+    # Alerting — a webhook (Slack-compatible {"text": "..."} payload) fired
+    # on stream-down/recovered and on AlertRule threshold breaches/recovery.
+    # Left blank, alerts are still logged (visible via journalctl) but
+    # nothing gets pushed out — no one finds out about a problem unless
+    # they're already looking.
+    ALERT_WEBHOOK_URL: str = ""
+
 
 settings = Settings()

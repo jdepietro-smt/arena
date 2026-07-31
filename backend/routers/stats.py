@@ -149,24 +149,17 @@ async def stream_stats_history(
     """
     Return the last N seconds of stats history for a stream.
 
-    History is kept in the in-process StatsStore ring buffer populated by
-    the background polling task.  If the StatsStore is not running (e.g.
-    during tests) an empty list is returned rather than raising.
+    This used to lazy-import a `services.stats_store` module that doesn't
+    exist anywhere in this codebase — every call silently fell into the
+    ImportError branch and returned an empty list, permanently, no matter
+    how long the app had been running. The actual, already-working history
+    ring buffer lives in StatsCollector (services/srt_stats.py), which polls
+    every 2s and keeps up to an hour per path — it was just never wired up
+    here.
     """
-    try:
-        from ..services.stats_store import stats_store  # lazy import
+    from ..services.srt_stats import get_collector  # local import avoids a cycle at module load
 
-        history = stats_store.get_history(path_name, seconds=seconds)
-        return [s.model_dump() for s in history]
-    except ImportError:
-        logger.warning("stats_store service not available; returning empty history")
-        return []
-    except Exception as exc:
-        logger.error("Error fetching stats history for %s: %s", path_name, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not retrieve stats history",
-        )
+    return get_collector().get_history(path_name, seconds=seconds)
 
 
 # ---------------------------------------------------------------------------
