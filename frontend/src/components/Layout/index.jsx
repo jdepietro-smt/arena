@@ -61,6 +61,15 @@ function IconStats({ size = 18 }) {
   )
 }
 
+function IconAlerts({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 2.5c-3 0-4.5 2.2-4.5 5v2.3L4 13v1h12v-1l-1.5-3.2V7.5c0-2.8-1.5-5-4.5-5z" />
+      <path d="M8.2 16.5a1.8 1.8 0 0 0 3.6 0" />
+    </svg>
+  )
+}
+
 function IconSettings({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -112,6 +121,7 @@ const NAV_ITEMS = [
   { path: '/router',     label: 'Router',     Icon: IconRouter },
   { path: '/recordings', label: 'Recordings', Icon: IconRecordings },
   { path: '/stats',      label: 'Statistics', Icon: IconStats },
+  { path: '/alerts',     label: 'Alerts',     Icon: IconAlerts },
 ]
 
 const PAGE_TITLES = {
@@ -121,6 +131,7 @@ const PAGE_TITLES = {
   '/router':     'Router',
   '/recordings': 'Recordings',
   '/stats':      'Statistics',
+  '/alerts':     'Alerts',
   '/settings':   'Settings',
 }
 

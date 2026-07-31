@@ -75,6 +75,13 @@ export const getStats        = (p) => api.get(`/stats/${p}`).then(r => r.data)
 export const getStatsHistory = (p, s) => api.get(`/stats/${p}/history`, { params: { seconds: s } }).then(r => r.data)
 export const getStatsSummary = () => api.get('/stats/summary').then(r => r.data)
 
+// --- Alerts ---
+export const getAlertStatus  = () => api.get('/alerts/status').then(r => r.data)
+export const getAlertRules   = () => api.get('/alerts').then(r => r.data)
+export const createAlertRule = (d) => api.post('/alerts', d).then(r => r.data)
+export const toggleAlertRule = (id) => api.patch(`/alerts/${id}/toggle`).then(r => r.data)
+export const deleteAlertRule = (id) => api.delete(`/alerts/${id}`)
+
 // --- Auth ---
 export const login = (username, password) => {
   const form = new URLSearchParams()
