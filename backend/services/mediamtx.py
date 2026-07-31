@@ -207,6 +207,18 @@ class MediaMTXClient:
         await self._delete(f"/v3/config/paths/delete/{name}")
         logger.info("Removed mediamtx path: %s", name)
 
+    async def patch_path_config(self, name: str, data: dict[str, Any]) -> None:
+        """
+        Partially update one path's configuration (e.g. srtPublishPassphrase,
+        which is a per-path setting, not a global one — confirmed live: it
+        appears in GET /v3/config/paths/get/{name}'s response, and PATCHing
+        it via the global endpoint fails outright with "unknown field").
+
+        mediamtx v3: PATCH /v3/config/paths/patch/{name}
+        """
+        await self._patch(f"/v3/config/paths/patch/{name}", data)
+        logger.info("Patched mediamtx path '%s' config: %s", name, list(data.keys()))
+
     # ------------------------------------------------------------------
     # Global configuration
     # ------------------------------------------------------------------

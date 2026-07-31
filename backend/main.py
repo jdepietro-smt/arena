@@ -28,6 +28,12 @@ async def _apply_srt_publish_passphrase() -> None:
     # startup so it survives a passphrase change in .env without needing a
     # one-off manual API call, and so a fresh mediamtx instance is never left
     # unconfigured.
+    #
+    # srtPublishPassphrase is a PER-PATH setting, not global — confirmed by
+    # a live 400 ("json: unknown field") from PATCHing it via the global
+    # config endpoint. It lives on the "all" wildcard path (the one entry
+    # in mediamtx.yml, source: publisher), which every concrete stream path
+    # falls back to, so patching "all" covers every publish.
     if not settings.SRT_PUBLISH_PASSPHRASE:
         logger.warning(
             "SRT_PUBLISH_PASSPHRASE is unset — the SRT publish port accepts "
@@ -36,7 +42,7 @@ async def _apply_srt_publish_passphrase() -> None:
         )
         return
     try:
-        await get_client().patch_config({"srtPublishPassphrase": settings.SRT_PUBLISH_PASSPHRASE})
+        await get_client().patch_path_config("all", {"srtPublishPassphrase": settings.SRT_PUBLISH_PASSPHRASE})
     except Exception:
         logger.exception("Failed to apply SRT_PUBLISH_PASSPHRASE to mediamtx")
 
