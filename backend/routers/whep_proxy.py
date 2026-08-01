@@ -12,9 +12,9 @@ import httpx
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import RedirectResponse
 
-router = APIRouter(tags=["whep"])
+from ..config import settings
 
-MEDIAMTX_WEBRTC = "http://localhost:8889"
+router = APIRouter(tags=["whep"])
 
 
 @router.get("/{stream_name}/whep")
@@ -31,7 +31,7 @@ async def whep_proxy(stream_name: str, request: Request) -> Response:
     async with httpx.AsyncClient() as client:
         try:
             r = await client.post(
-                f"{MEDIAMTX_WEBRTC}/{stream_name}/whep",
+                f"{settings.MEDIAMTX_WEBRTC}/{stream_name}/whep",
                 content=body,
                 headers={"Content-Type": "application/sdp"},
                 timeout=10.0,

@@ -1,0 +1,14 @@
+[Unit]
+Description=Arena API
+After=network.target mediamtx.service
+
+[Service]
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=__INSTALL_DIR__/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port __ARENA_PORT__ --workers 1
+Restart=always
+RestartSec=5
+Environment=PYTHONPATH=__INSTALL_DIR__
+Environment=HOME=/root
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=MediaMTX (SRT ingest, HLS/WebRTC serving)
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/mediamtx /etc/mediamtx.yml
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
