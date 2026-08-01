@@ -12,6 +12,7 @@ from .database import create_db_and_tables, seed_default_admin
 from .services.alerting import get_alert_manager
 from .services.redundancy import get_redundancy_monitor
 from .services.retention import get_recording_retention
+from .services.db_backup import get_db_backup
 from .services.managed_paths import reconcile_orphans
 from .services.srt_stats import get_collector
 from .services.compositor import get_compositor
@@ -82,6 +83,7 @@ async def lifespan(app: FastAPI):
     get_alert_manager().start()
     get_redundancy_monitor().start()
     get_recording_retention().start()
+    get_db_backup().start()
     yield
     # Shutdown
     await get_collector().stop()
@@ -91,6 +93,7 @@ async def lifespan(app: FastAPI):
     await get_alert_manager().stop()
     await get_redundancy_monitor().stop()
     await get_recording_retention().stop()
+    await get_db_backup().stop()
 
 
 app = FastAPI(

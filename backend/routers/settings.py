@@ -10,6 +10,8 @@ no-op'd. This is that missing endpoint, backed by models.RecordingConfig.
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import Session
@@ -17,6 +19,7 @@ from sqlmodel import Session
 from ..auth import get_current_active_user, require_admin
 from ..database import get_session
 from ..models import User
+from ..services.db_backup import get_db_backup, run_backup_once
 from ..services.recording_config import get_recording_config
 
 router = APIRouter(tags=["settings"])
@@ -39,6 +42,19 @@ async def get_recording_settings(
         "max_storage_gb": config.max_storage_gb,
         "auto_delete": config.auto_delete,
     }
+
+
+@router.get("/backup/status", summary="Last automatic DB backup timestamp")
+async def backup_status(_user: User = Depends(get_current_active_user)) -> dict:
+    return get_db_backup().status()
+
+
+@router.post("/backup", summary="Take a database backup right now (admin only)")
+async def trigger_backup(_admin: User = Depends(require_admin)) -> dict:
+    path = await asyncio.to_thread(run_backup_once)
+    if path is None:
+        return {"ok": False, "reason": "DATABASE_URL is not sqlite, or the DB file doesn't exist yet"}
+    return {"ok": True, "path": str(path)}
 
 
 @router.put("/recording", summary="Update recording storage/retention settings")

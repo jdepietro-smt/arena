@@ -62,6 +62,17 @@ a failure at the end.
 5. **Configure recording retention** (optional) — Settings → Recording, if
    you want old recordings auto-deleted once storage passes a limit.
 
+## Already set up automatically
+
+- **Database backups** — `arena.db` (users, alert rules, redundancy
+  gateway configs, recording index) is backed up daily to `backups/` next
+  to it, keeping the last 7. Trigger one manually anytime with
+  `POST /api/settings/backup` (admin only) — useful right before a risky
+  change. Doesn't cover recordings themselves (the actual video files),
+  just this metadata.
+- **Login brute-force protection** — 5 failed logins from the same source
+  within 15 minutes locks that source out for 15 minutes.
+
 ## What the installer does NOT set up
 
 - **`arena-srt-relay.service`** — only needed if your source sends
