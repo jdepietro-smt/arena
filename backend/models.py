@@ -111,6 +111,30 @@ class AlertRule(SQLModel, table=True):
     is_active: bool = Field(default=True)
 
 
+class RecordingConfig(SQLModel, table=True):
+    """
+    Singleton row (always id=1) backing the Settings page's Recording tab —
+    that UI already existed with a "default output directory" field, a
+    storage-limit slider, and an auto-delete toggle, but there was no
+    /api/settings/recording endpoint behind it at all, so saving silently
+    did nothing. This is that missing backing store.
+
+    output_dir is read at recording-start time (services/recorder.py) and
+    by the recordings router for file operations — both used to disagree
+    on where recordings actually live (recorder.py hardcoded
+    /opt/arena/recordings; the router read a settings.RECORDINGS_DIR that
+    was never defined, silently falling back to a relative "./recordings").
+    Routing both through get_recordings_dir() here fixes that mismatch.
+    """
+
+    __tablename__ = "recording_config"
+
+    id: int = Field(default=1, primary_key=True)
+    output_dir: str = Field(default="/opt/arena/recordings")
+    max_storage_gb: float = Field(default=500.0)
+    auto_delete: bool = Field(default=False)
+
+
 class RedundancyGateway(SQLModel, table=True):
     """
     A configured sdi_receive instance (SMPTE 2022-7 protection-switch

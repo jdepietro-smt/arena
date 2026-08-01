@@ -75,7 +75,7 @@ def _fast_and_sandboxed(monkeypatch, tmp_path):
     # its own patched version. Capture the real one first.
     real_sleep = asyncio.sleep
     monkeypatch.setattr(recorder.asyncio, "sleep", lambda *_a, **_kw: real_sleep(0))
-    monkeypatch.setattr(recorder, "_OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(recorder, "get_recordings_dir", lambda _session: tmp_path)
 
     async def fake_subprocess_exec(*_args, **_kwargs):
         return FakeProc()

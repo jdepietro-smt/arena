@@ -21,10 +21,15 @@ from sqlmodel import Session
 from ..config import settings
 from ..models import Recording, RecordingStatus
 from .hls_generator import get_hls_generator
+from .recording_config import get_recordings_dir
 
 logger = logging.getLogger(__name__)
 
-_OUTPUT_DIR = Path("/opt/arena/recordings")
+# Where recordings actually get written is now resolved per-call via
+# get_recordings_dir() (services/recording_config.py), backed by the
+# RecordingConfig DB row — previously hardcoded here as a module constant,
+# which disagreed with routers/recordings.py's own (broken) path resolution.
+#
 # Prefer this over settings.MEDIAMTX_HLS — mediamtx's own native HLS muxer
 # breaks for this encoder's video specifically (see hls_proxy.py's docstring:
 # 8s keyframe interval vs mediamtx's 1s segment boundary means the muxer
@@ -65,7 +70,8 @@ async def _release_path(stream_path: str) -> None:
 
 
 async def start_recording(session: Session, stream_path: str) -> Recording:
-    _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = get_recordings_dir(session)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Only run hls_generator's transcode for paths actually being recorded —
     # it used to run for every live path at all times, a permanent extra
@@ -97,7 +103,7 @@ async def start_recording(session: Session, stream_path: str) -> Recording:
     timestamp = int(time.time())
     safe = stream_path.replace("/", "_")
     filename = f"{safe}_{timestamp}.mp4"
-    output_path = _OUTPUT_DIR / filename
+    output_path = output_dir / filename
 
     recording = Recording(
         stream_path=stream_path,

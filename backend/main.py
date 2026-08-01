@@ -11,6 +11,7 @@ from .config import settings
 from .database import create_db_and_tables, seed_default_admin
 from .services.alerting import get_alert_manager
 from .services.redundancy import get_redundancy_monitor
+from .services.retention import get_recording_retention
 from .services.managed_paths import reconcile_orphans
 from .services.srt_stats import get_collector
 from .services.compositor import get_compositor
@@ -19,7 +20,7 @@ from .services.hls_generator import get_hls_generator
 from .services.mediamtx import get_client
 from .routers import (
     streams, routes, recordings, stats, users, hls_proxy, whep_proxy,
-    multiview, external_sources, alerts, redundancy,
+    multiview, external_sources, alerts, redundancy, settings as settings_router,
 )
 from .auth import router as auth_router
 
@@ -64,6 +65,7 @@ async def lifespan(app: FastAPI):
     get_hls_generator().start()
     get_alert_manager().start()
     get_redundancy_monitor().start()
+    get_recording_retention().start()
     yield
     # Shutdown
     await get_collector().stop()
@@ -72,6 +74,7 @@ async def lifespan(app: FastAPI):
     await get_hls_generator().stop_all()
     await get_alert_manager().stop()
     await get_redundancy_monitor().stop()
+    await get_recording_retention().stop()
 
 
 app = FastAPI(
@@ -102,6 +105,7 @@ app.include_router(multiview.router, prefix="/api/multiview", tags=["multiview"]
 app.include_router(external_sources.router, prefix="/api/sources", tags=["sources"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(redundancy.router, prefix="/api/redundancy", tags=["redundancy"])
+app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
 
 
 @app.get("/api/health", tags=["health"])

@@ -21,6 +21,7 @@ from ..auth import get_current_active_user, get_current_user_flexible, require_a
 from ..config import settings
 from ..database import get_session
 from ..models import Recording, RecordingRead, User
+from ..services.recording_config import get_recordings_dir
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +33,15 @@ router = APIRouter(tags=["recordings"])
 # ---------------------------------------------------------------------------
 
 
-def _recording_base_dir() -> Path:
-    """Return the root directory where recordings are stored.
+def _resolve_path(session: Session, filename: str) -> Path:
+    """Return the absolute path for a recording filename, safely.
 
-    Reads RECORDINGS_DIR from settings (falls back to './recordings' relative
-    to the working directory).  The directory must exist; creation is the
-    responsibility of the recorder service.
+    Reads the storage directory from RecordingConfig (services/
+    recording_config.py) — the same config services/recorder.py writes new
+    recordings into, so the two can no longer disagree on where a file
+    actually lives.
     """
-    try:
-        base = Path(settings.RECORDINGS_DIR)  # type: ignore[attr-defined]
-    except AttributeError:
-        base = Path("recordings")
-    return base
-
-
-def _resolve_path(filename: str) -> Path:
-    """Return the absolute path for a recording filename, safely."""
-    base = _recording_base_dir().resolve()
+    base = get_recordings_dir(session).resolve()
     candidate = (base / filename).resolve()
     # Guard against path traversal: ensure candidate is inside base.
     if not str(candidate).startswith(str(base)):
@@ -59,14 +52,14 @@ def _resolve_path(filename: str) -> Path:
     return candidate
 
 
-def _thumbnail_path(filename: str) -> Optional[Path]:
+def _thumbnail_path(session: Session, filename: str) -> Optional[Path]:
     """
     Return the thumbnail path for a recording if it exists.
 
     Convention: same directory, same stem, .jpg extension.
     e.g. recordings/stream_20240101_120000.mp4 → recordings/stream_20240101_120000.jpg
     """
-    base = _recording_base_dir().resolve()
+    base = get_recordings_dir(session).resolve()
     stem = Path(filename).stem
     thumb = base / f"{stem}.jpg"
     return thumb if thumb.exists() else None
@@ -200,7 +193,7 @@ async def delete_recording(
     Requires admin privileges.
     """
     recording = await _get_recording_or_404(session, recording_id)
-    file_path = _resolve_path(recording.filename)
+    file_path = _resolve_path(session, recording.filename)
 
     if file_path.exists():
         try:
@@ -218,7 +211,7 @@ async def delete_recording(
         )
 
     # Also remove thumbnail if it exists.
-    thumb = _thumbnail_path(recording.filename)
+    thumb = _thumbnail_path(session, recording.filename)
     if thumb is not None:
         try:
             thumb.unlink()
@@ -245,7 +238,7 @@ async def download_recording(
     original filename.
     """
     recording = await _get_recording_or_404(session, recording_id)
-    file_path = _resolve_path(recording.filename)
+    file_path = _resolve_path(session, recording.filename)
 
     if not file_path.exists():
         raise HTTPException(
@@ -294,7 +287,7 @@ async def stream_recording(
     since a <video> element can't send an Authorization header.
     """
     recording = await _get_recording_or_404(session, recording_id)
-    file_path = _resolve_path(recording.filename)
+    file_path = _resolve_path(session, recording.filename)
 
     if not file_path.exists():
         raise HTTPException(
@@ -417,7 +410,7 @@ async def probe_recording(
     import json
 
     recording = await _get_recording_or_404(session, recording_id)
-    file_path = _resolve_path(recording.filename)
+    file_path = _resolve_path(session, recording.filename)
     if not file_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording file not found on disk")
 
@@ -452,7 +445,7 @@ async def get_thumbnail(
         ffmpeg -i <recording.mp4> -ss 00:00:01 -vframes 1 <recording.jpg>
     """
     recording = await _get_recording_or_404(session, recording_id)
-    thumb = _thumbnail_path(recording.filename)
+    thumb = _thumbnail_path(session, recording.filename)
 
     if thumb is None:
         raise HTTPException(
