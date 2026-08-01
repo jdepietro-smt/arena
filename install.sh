@@ -102,6 +102,10 @@ DATABASE_URL=sqlite:///./arena.db
 SERVER_IP=$SERVER_IP
 ARENA_PORT=8001
 ALERT_WEBHOOK_URL=
+# The dashboard is served by this same app, so browser requests are
+# same-origin and don't need CORS at all. Only add an origin here if you're
+# running a separately-hosted frontend against this API.
+CORS_ORIGINS=http://localhost:5173
 EOF
     echo "    Generated a random SECRET_KEY."
     echo "    SRT_PUBLISH_PASSPHRASE is blank — the SRT publish port is open to"

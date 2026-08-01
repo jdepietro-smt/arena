@@ -16,7 +16,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 
-from ..auth import get_current_active_user, get_password_hash, require_admin
+from ..auth import get_current_active_user, get_password_hash, require_admin, validate_password_strength
 from ..database import get_session
 from ..models import User, UserCreate, UserRead, UserRole
 
@@ -126,6 +126,7 @@ async def create_user(
     - Password is hashed before storage (bcrypt).
     - Default role is viewer unless overridden in the request.
     """
+    validate_password_strength(user_in.password)
     # Uniqueness checks.
     if session.exec(select(User).where(User.username == user_in.username)).first():
         raise HTTPException(
@@ -231,11 +232,7 @@ async def update_user(
         user.email = update_in.email
 
     if update_in.password is not None:
-        if len(update_in.password) < 8:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Password must be at least 8 characters",
-            )
+        validate_password_strength(update_in.password)
         user.hashed_password = get_password_hash(update_in.password)
 
     session.add(user)

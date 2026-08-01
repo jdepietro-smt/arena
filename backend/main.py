@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import os
 
-from .config import settings
+from .config import DEFAULT_SECRET_KEY, settings
 from .database import create_db_and_tables, seed_default_admin
 from .services.alerting import get_alert_manager
 from .services.redundancy import get_redundancy_monitor
@@ -53,11 +53,27 @@ async def _apply_srt_publish_passphrase() -> None:
         logger.exception("Failed to apply SRT_PUBLISH_PASSPHRASE to mediamtx")
 
 
+def _warn_if_default_secret_key() -> None:
+    # Every unconfigured deployment shares this same publicly-visible key
+    # (it's right here in the source) — anyone can forge a valid admin JWT
+    # for it without ever authenticating. Unlike SRT_PUBLISH_PASSPHRASE this
+    # can't be left blank (JWTs wouldn't work at all), so the only signal
+    # available is a loud warning; there's no safe default to fall back to.
+    if settings.SECRET_KEY == DEFAULT_SECRET_KEY:
+        logger.warning(
+            "SECRET_KEY is still the default value from source — anyone can "
+            "forge a valid admin token. Set a unique SECRET_KEY in .env "
+            "(e.g. `python3 -c 'import secrets; print(secrets.token_hex(32))'`) "
+            "and restart."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     create_db_and_tables()
     seed_default_admin()
+    _warn_if_default_secret_key()
     await reconcile_orphans()
     await _apply_srt_publish_passphrase()
     await get_collector().start()
@@ -86,11 +102,24 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    response = await call_next(request)
+    # Zero functional risk, real value: the dashboard has no reason to be
+    # framed by another site, and browsers guessing content-types from
+    # bytes rather than trusting our Content-Type header has been a classic
+    # XSS vector for file-serving endpoints (recordings/thumbnails).
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # API routers
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])

@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     SERVER_IP: str = "5.78.236.254"
     ARENA_PORT: int = 8001
 
+    # CORS — the dashboard is normally served by this same app (main.py's
+    # StaticFiles mount), so browser requests are same-origin and don't need
+    # CORS at all. This only matters for a separately-hosted frontend (e.g.
+    # the Vite dev server on 5173 hitting a production API). Comma-separated;
+    # never combine a wildcard with allow_credentials=True (see main.py).
+    CORS_ORIGINS: str = "http://localhost:5173"
+
     # Alerting — a webhook (Slack-compatible {"text": "..."} payload) fired
     # on stream-down/recovered and on AlertRule threshold breaches/recovery.
     # Left blank, alerts are still logged (visible via journalctl) but
@@ -43,3 +50,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Exposed so main.py can warn at startup if .env never overrode it — every
+# unconfigured deployment would otherwise share this same publicly-visible
+# key, letting anyone forge an admin JWT without ever authenticating.
+DEFAULT_SECRET_KEY = "arena-secret-change-in-prod"

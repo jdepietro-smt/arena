@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from .config import settings
 from .database import get_session
 from .models import Token, TokenData, User, UserCreate, UserRead, UserRole
+from .services import login_limiter
 
 # ---------------------------------------------------------------------------
 # Password hashing
@@ -26,6 +27,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def validate_password_strength(password: str) -> None:
+    """Shared minimum bar for every path that sets a password (register,
+    create_user, update_user) — previously only update_user enforced this,
+    so an admin creating a new user (or self-registering, when that path is
+    reachable) could set a one-character password with no complaint."""
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be at least 8 characters",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -155,12 +168,23 @@ router = APIRouter(tags=["auth"])
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
 ) -> Token:
     """OAuth2-compatible token endpoint. Exchange username + password for JWT."""
+    client_ip = request.client.host if request.client else "unknown"
+
+    remaining = login_limiter.seconds_until_unlocked(client_ip)
+    if remaining is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Try again in {int(remaining) // 60 + 1} minute(s).",
+        )
+
     user = _authenticate_user(session, form_data.username, form_data.password)
     if user is None:
+        login_limiter.record_failure(client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -171,6 +195,7 @@ async def login_for_access_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is disabled",
         )
+    login_limiter.record_success(client_ip)
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role.value},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -185,6 +210,7 @@ async def register_user(
     _admin: User = Depends(require_admin),
 ) -> UserRead:
     """Create a new user. Admin only."""
+    validate_password_strength(user_in.password)
     existing = session.exec(
         select(User).where(User.username == user_in.username)
     ).first()
