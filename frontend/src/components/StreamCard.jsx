@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts'
+import { Play, Users, MonitorPlay } from 'lucide-react'
 import { startRecording, stopRecording } from '../api/client'
 import { startWhep } from '../utils/whep'
+import StatusDot from './ui/StatusDot'
 
 function CardThumbnail({ whepUrl, onLatency }) {
   const videoRef = useRef(null)
@@ -106,9 +108,7 @@ function CardThumbnail({ whepUrl, onLatency }) {
       />
       {!loaded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-2">
-          <svg className="w-8 h-8 text-indigo-400/40 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z" />
-          </svg>
+          <Play size={30} className="text-brand-400/40 shrink-0" fill="currentColor" />
           {error && (
             <span className="text-[9px] text-red-400/80 font-mono text-center leading-tight break-all">
               {error}
@@ -121,13 +121,7 @@ function CardThumbnail({ whepUrl, onLatency }) {
 }
 
 function PulsingDot({ live }) {
-  if (!live) return <span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />
-  return (
-    <span className="relative inline-flex h-2 w-2">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-    </span>
-  )
+  return <StatusDot tone={live ? 'good' : 'muted'} pulse={live} size={8} />
 }
 
 function MiniSparkline({ data }) {
@@ -139,7 +133,7 @@ function MiniSparkline({ data }) {
         <Line
           type="monotone"
           dataKey="v"
-          stroke="#6366f1"
+          stroke="#818cf8"
           strokeWidth={1.5}
           dot={false}
           isAnimationActive={false}
@@ -147,7 +141,7 @@ function MiniSparkline({ data }) {
         <Tooltip
           content={({ active, payload }) =>
             active && payload?.length ? (
-              <div className="text-xs bg-[#1a1a2e] text-indigo-300 px-2 py-1 rounded border border-[#222233]">
+              <div className="text-xs bg-surface-700 text-brand-300 px-2 py-1 rounded border border-surface-600">
                 {(payload[0].value / 1000).toFixed(1)} Mbps
               </div>
             ) : null
@@ -180,22 +174,19 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
 
   return (
     <div
-      className={`relative flex flex-col bg-[#111118] border rounded-xl overflow-hidden transition-all duration-200
-        ${hovered ? 'border-indigo-500/60 shadow-lg shadow-indigo-900/20' : 'border-[#222233]'}
+      className={`relative flex flex-col bg-surface-800 border rounded-xl overflow-hidden transition-all duration-200
+        ${hovered ? 'border-brand-500/60 shadow-lg shadow-brand-900/20' : 'border-surface-600'}
       `}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {/* Thumbnail / preview area */}
-      <div className="relative w-full aspect-video bg-[#0d0d15] flex items-center justify-center overflow-hidden">
+      <div className="relative w-full aspect-video bg-surface-750 flex items-center justify-center overflow-hidden">
         {isLive ? (
           <CardThumbnail whepUrl={whepUrl} onLatency={setLatencyMs} />
         ) : (
           <div className="flex flex-col items-center gap-1 text-gray-600">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <rect x="2" y="4" width="20" height="16" rx="2" strokeWidth="1.5" />
-              <path d="M10 9l5 3-5 3V9z" strokeWidth="1.5" />
-            </svg>
+            <MonitorPlay size={30} strokeWidth={1.5} />
             <span className="text-xs">No Signal</span>
           </div>
         )}
@@ -203,7 +194,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
         {/* Status badge overlay */}
         <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm">
           <PulsingDot live={isLive} />
-          <span className={isLive ? 'text-green-400' : 'text-gray-400'}>
+          <span className={isLive ? 'text-emerald-400' : 'text-gray-400'}>
             {isLive ? 'LIVE' : 'OFFLINE'}
           </span>
         </div>
@@ -226,12 +217,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
           </h3>
           {stream.readers != null && (
             <span className="shrink-0 text-xs text-gray-400 flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
+              <Users size={13} />
               {stream.readers}
             </span>
           )}
@@ -239,21 +225,21 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-1 text-center">
-          <div className="flex flex-col bg-[#0a0a0f] rounded-lg py-1.5 px-1">
+          <div className="flex flex-col bg-surface-900 rounded-lg py-1.5 px-1">
             <span className="text-[10px] text-gray-500 uppercase tracking-wider">Bitrate</span>
             <span className="text-xs font-mono font-semibold text-gray-200">{bitrateMbps} <span className="text-gray-500 font-normal">Mbps</span></span>
           </div>
-          <div className="flex flex-col bg-[#0a0a0f] rounded-lg py-1.5 px-1">
+          <div className="flex flex-col bg-surface-900 rounded-lg py-1.5 px-1">
             <span className="text-[10px] text-gray-500 uppercase tracking-wider">Latency</span>
             {latencyMs != null ? (
-              <span className={`text-xs font-mono font-semibold ${latencyMs <= 500 ? 'text-green-400' : latencyMs <= 800 ? 'text-yellow-400' : 'text-red-400'}`}>
+              <span className={`text-xs font-mono font-semibold ${latencyMs <= 500 ? 'text-emerald-400' : latencyMs <= 800 ? 'text-amber-400' : 'text-red-400'}`}>
                 ~{latencyMs} <span className="text-gray-500 font-normal">ms</span>
               </span>
             ) : (
               <span className="text-xs font-mono font-semibold text-gray-600">— <span className="text-gray-700 font-normal">ms</span></span>
             )}
           </div>
-          <div className="flex flex-col bg-[#0a0a0f] rounded-lg py-1.5 px-1">
+          <div className="flex flex-col bg-surface-900 rounded-lg py-1.5 px-1">
             <span className="text-[10px] text-gray-500 uppercase tracking-wider">Loss</span>
             <span className={`text-xs font-mono font-semibold ${parseFloat(loss) > 0.5 ? 'text-red-400' : 'text-gray-200'}`}>
               {loss} <span className="text-gray-500 font-normal">%</span>
@@ -275,10 +261,10 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
             disabled={!isLive || recMutation.isPending}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
               ${!isLive
-                ? 'bg-[#1a1a1a] text-gray-600 cursor-not-allowed'
+                ? 'bg-surface-700/50 text-gray-600 cursor-not-allowed'
                 : isRecording
                   ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-[#1e1e2e] hover:bg-[#2a2a3e] text-gray-300 border border-[#333344]'
+                  : 'bg-surface-700 hover:bg-surface-600 text-gray-300 border border-surface-500'
               }
             `}
           >
@@ -290,14 +276,12 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
             disabled={!isLive}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors
               ${!isLive
-                ? 'bg-[#1a1a1a] text-gray-600 border-[#222233] cursor-not-allowed'
-                : 'bg-[#1e1e2e] hover:bg-indigo-600/20 text-indigo-400 border-indigo-500/30 hover:border-indigo-500/60'
+                ? 'bg-surface-700/50 text-gray-600 border-surface-600 cursor-not-allowed'
+                : 'bg-surface-700 hover:bg-brand-600/20 text-brand-400 border-brand-500/30 hover:border-brand-500/60'
               }
             `}
           >
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+            <Play size={12} fill="currentColor" />
             Preview
           </button>
         </div>
@@ -305,7 +289,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
 
       {/* Hover detail: stream path */}
       {hovered && stream.path && (
-        <div className="absolute bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm px-3 py-1.5 text-[10px] font-mono text-gray-400 border-t border-[#222233] truncate">
+        <div className="absolute bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm px-3 py-1.5 text-[10px] font-mono text-gray-400 border-t border-surface-600 truncate">
           {stream.source_address || stream.path}
         </div>
       )}

@@ -14,6 +14,16 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: #111118; }
   ::-webkit-scrollbar-thumb { background: #2d2d44; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a56; }
+
+  ::selection { background: rgba(99, 102, 241, 0.35); color: #fff; }
+
+  /* Visible only for keyboard focus, not mouse clicks — a focus ring on
+     every click feels broken; on every Tab press it's essential a11y. */
+  :focus-visible {
+    outline: 2px solid rgba(129, 140, 248, 0.6);
+    outline-offset: 2px;
+  }
 }
 
 @layer utilities {
@@ -24,16 +34,26 @@
   }
   .live-dot {
     width: 8px; height: 8px;
-    background: #22c55e;
+    background: #34d399;
     border-radius: 50%;
-    box-shadow: 0 0 0 0 rgba(34,197,94,0.4);
+    box-shadow: 0 0 0 0 rgba(52,211,153,0.4);
     animation: pulse-live 2s infinite;
+    flex-shrink: 0;
   }
-  .live-dot.red { background: #ef4444; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+  .live-dot.red { background: #f87171; box-shadow: 0 0 0 0 rgba(248,113,113,0.4); }
+
+  /* Subtle fine grid, for hero/empty-state backgrounds (login, splash) —
+     reads as "broadcast console" texture without competing with content. */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
 }
 
 @keyframes pulse-live {
-  0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
-  70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
-  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  0%   { box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+  100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
 }
