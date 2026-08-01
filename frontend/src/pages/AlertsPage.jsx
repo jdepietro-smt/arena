@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getStreams, getAlertStatus, getAlertRules,
   createAlertRule, toggleAlertRule, deleteAlertRule,
+  getRedundancyStatus, getRedundancyGateways,
+  createRedundancyGateway, toggleRedundancyGateway, deleteRedundancyGateway,
 } from '../api/client'
 
 // Status palette — validated for CVD-safety and dark-surface contrast
@@ -227,9 +229,151 @@ function RuleRow({ rule, firing, onToggle, onDelete, toggling, deleting }) {
   )
 }
 
+// A gateway is "protected" only when it's dual-path AND both legs are up —
+// a single-path gateway (or a dual-path one running on just one leg) still
+// has output, just no protection against that one leg failing.
+function gatewayTone(stats) {
+  if (!stats) return 'critical'                          // unreachable
+  if (!stats.output_connected) return 'critical'          // no output at all
+  if (stats.dual_path && !(stats.path1_up && stats.path2_up)) return 'warning'
+  return 'good'
+}
+
+function PathBadge({ label, up }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] text-gray-600 uppercase tracking-wider">{label}</span>
+      <span className="text-sm font-medium" style={{ color: up ? STATUS.good.hex : STATUS.critical.hex }}>
+        {up ? 'Up' : 'Down'}
+      </span>
+    </div>
+  )
+}
+
+function GatewayCard({ gateway }) {
+  const stats = gateway.stats
+  const tone = gatewayTone(stats)
+  const toneLabel = !stats ? 'Unreachable' : tone === 'good' ? 'Protected' : tone === 'warning' ? 'Degraded' : 'Down'
+  return (
+    <div
+      className="rounded-xl p-4 border transition-colors"
+      style={{
+        background: '#111118',
+        borderColor: tone === 'critical' ? 'rgba(208,59,59,0.4)' : tone === 'warning' ? 'rgba(250,178,25,0.4)' : '#222233',
+      }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="min-w-0">
+          <span className="text-sm font-medium text-gray-100 truncate block">{gateway.name}</span>
+          {gateway.stream_path && <span className="text-xs text-gray-600">{gateway.stream_path}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <StatusDot tone={tone} pulse={tone !== 'good'} />
+          <span className="text-xs font-semibold" style={{ color: STATUS[tone]?.hex ?? '#64748b' }}>{toneLabel}</span>
+        </div>
+      </div>
+      {stats ? (
+        <div className="grid grid-cols-3 gap-3">
+          <PathBadge label="Path 1" up={!!stats.path1_up} />
+          <PathBadge label="Path 2" up={stats.dual_path ? !!stats.path2_up : null} />
+          <PathBadge label="Output" up={!!stats.output_connected} />
+        </div>
+      ) : (
+        <div className="text-xs text-gray-600">No response from {gateway.stats_url} — is sdi_receive running?</div>
+      )}
+    </div>
+  )
+}
+
+function AddGatewayForm({ streams, onSubmit, submitting, error }) {
+  const [name, setName] = useState('')
+  const [statsUrl, setStatsUrl] = useState('')
+  const [streamPath, setStreamPath] = useState('')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim() || !statsUrl.trim()) return
+    onSubmit({ name: name.trim(), stats_url: statsUrl.trim(), stream_path: streamPath || null })
+    setName(''); setStatsUrl(''); setStreamPath('')
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 p-3 bg-[#0d0d14] border border-[#222233] rounded-lg">
+      <label className="flex flex-col gap-1 text-xs text-gray-500">
+        Name
+        <input
+          type="text" placeholder="Truck 1" value={name} onChange={e => setName(e.target.value)}
+          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white w-32 focus:outline-none focus:border-indigo-500"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-gray-500">
+        Stats URL
+        <input
+          type="text" placeholder="http://10.0.1.5:6400/" value={statsUrl} onChange={e => setStatsUrl(e.target.value)}
+          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white w-52 focus:outline-none focus:border-indigo-500"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-gray-500">
+        Stream (optional)
+        <select
+          value={streamPath}
+          onChange={e => setStreamPath(e.target.value)}
+          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 min-w-[140px]"
+        >
+          <option value="">None</option>
+          {streams.map(s => (
+            <option key={s.path || s.name} value={s.path || s.name}>{s.name || s.path}</option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="submit"
+        disabled={submitting}
+        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
+      >
+        {submitting ? 'Adding…' : 'Add gateway'}
+      </button>
+      {error && <span className="text-xs text-red-400 w-full">{error}</span>}
+    </form>
+  )
+}
+
+function GatewayRow({ gateway, onToggle, onDelete, toggling, deleting }) {
+  const tone = gatewayTone(gateway.stats)
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#222233] bg-[#0d0d14]">
+      <StatusDot tone={gateway.is_active ? tone : 'muted'} pulse={gateway.is_active && tone !== 'good'} />
+      <span className="text-sm text-gray-200 truncate flex-1">
+        <span className="font-medium">{gateway.name}</span>
+        <span className="text-gray-500"> — {gateway.stats_url}</span>
+        {gateway.stream_path && <span className="text-gray-600"> ({gateway.stream_path})</span>}
+      </span>
+      <button
+        onClick={() => onToggle(gateway.id)}
+        disabled={toggling}
+        className={`shrink-0 px-2 py-1 rounded text-xs font-semibold border transition-colors disabled:opacity-50 ${
+          gateway.is_active
+            ? 'border-emerald-500/40 bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/25'
+            : 'border-[#333355] text-gray-500 hover:text-gray-300'
+        }`}
+      >
+        {gateway.is_active ? 'Enabled' : 'Disabled'}
+      </button>
+      <button
+        onClick={() => onDelete(gateway.id)}
+        disabled={deleting}
+        className="shrink-0 px-2 py-1 rounded text-xs font-semibold border border-red-500/30 text-red-400/70 hover:text-red-400 hover:border-red-500/50 disabled:opacity-50 transition-colors"
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
 export default function AlertsPage() {
   const qc = useQueryClient()
   const [formError, setFormError] = useState(null)
+  const [gatewayFormError, setGatewayFormError] = useState(null)
 
   const { data: streams = [] } = useQuery({
     queryKey: ['streams'],
@@ -262,6 +406,38 @@ export default function AlertsPage() {
     mutationFn: deleteAlertRule,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alert-rules'] }),
   })
+
+  const { data: gateways = [] } = useQuery({
+    queryKey: ['redundancy-gateways'],
+    queryFn: getRedundancyGateways,
+    refetchInterval: 5000,
+  })
+
+  const { data: redundancyStatus = { gateways: [] } } = useQuery({
+    queryKey: ['redundancy-status'],
+    queryFn: getRedundancyStatus,
+    refetchInterval: 5000,
+  })
+
+  const createGatewayMut = useMutation({
+    mutationFn: createRedundancyGateway,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['redundancy-gateways'] }); setGatewayFormError(null) },
+    onError: (err) => setGatewayFormError(err.response?.data?.detail || err.message || 'Failed to add gateway'),
+  })
+  const toggleGatewayMut = useMutation({
+    mutationFn: toggleRedundancyGateway,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['redundancy-gateways'] }),
+  })
+  const deleteGatewayMut = useMutation({
+    mutationFn: deleteRedundancyGateway,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['redundancy-gateways'] }),
+  })
+
+  // The CRUD list (/redundancy) and the polled status (/redundancy/status)
+  // are separate endpoints — merge status.stats onto each gateway by id so
+  // the cards have one shape to render.
+  const statsById = new Map(redundancyStatus.gateways.map(g => [g.id, g.stats]))
+  const gatewaysWithStats = gateways.map(g => ({ ...g, stats: statsById.get(g.id) }))
 
   const downStreams = new Set(alertStatus.down_streams)
   const firingRuleIds = new Set(alertStatus.firing_rule_ids)
@@ -330,6 +506,44 @@ export default function AlertsPage() {
                 onDelete={(id) => deleteMut.mutate(id)}
                 toggling={toggleMut.isPending}
                 deleting={deleteMut.isPending}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Redundancy gateways</h2>
+        <p className="text-gray-600 text-xs mb-3">
+          SMPTE 2022-7 protection-switch monitoring — register an sdi_receive instance's --stats-port to watch path1/path2/output health.
+        </p>
+        {gatewaysWithStats.length > 0 && (
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            {gatewaysWithStats.map(gw => <GatewayCard key={gw.id} gateway={gw} />)}
+          </div>
+        )}
+        <div className="mb-3">
+          <AddGatewayForm
+            streams={streams}
+            onSubmit={(d) => createGatewayMut.mutate(d)}
+            submitting={createGatewayMut.isPending}
+            error={gatewayFormError}
+          />
+        </div>
+        {gatewaysWithStats.length === 0 ? (
+          <div className="text-center py-8 text-gray-600 text-sm bg-[#111118] border border-[#222233] rounded-xl">
+            No redundancy gateways registered — sdi_receive dual-path setups run unmonitored until one is added here.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {gatewaysWithStats.map(gw => (
+              <GatewayRow
+                key={gw.id}
+                gateway={gw}
+                onToggle={(id) => toggleGatewayMut.mutate(id)}
+                onDelete={(id) => deleteGatewayMut.mutate(id)}
+                toggling={toggleGatewayMut.isPending}
+                deleting={deleteGatewayMut.isPending}
               />
             ))}
           </div>

@@ -111,6 +111,27 @@ class AlertRule(SQLModel, table=True):
     is_active: bool = Field(default=True)
 
 
+class RedundancyGateway(SQLModel, table=True):
+    """
+    A configured sdi_receive instance (SMPTE 2022-7 protection-switch
+    gateway) to poll for path1/path2/output health.
+
+    sdi_receive runs standalone, typically near the decode/playout box, not
+    spawned or managed by this backend — this row just records where its
+    --stats-port endpoint is so RedundancyMonitor (services/redundancy.py)
+    can poll it and surface path-down alerts the same way stream connectivity
+    already is.
+    """
+
+    __tablename__ = "redundancy_gateways"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True, min_length=1, max_length=128)
+    stats_url: str = Field(min_length=1)   # e.g. http://10.0.1.5:6400/
+    stream_path: Optional[str] = Field(default=None, index=True)  # for correlating with a stream in the UI
+    is_active: bool = Field(default=True)
+
+
 class ManagedPath(SQLModel, table=True):
     """
     A mediamtx path this app created and is responsible for tearing down.

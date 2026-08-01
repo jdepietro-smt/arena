@@ -82,6 +82,13 @@ export const createAlertRule = (d) => api.post('/alerts', d).then(r => r.data)
 export const toggleAlertRule = (id) => api.patch(`/alerts/${id}/toggle`).then(r => r.data)
 export const deleteAlertRule = (id) => api.delete(`/alerts/${id}`)
 
+// --- Redundancy gateways (SMPTE 2022-7 sdi_receive monitoring) ---
+export const getRedundancyStatus    = () => api.get('/redundancy/status').then(r => r.data)
+export const getRedundancyGateways  = () => api.get('/redundancy').then(r => r.data)
+export const createRedundancyGateway = (d) => api.post('/redundancy', d).then(r => r.data)
+export const toggleRedundancyGateway = (id) => api.patch(`/redundancy/${id}/toggle`).then(r => r.data)
+export const deleteRedundancyGateway = (id) => api.delete(`/redundancy/${id}`)
+
 // --- Auth ---
 export const login = (username, password) => {
   const form = new URLSearchParams()
