@@ -33,7 +33,8 @@ from sqlmodel import Session, select
 
 from ..config import settings
 from ..database import engine
-from ..models import AlertAction, AlertRule, CompareOperator
+from ..models import AlertAction, AlertRule, CompareOperator, EventType
+from .events import log_event
 from .mediamtx import get_client
 from .srt_stats import get_collector
 
@@ -112,11 +113,13 @@ class AlertManager:
                 if name in self._currently_down:
                     self._currently_down.discard(name)
                     await self._notify(f":large_green_circle: Stream *{name}* recovered.")
+                    self._log_event(EventType.stream_connected, name, "Stream reconnected")
             else:
                 self._down_streak[name] = self._down_streak.get(name, 0) + 1
                 if self._down_streak[name] >= _DOWN_CONSECUTIVE_MISSES and name not in self._currently_down:
                     self._currently_down.add(name)
                     await self._notify(f":red_circle: Stream *{name}* went down.")
+                    self._log_event(EventType.stream_disconnected, name, "Stream went down")
 
     async def _check_rules(self) -> None:
         with Session(engine) as session:
@@ -150,16 +153,24 @@ class AlertManager:
 
             if breaching and not was_firing:
                 self._rule_firing[rule.id] = True
-                await self._notify(
-                    f":warning: *{rule.stream_path}*: {rule.metric.value} "
-                    f"{rule.operator.value} {rule.threshold} (currently {value:.2f})"
+                text = (
+                    f"{rule.metric.value} {rule.operator.value} {rule.threshold} "
+                    f"(currently {value:.2f})"
                 )
+                await self._notify(f":warning: *{rule.stream_path}*: {text}")
+                self._log_event(EventType.alert_fired, rule.stream_path, text)
             elif not breaching and was_firing:
                 self._rule_firing[rule.id] = False
-                await self._notify(
-                    f":large_green_circle: *{rule.stream_path}*: {rule.metric.value} "
-                    f"back to normal ({value:.2f})."
-                )
+                text = f"{rule.metric.value} back to normal ({value:.2f})"
+                await self._notify(f":large_green_circle: *{rule.stream_path}*: {text}.")
+                self._log_event(EventType.alert_recovered, rule.stream_path, text)
+
+    def _log_event(self, event_type: EventType, stream_path: str, message: str) -> None:
+        try:
+            with Session(engine) as session:
+                log_event(session, event_type, stream_path=stream_path, message=message)
+        except Exception:
+            logger.exception("Failed to record event %s for %s", event_type.value, stream_path)
 
     async def _notify(self, text: str) -> None:
         logger.info("ALERT: %s", text)

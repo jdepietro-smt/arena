@@ -22,6 +22,7 @@ from .services.mediamtx import get_client
 from .routers import (
     streams, routes, recordings, stats, users, hls_proxy, whep_proxy,
     multiview, external_sources, alerts, redundancy, settings as settings_router,
+    events,
 )
 from .auth import router as auth_router
 
@@ -138,6 +139,7 @@ app.include_router(external_sources.router, prefix="/api/sources", tags=["source
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(redundancy.router, prefix="/api/redundancy", tags=["redundancy"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
+app.include_router(events.router, prefix="/api/events", tags=["events"])
 
 
 @app.get("/api/health", tags=["health"])

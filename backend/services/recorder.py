@@ -19,7 +19,8 @@ from pathlib import Path
 from sqlmodel import Session
 
 from ..config import settings
-from ..models import Recording, RecordingStatus
+from ..models import EventType, Recording, RecordingStatus
+from .events import log_event
 from .hls_generator import get_hls_generator
 from .recording_config import get_recordings_dir
 
@@ -154,6 +155,7 @@ async def start_recording(session: Session, stream_path: str) -> Recording:
 
     asyncio.create_task(_monitor(recording.id, proc), name=f"rec-{recording.id}")
     logger.info("Recording started: id=%d path=%s -> %s", recording.id, stream_path, output_path)
+    log_event(session, EventType.recording_started, stream_path=stream_path, message=filename)
     return recording
 
 
@@ -193,6 +195,7 @@ async def stop_recording(session: Session, recording_id: int) -> Recording:
     session.commit()
     session.refresh(recording)
     logger.info("Recording stopped: id=%d duration=%.1fs size=%d", recording_id, duration, size)
+    log_event(session, EventType.recording_stopped, stream_path=recording.stream_path, message=recording.filename)
     return recording
 
 

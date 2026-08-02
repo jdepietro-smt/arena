@@ -46,6 +46,15 @@ class ManagedPathType(str, enum.Enum):
     external_source = "external_source"
 
 
+class EventType(str, enum.Enum):
+    stream_connected = "stream_connected"
+    stream_disconnected = "stream_disconnected"
+    recording_started = "recording_started"
+    recording_stopped = "recording_stopped"
+    alert_fired = "alert_fired"
+    alert_recovered = "alert_recovered"
+
+
 # ---------------------------------------------------------------------------
 # SQLModel tables
 # ---------------------------------------------------------------------------
@@ -156,6 +165,27 @@ class RedundancyGateway(SQLModel, table=True):
     is_active: bool = Field(default=True)
 
 
+class Event(SQLModel, table=True):
+    """
+    A row per stream connect/disconnect, recording start/stop, or alert
+    transition — backs the dashboard's "Recent Events" sidebar, which
+    previously showed a hardcoded MOCK_EVENTS array with no data behind it.
+
+    Written directly at the point of detection (alerting.py's connectivity/
+    rule-transition checks, recorder.py's start/stop) rather than derived by
+    polling some other table, since those call sites already have clean
+    structured data before it would otherwise be flattened into a log line.
+    """
+
+    __tablename__ = "events"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    type: EventType = Field(index=True)
+    stream_path: Optional[str] = Field(default=None, index=True)
+    message: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class ManagedPath(SQLModel, table=True):
     """
     A mediamtx path this app created and is responsible for tearing down.
@@ -235,6 +265,16 @@ class RecordingRead(BaseModel):
     started_at: datetime
     ended_at: Optional[datetime]
     status: RecordingStatus
+
+    model_config = {"from_attributes": True}
+
+
+class EventRead(BaseModel):
+    id: int
+    type: EventType
+    stream_path: Optional[str]
+    message: Optional[str]
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
