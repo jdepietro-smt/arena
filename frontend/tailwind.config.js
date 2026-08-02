@@ -8,6 +8,7 @@ export default {
           50:  '#eef2ff',
           100: '#e0e7ff',
           200: '#c7d2fe',
+          300: '#a5b4fc',
           400: '#818cf8',
           500: '#6366f1',
           600: '#4f46e5',
@@ -33,6 +34,7 @@ export default {
         // reads as an actual broadcast monitoring surface, not just a
         // generic indigo SaaS dashboard with different labels.
         signal: {
+          300: '#67e8f9',
           400: '#22d3ee',
           500: '#06b6d4',
         },
