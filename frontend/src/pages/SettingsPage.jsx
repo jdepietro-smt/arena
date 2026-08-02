@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings as SettingsIcon, Radio } from 'lucide-react'
 import { getUsers, createUser, deleteUser } from '../api/client'
@@ -209,15 +209,21 @@ function RecordingTab() {
   const [autoDelete, setAutoDelete] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  useQuery({
+  const { data: recConfig } = useQuery({
     queryKey: ['recording-config'],
     queryFn: () => api.get('/settings/recording').then(r => r.data).catch(() => ({})),
-    onSuccess: (d) => {
-      if (d.output_dir) setDir(d.output_dir)
-      if (d.max_storage_gb) setMaxGb(d.max_storage_gb)
-      if (d.auto_delete != null) setAutoDelete(d.auto_delete)
-    },
   })
+
+  // TanStack Query v5 removed onSuccess/onError from useQuery (only
+  // useMutation still has them) — this used to be a useQuery onSuccess
+  // callback that silently never fired, so the field always showed the
+  // component's local default instead of the real saved value.
+  useEffect(() => {
+    if (!recConfig) return
+    if (recConfig.output_dir) setDir(recConfig.output_dir)
+    if (recConfig.max_storage_gb) setMaxGb(recConfig.max_storage_gb)
+    if (recConfig.auto_delete != null) setAutoDelete(recConfig.auto_delete)
+  }, [recConfig])
 
   const handleSave = async () => {
     try {

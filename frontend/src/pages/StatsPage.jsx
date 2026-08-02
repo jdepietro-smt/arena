@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ComposedChart,
@@ -77,12 +77,17 @@ export default function StatsPage() {
     queryKey: ['streams'],
     queryFn: getStreams,
     refetchInterval: 5000,
-    onSuccess: (data) => {
-      if (data.length > 0 && !selectedStream) {
-        setSelectedStream(data[0].path || data[0].name)
-      }
-    },
   })
+
+  // TanStack Query v5 removed onSuccess from useQuery (only useMutation
+  // still has it) — this used to be a useQuery onSuccess callback that
+  // silently never fired, so the stream dropdown never auto-selected the
+  // first available stream on load.
+  useEffect(() => {
+    if (streams.length > 0 && !selectedStream) {
+      setSelectedStream(streams[0].path || streams[0].name)
+    }
+  }, [streams, selectedStream])
 
   const { data: history = [] } = useQuery({
     queryKey: ['stats', selectedStream],
