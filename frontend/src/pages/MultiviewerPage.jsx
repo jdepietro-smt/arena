@@ -337,8 +337,8 @@ export default function MultiviewerPage() {
   const gridColsClass = gridColsClassFor(pinnedStreams.length + pinnedYoutubeEmbeds.length)
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="w-64 shrink-0 border-r border-surface-600 p-3 overflow-y-auto">
+    <div className="flex flex-col lg:flex-row h-full min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="w-full lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-surface-600 p-3 max-h-80 lg:max-h-none overflow-y-auto">
         <div className="flex items-center justify-between mb-2 px-1">
           <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold">
             Live Streams

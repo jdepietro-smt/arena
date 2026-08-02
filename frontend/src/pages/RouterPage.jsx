@@ -203,10 +203,10 @@ export default function RouterPage() {
       </div>
 
       {/* Main layout */}
-      <div className="relative flex gap-4 items-start">
+      <div className="relative flex flex-col xl:flex-row gap-4 items-start">
 
         {/* Routing Matrix — 60% */}
-        <Card className="overflow-hidden flex-[0_0_60%]">
+        <Card className="overflow-hidden w-full xl:flex-[0_0_60%]">
           <div className="px-4 py-3 border-b border-surface-600">
             <h2 className="text-white text-sm font-semibold">Routing matrix</h2>
             <p className="text-gray-500 text-xs mt-0.5">Click a cell to toggle routing</p>
@@ -279,7 +279,7 @@ export default function RouterPage() {
         </Card>
 
         {/* Active Routes — 40% */}
-        <Card className="overflow-hidden flex-[0_0_calc(40%-1rem)]">
+        <Card className="overflow-hidden w-full xl:flex-[0_0_calc(40%-1rem)]">
           <div className="px-4 py-3 border-b border-surface-600 flex items-center justify-between">
             <div>
               <h2 className="text-white text-sm font-semibold">Active routes</h2>

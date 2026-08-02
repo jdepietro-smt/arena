@@ -120,7 +120,7 @@ function EventSidebar() {
   })
 
   return (
-    <Card as="aside" className="w-[280px] shrink-0 flex flex-col overflow-hidden">
+    <Card as="aside" className="w-full lg:w-[280px] shrink-0 flex flex-col overflow-hidden max-h-64 lg:max-h-none">
       <div className="px-4 py-3 border-b border-surface-600 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-white">Recent Events</h2>
         <span className="text-xs text-gray-600">{events.length}</span>
@@ -340,7 +340,7 @@ export default function DashboardPage() {
       />
 
       {/* Summary bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           label="Active Streams"
           value={summaryLoading ? '' : liveStreams.length}
@@ -373,7 +373,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Content row: stream grid + sidebar */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
 
         {/* Stream grid */}
         <div className="flex-1 min-w-0 overflow-y-auto">

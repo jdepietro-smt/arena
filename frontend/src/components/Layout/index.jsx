@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import {
   LayoutGrid, Radio, LayoutPanelTop, Waypoints, CirclePlay,
-  BarChart3, BellRing, Settings, LogOut, ChevronDown,
+  BarChart3, BellRing, Settings, LogOut, ChevronDown, Menu, X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import StatusDot from '../ui/StatusDot'
@@ -71,10 +71,11 @@ function useApiHealth() {
 
 // ── Nav link ──────────────────────────────────────────────────────────────────
 
-function NavItem({ path, label, Icon }) {
+function NavItem({ path, label, Icon, onNavigate }) {
   return (
     <NavLink
       to={path}
+      onClick={onNavigate}
       className={({ isActive }) =>
         `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] tracking-tight transition-all border-l-2 ${
           isActive
@@ -163,6 +164,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const apiOnline = useApiHealth()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const pageTitle = Object.entries(PAGE_TITLES).find(([p]) =>
     location.pathname.startsWith(p)
@@ -173,31 +175,60 @@ export default function Layout() {
     navigate('/login')
   }
 
+  // Below md (768px) the 220px sidebar would leave under 160px for content
+  // — genuinely unusable, not just cramped. Below that width it's an
+  // off-canvas drawer instead: hidden by default, slides in over the page
+  // rather than squeezing it.
+  useEffect(() => setMobileNavOpen(false), [location.pathname])
+
   const healthTone = apiOnline === null ? 'muted' : apiOnline ? 'good' : 'critical'
   const healthLabel = apiOnline === null ? 'Connecting' : apiOnline ? 'Online' : 'Offline'
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-950">
+      {/* Mobile backdrop — closes the drawer on tap-outside */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[150] md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ── Sidebar ── */}
-      <nav aria-label="Main navigation" className="w-[220px] shrink-0 flex flex-col z-[100] bg-gradient-to-b from-[#0c0c18] to-[#0a0a15] border-r border-white/[0.055] shadow-[4px_0_24px_rgba(0,0,0,0.3)]">
+      <nav
+        aria-label="Main navigation"
+        className={`fixed inset-y-0 left-0 w-[220px] shrink-0 flex flex-col z-[200] bg-gradient-to-b from-[#0c0c18] to-[#0a0a15] border-r border-white/[0.055] shadow-[4px_0_24px_rgba(0,0,0,0.3)] transition-transform duration-200 md:static md:z-[100] md:translate-x-0 ${
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
 
         {/* Brand */}
-        <div className="px-4 pt-6 pb-5 border-b border-white/5">
+        <div className="flex items-center justify-between px-4 pt-6 pb-5 border-b border-white/5">
           <div className="flex items-center gap-2.5 px-0.5">
             <LogoMark size={30} />
             <span className="text-[18px] font-extrabold tracking-tight bg-gradient-to-r from-indigo-300 via-violet-300 to-signal-400 bg-clip-text text-transparent">
               ArenaHub
             </span>
           </div>
+          <button
+            onClick={() => setMobileNavOpen(false)}
+            className="md:hidden text-gray-500 hover:text-white"
+            aria-label="Close navigation"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Nav items */}
         <div className="flex-1 flex flex-col gap-0.5 px-2.5 py-2.5 overflow-y-auto">
-          {NAV_ITEMS.map((item) => <NavItem key={item.path} {...item} />)}
+          {NAV_ITEMS.map((item) => (
+            <NavItem key={item.path} {...item} onNavigate={() => setMobileNavOpen(false)} />
+          ))}
 
           <div className="h-px bg-white/5 my-1.5 mx-0.5" />
 
-          <NavItem path="/settings" label="Settings" Icon={Settings} />
+          <NavItem path="/settings" label="Settings" Icon={Settings} onNavigate={() => setMobileNavOpen(false)} />
         </div>
 
         {/* Bottom: status + user */}
@@ -211,14 +242,21 @@ export default function Layout() {
       </nav>
 
       {/* ── Main ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="relative h-[72px] shrink-0 flex items-center gap-3 px-7 z-50 bg-[rgba(5,5,8,0.75)] backdrop-blur-xl border-b border-white/[0.06] overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="relative h-[72px] shrink-0 flex items-center gap-3 px-4 sm:px-7 z-50 bg-[rgba(5,5,8,0.75)] backdrop-blur-xl border-b border-white/[0.06] overflow-hidden">
           {/* Ambient accent glow, keyed to the page you're on — quiet, not a hero */}
           <div className="absolute -top-16 left-8 w-64 h-32 bg-brand-500/10 blur-3xl rounded-full pointer-events-none" />
-          <h1 className="relative flex-1 m-0 text-[26px] font-extrabold tracking-tight bg-gradient-to-r from-gray-50 to-gray-400 bg-clip-text text-transparent text-balance">
+          <button
+            onClick={() => setMobileNavOpen(true)}
+            className="relative md:hidden text-gray-400 hover:text-white shrink-0"
+            aria-label="Open navigation"
+          >
+            <Menu size={22} />
+          </button>
+          <h1 className="relative flex-1 min-w-0 m-0 text-xl sm:text-[26px] font-extrabold tracking-tight bg-gradient-to-r from-gray-50 to-gray-400 bg-clip-text text-transparent text-balance truncate">
             {pageTitle}
           </h1>
-          <div className="relative text-[11px] font-semibold text-gray-600 uppercase tracking-[0.15em]">
+          <div className="relative hidden sm:block text-[11px] font-semibold text-gray-600 uppercase tracking-[0.15em] shrink-0">
             ArenaHub
           </div>
         </header>
