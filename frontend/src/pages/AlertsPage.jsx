@@ -105,8 +105,8 @@ function StreamHealthCard({ path, name, live, downStreams }) {
     <div
       className="rounded-xl p-4 border transition-colors"
       style={{
-        background: '#111118',
-        borderColor: isDown ? 'rgba(208,59,59,0.4)' : '#222233',
+        background: '#14141f',
+        borderColor: isDown ? 'rgba(208,59,59,0.4)' : '#28283c',
       }}
     >
       <div className="flex items-center justify-between mb-3">
@@ -143,13 +143,13 @@ function AddRuleForm({ streams, onSubmit, submitting, error }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 p-3 bg-[#0d0d14] border border-[#222233] rounded-lg">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 p-3 bg-surface-750 border border-surface-600 rounded-lg">
       <label className="flex flex-col gap-1 text-xs text-gray-500">
         Stream
         <select
           value={streamPath}
           onChange={e => setStreamPath(e.target.value)}
-          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 min-w-[140px]"
+          className="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-brand-500 min-w-[140px]"
         >
           <option value="">Select…</option>
           {streams.map(s => (
@@ -160,7 +160,7 @@ function AddRuleForm({ streams, onSubmit, submitting, error }) {
       <label className="flex flex-col gap-1 text-xs text-gray-500">
         Metric
         <select value={metric} onChange={e => setMetric(e.target.value)}
-          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+          className="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-brand-500">
           <option value="bitrate">Bitrate</option>
           <option value="rtt">RTT</option>
           <option value="packet_loss">Packet loss</option>
@@ -169,7 +169,7 @@ function AddRuleForm({ streams, onSubmit, submitting, error }) {
       <label className="flex flex-col gap-1 text-xs text-gray-500">
         Condition
         <select value={operator} onChange={e => setOperator(e.target.value)}
-          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+          className="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-brand-500">
           <option value="lt">Falls below</option>
           <option value="gt">Rises above</option>
         </select>
@@ -179,13 +179,13 @@ function AddRuleForm({ streams, onSubmit, submitting, error }) {
         <input
           type="number" step="any" placeholder={METRIC_UNIT[metric]}
           value={threshold} onChange={e => setThreshold(e.target.value)}
-          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white w-24 focus:outline-none focus:border-indigo-500"
+          className="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-sm text-white w-24 focus:outline-none focus:border-brand-500"
         />
       </label>
       <button
         type="submit"
         disabled={submitting}
-        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
+        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-brand-500/40 bg-brand-600/20 text-brand-300 hover:bg-brand-600/30 disabled:opacity-50 transition-colors"
       >
         {submitting ? 'Adding…' : 'Add rule'}
       </button>
@@ -196,7 +196,7 @@ function AddRuleForm({ streams, onSubmit, submitting, error }) {
 
 function RuleRow({ rule, firing, onToggle, onDelete, toggling, deleting }) {
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#222233] bg-[#0d0d14]">
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-600 bg-surface-750">
       <StatusDot tone={firing ? 'warning' : rule.is_active ? 'good' : 'muted'} pulse={firing} />
       <span className="text-sm text-gray-200 truncate flex-1">
         <span className="font-medium">{rule.stream_path}</span>
@@ -258,8 +258,8 @@ function GatewayCard({ gateway }) {
     <div
       className="rounded-xl p-4 border transition-colors"
       style={{
-        background: '#111118',
-        borderColor: tone === 'critical' ? 'rgba(208,59,59,0.4)' : tone === 'warning' ? 'rgba(250,178,25,0.4)' : '#222233',
+        background: '#14141f',
+        borderColor: tone === 'critical' ? 'rgba(208,59,59,0.4)' : tone === 'warning' ? 'rgba(250,178,25,0.4)' : '#28283c',
       }}
     >
       <div className="flex items-center justify-between mb-3">
@@ -298,19 +298,19 @@ function AddGatewayForm({ streams, onSubmit, submitting, error }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 p-3 bg-[#0d0d14] border border-[#222233] rounded-lg">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 p-3 bg-surface-750 border border-surface-600 rounded-lg">
       <label className="flex flex-col gap-1 text-xs text-gray-500">
         Name
         <input
           type="text" placeholder="Truck 1" value={name} onChange={e => setName(e.target.value)}
-          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white w-32 focus:outline-none focus:border-indigo-500"
+          className="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-sm text-white w-32 focus:outline-none focus:border-brand-500"
         />
       </label>
       <label className="flex flex-col gap-1 text-xs text-gray-500">
         Stats URL
         <input
           type="text" placeholder="http://10.0.1.5:6400/" value={statsUrl} onChange={e => setStatsUrl(e.target.value)}
-          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white w-52 focus:outline-none focus:border-indigo-500"
+          className="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-sm text-white w-52 focus:outline-none focus:border-brand-500"
         />
       </label>
       <label className="flex flex-col gap-1 text-xs text-gray-500">
@@ -318,7 +318,7 @@ function AddGatewayForm({ streams, onSubmit, submitting, error }) {
         <select
           value={streamPath}
           onChange={e => setStreamPath(e.target.value)}
-          className="bg-[#111118] border border-[#222233] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 min-w-[140px]"
+          className="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-brand-500 min-w-[140px]"
         >
           <option value="">None</option>
           {streams.map(s => (
@@ -329,7 +329,7 @@ function AddGatewayForm({ streams, onSubmit, submitting, error }) {
       <button
         type="submit"
         disabled={submitting}
-        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
+        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-brand-500/40 bg-brand-600/20 text-brand-300 hover:bg-brand-600/30 disabled:opacity-50 transition-colors"
       >
         {submitting ? 'Adding…' : 'Add gateway'}
       </button>
@@ -341,7 +341,7 @@ function AddGatewayForm({ streams, onSubmit, submitting, error }) {
 function GatewayRow({ gateway, onToggle, onDelete, toggling, deleting }) {
   const tone = gatewayTone(gateway.stats)
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#222233] bg-[#0d0d14]">
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-600 bg-surface-750">
       <StatusDot tone={gateway.is_active ? tone : 'muted'} pulse={gateway.is_active && tone !== 'good'} />
       <span className="text-sm text-gray-200 truncate flex-1">
         <span className="font-medium">{gateway.name}</span>
@@ -450,7 +450,7 @@ export default function AlertsPage() {
   const allPaths = new Set([...liveByPath.keys(), ...downStreams])
 
   return (
-    <div className="p-6 min-h-screen bg-[#0a0a0f]">
+    <div className="p-6 min-h-screen bg-surface-900">
       <div className="mb-5">
         <h1 className="text-white text-xl font-medium">Alerts</h1>
         <p className="text-gray-500 text-sm mt-0.5">Connectivity and threshold monitoring — 10s evaluation, 5s refresh</p>
@@ -463,7 +463,7 @@ export default function AlertsPage() {
       <div className="mb-6">
         <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Stream health</h2>
         {allPaths.size === 0 ? (
-          <div className="text-center py-10 text-gray-600 text-sm bg-[#111118] border border-[#222233] rounded-xl">
+          <div className="text-center py-10 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No streams tracked yet.
           </div>
         ) : (
@@ -492,7 +492,7 @@ export default function AlertsPage() {
           />
         </div>
         {rules.length === 0 ? (
-          <div className="text-center py-8 text-gray-600 text-sm bg-[#111118] border border-[#222233] rounded-xl">
+          <div className="text-center py-8 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No alert rules configured — connectivity is still monitored for every stream by default.
           </div>
         ) : (
@@ -531,7 +531,7 @@ export default function AlertsPage() {
           />
         </div>
         {gatewaysWithStats.length === 0 ? (
-          <div className="text-center py-8 text-gray-600 text-sm bg-[#111118] border border-[#222233] rounded-xl">
+          <div className="text-center py-8 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No redundancy gateways registered — sdi_receive dual-path setups run unmonitored until one is added here.
           </div>
         ) : (

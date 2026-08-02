@@ -138,7 +138,7 @@ export default function PlayerPage() {
   const isLive = status === 'live'
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4 sm:p-8">
+    <div className="min-h-screen bg-surface-900 flex items-center justify-center p-4 sm:p-8">
       <div
         ref={containerRef}
         className={isFullscreen
@@ -157,17 +157,17 @@ export default function PlayerPage() {
         <div className="flex items-center gap-3 pointer-events-none">
           {isLive ? (
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
             </span>
           ) : (
             <span className="h-2.5 w-2.5 rounded-full bg-gray-500" />
           )}
           <span className="text-white font-semibold text-sm tracking-wide">{streamName}</span>
           <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${
-            isLive ? 'bg-green-500/20 text-green-400 border-green-500/40'
+            isLive ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
             : (status === 'connecting' || status === 'reconnecting')
-              ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
+              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
               : 'bg-gray-500/20 text-gray-400 border-gray-500/40'
           }`}>
             {isLive ? 'LIVE' : status === 'connecting' ? 'CONNECTING…' : status === 'reconnecting' ? 'RECONNECTING…' : 'OFFLINE'}
@@ -176,7 +176,7 @@ export default function PlayerPage() {
 
         <div className="flex items-center gap-3">
           {latencyMs != null && (
-            <span className={`text-xs font-mono pointer-events-none ${latencyMs <= 500 ? 'text-green-400' : latencyMs <= 800 ? 'text-yellow-400' : 'text-red-400'}`}>
+            <span className={`text-xs font-mono pointer-events-none ${latencyMs <= 500 ? 'text-emerald-400' : latencyMs <= 800 ? 'text-amber-400' : 'text-red-400'}`}>
               ~{latencyMs}ms
             </span>
           )}
@@ -194,7 +194,7 @@ export default function PlayerPage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
                 ${!isLive ? 'opacity-30 cursor-default bg-white/5 text-white/40 border border-white/10'
                   : muted
-                    ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/30'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
                     : 'bg-white/10 text-white/80 border border-white/20 hover:bg-white/20'
                 }`}
             >

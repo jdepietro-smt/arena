@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, Waypoints } from 'lucide-react'
 import {
   getStreams,
   getRoutes,
@@ -8,6 +9,10 @@ import {
   deactivateRoute,
   deleteRoute,
 } from '../api/client'
+import Card from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
+import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
 
 const DEST_TYPES = ['SRT Out', 'HLS Re-stream', 'RTMP Out']
 
@@ -17,6 +22,8 @@ const defaultForm = {
   destType: 'SRT Out',
   destUrl: '',
 }
+
+const inputClass = 'bg-surface-900 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 placeholder-gray-600'
 
 function NewRouteModal({ streams, onClose, onSubmit, loading }) {
   const [form, setForm] = useState(defaultForm)
@@ -28,20 +35,17 @@ function NewRouteModal({ streams, onClose, onSubmit, loading }) {
   }
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-6 w-full max-w-md shadow-xl">
+    <Modal open onClose={onClose}>
+      <div className="p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-white font-medium text-base">New route</h2>
+          <h2 className="text-white font-semibold text-base">New route</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Route name</label>
             <input
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+              className={inputClass}
               placeholder="Studio A → CDN"
               value={form.name}
               onChange={e => set('name', e.target.value)}
@@ -50,34 +54,23 @@ function NewRouteModal({ streams, onClose, onSubmit, loading }) {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Source stream</label>
-            <select
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-              value={form.source}
-              onChange={e => set('source', e.target.value)}
-              required
-            >
+            <select className={inputClass} value={form.source} onChange={e => set('source', e.target.value)} required>
               <option value="">Select a stream…</option>
               {streams.map(s => (
-                <option key={s.path || s.name} value={s.path || s.name}>
-                  {s.name || s.path}
-                </option>
+                <option key={s.path || s.name} value={s.path || s.name}>{s.name || s.path}</option>
               ))}
             </select>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Destination type</label>
-            <select
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-              value={form.destType}
-              onChange={e => set('destType', e.target.value)}
-            >
+            <select className={inputClass} value={form.destType} onChange={e => set('destType', e.target.value)}>
               {DEST_TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Destination URL</label>
             <input
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+              className={inputClass}
               placeholder="srt://10.0.0.1:9000"
               value={form.destUrl}
               onChange={e => set('destUrl', e.target.value)}
@@ -85,24 +78,14 @@ function NewRouteModal({ streams, onClose, onSubmit, loading }) {
             />
           </div>
           <div className="flex gap-2 justify-end mt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white border border-[#222233] rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 text-sm bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
-            >
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={loading}>
               {loading ? 'Creating…' : 'Create route'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -110,42 +93,28 @@ function AddDestModal({ onClose, onAdd }) {
   const [url, setUrl] = useState('')
   const [label, setLabel] = useState('')
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-6 w-full max-w-sm">
+    <Modal open onClose={onClose} maxWidth="max-w-sm">
+      <div className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-white font-medium text-base">Add destination</h2>
+          <h2 className="text-white font-semibold text-base">Add destination</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
         <div className="flex flex-col gap-3">
-          <input
-            className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-gray-600"
-            placeholder="Label (e.g. CDN Primary)"
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-          />
-          <input
-            className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-gray-600"
-            placeholder="srt://host:port"
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-          />
+          <input className={inputClass} placeholder="Label (e.g. CDN Primary)" value={label} onChange={e => setLabel(e.target.value)} />
+          <input className={inputClass} placeholder="srt://host:port" value={url} onChange={e => setUrl(e.target.value)} />
           <div className="flex gap-2 justify-end mt-1">
-            <button onClick={onClose} className="px-3 py-1.5 text-sm text-gray-400 hover:text-white border border-[#222233] rounded-lg">
-              Cancel
-            </button>
-            <button
+            <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => { if (label && url) { onAdd({ label, url }); onClose() } }}
-              className="px-3 py-1.5 text-sm bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium"
             >
               Add
-            </button>
+            </Button>
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -198,7 +167,12 @@ export default function RouterPage() {
   const isRouted = (sourcePath, destIdx) => !!matrix[sourcePath]?.[destIdx]
 
   return (
-    <div className="p-6 min-h-screen bg-[#0a0a0f]">
+    <div className="relative p-6 min-h-screen bg-surface-900">
+      <div
+        className="absolute top-0 left-1/3 w-[450px] h-[260px] blur-[100px] opacity-[0.06] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #818cf8, transparent 70%)' }}
+      />
+
       {showNewRoute && (
         <NewRouteModal
           streams={streams}
@@ -215,32 +189,32 @@ export default function RouterPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-white text-xl font-medium">Signal router</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Route live streams to any number of destinations</p>
+      <div className="relative flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Waypoints size={24} className="text-brand-400" />
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Signal Router</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Route live streams to any number of destinations</p>
+          </div>
         </div>
-        <button
-          onClick={() => setShowNewRoute(true)}
-          className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <span className="text-base leading-none">+</span> New route
-        </button>
+        <Button variant="primary" onClick={() => setShowNewRoute(true)}>
+          <Plus size={16} /> New route
+        </Button>
       </div>
 
       {/* Main layout */}
-      <div className="flex gap-4" style={{ alignItems: 'flex-start' }}>
+      <div className="relative flex gap-4 items-start">
 
         {/* Routing Matrix — 60% */}
-        <div className="bg-[#111118] border border-[#222233] rounded-xl overflow-hidden" style={{ flex: '0 0 60%' }}>
-          <div className="px-4 py-3 border-b border-[#222233]">
-            <h2 className="text-white text-sm font-medium">Routing matrix</h2>
+        <Card className="overflow-hidden flex-[0_0_60%]">
+          <div className="px-4 py-3 border-b border-surface-600">
+            <h2 className="text-white text-sm font-semibold">Routing matrix</h2>
             <p className="text-gray-500 text-xs mt-0.5">Click a cell to toggle routing</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="border-b border-[#222233]">
+                <tr className="border-b border-surface-600">
                   <th className="text-left px-4 py-3 text-gray-400 font-normal text-xs uppercase tracking-wider w-44">
                     Source / Dest
                   </th>
@@ -254,9 +228,9 @@ export default function RouterPage() {
                     <button
                       onClick={() => setShowAddDest(true)}
                       title="Add destination"
-                      className="w-7 h-7 rounded-lg border border-dashed border-[#333355] text-indigo-400 hover:border-indigo-500 hover:bg-indigo-500/10 transition-colors text-base leading-none flex items-center justify-center mx-auto"
+                      className="w-7 h-7 rounded-lg border border-dashed border-surface-500 text-brand-400 hover:border-brand-500 hover:bg-brand-500/10 transition-colors text-base leading-none flex items-center justify-center mx-auto"
                     >
-                      +
+                      <Plus size={15} />
                     </button>
                   </th>
                 </tr>
@@ -273,7 +247,7 @@ export default function RouterPage() {
                   const path = stream.path || stream.name
                   return (
                     <tr key={path} className={si % 2 === 1 ? 'bg-white/[0.02]' : ''}>
-                      <td className="px-4 py-3 text-gray-200 text-sm font-medium border-r border-[#222233]">
+                      <td className="px-4 py-3 text-gray-200 text-sm font-medium border-r border-surface-600">
                         <div>{stream.name || path}</div>
                         {stream.codec && <div className="text-gray-600 text-xs">{stream.codec}</div>}
                       </td>
@@ -286,13 +260,11 @@ export default function RouterPage() {
                               className={`w-8 h-8 rounded-lg border transition-all ${
                                 routed
                                   ? 'bg-emerald-500/20 border-emerald-500/60 hover:bg-emerald-500/30'
-                                  : 'bg-transparent border-[#222233] hover:border-[#444466] hover:bg-white/5'
+                                  : 'bg-transparent border-surface-600 hover:border-surface-500 hover:bg-white/5'
                               }`}
                               title={routed ? 'Click to unroute' : 'Click to route'}
                             >
-                              {routed && (
-                                <span className="text-emerald-400 text-xs font-bold">✓</span>
-                              )}
+                              {routed && <span className="text-emerald-400 text-xs font-bold">✓</span>}
                             </button>
                           </td>
                         )
@@ -304,23 +276,23 @@ export default function RouterPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
 
         {/* Active Routes — 40% */}
-        <div className="bg-[#111118] border border-[#222233] rounded-xl overflow-hidden" style={{ flex: '0 0 calc(40% - 1rem)' }}>
-          <div className="px-4 py-3 border-b border-[#222233] flex items-center justify-between">
+        <Card className="overflow-hidden flex-[0_0_calc(40%-1rem)]">
+          <div className="px-4 py-3 border-b border-surface-600 flex items-center justify-between">
             <div>
-              <h2 className="text-white text-sm font-medium">Active routes</h2>
+              <h2 className="text-white text-sm font-semibold">Active routes</h2>
               <p className="text-gray-500 text-xs mt-0.5">{routes.length} configured</p>
             </div>
             <button
               onClick={() => setShowNewRoute(true)}
-              className="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/60 px-2.5 py-1 rounded-lg transition-colors"
+              className="text-xs text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/60 px-2.5 py-1 rounded-lg transition-colors"
             >
               + Add route
             </button>
           </div>
-          <div className="divide-y divide-[#222233]">
+          <div className="divide-y divide-surface-600">
             {routes.length === 0 && (
               <div className="text-center py-10 text-gray-600 text-sm">No routes configured</div>
             )}
@@ -335,24 +307,18 @@ export default function RouterPage() {
                       <span className="text-gray-400 truncate max-w-[90px]">{route.dest_url || route.dest}</span>
                     </div>
                     {route.bitrate_kbps && (
-                      <div className="text-xs text-gray-600 mt-0.5">
+                      <div className="text-xs text-gray-600 font-mono mt-0.5">
                         {(route.bitrate_kbps / 1000).toFixed(1)} Mbps
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                      route.active
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : 'bg-gray-500/15 text-gray-400'
-                    }`}>
-                      {route.active ? 'Active' : 'Inactive'}
-                    </span>
+                    <Badge tone={route.active ? 'good' : 'muted'}>{route.active ? 'Active' : 'Inactive'}</Badge>
                     <div className="flex gap-1.5 mt-0.5">
                       <button
                         onClick={() => toggleMut.mutate({ id: route.id, active: route.active })}
                         disabled={toggleMut.isPending}
-                        className="text-[10px] text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/60 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
+                        className="text-[10px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/60 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
                       >
                         {route.active ? 'Pause' : 'Activate'}
                       </button>
@@ -372,7 +338,7 @@ export default function RouterPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   )

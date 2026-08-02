@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { CirclePlay, Search, X } from 'lucide-react'
 import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl } from '../api/client'
+import Card from '../components/ui/Card'
+import Badge from '../components/ui/Badge'
+import StatusDot from '../components/ui/StatusDot'
 
 function formatDuration(seconds) {
   if (seconds == null) return '—'
@@ -35,8 +39,6 @@ function formatTimestamp(ts) {
 }
 
 function ElapsedTimer({ startedAt }) {
-  const [, forceUpdate] = useState(0)
-  // Rerender every second via a query interval — simpler than useEffect here
   const elapsed = startedAt ? Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) : 0
   return <span>{formatDuration(elapsed)}</span>
 }
@@ -50,18 +52,8 @@ function StatusBadge({ status }) {
       </span>
     )
   }
-  if (status === 'error') {
-    return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">
-        Error
-      </span>
-    )
-  }
-  return (
-    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
-      Complete
-    </span>
-  )
+  if (status === 'error') return <Badge tone="critical">Error</Badge>
+  return <Badge tone="good">Complete</Badge>
 }
 
 function RecordingCard({ rec, onDelete, onPreview }) {
@@ -84,7 +76,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
   }
 
   return (
-    <div className="bg-[#111118] border border-[#222233] rounded-xl p-4 flex flex-col gap-3 hover:border-[#333355] transition-colors">
+    <Card hover className="p-4 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-gray-100 text-sm font-medium truncate">{rec.filename || rec.name}</div>
@@ -95,7 +87,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-600 uppercase tracking-wider">Duration</span>
-          <span className="text-sm text-gray-300 font-medium font-mono">
+          <span className="text-sm text-gray-300 font-medium font-mono tabular-nums">
             {rec.status === 'recording'
               ? <ElapsedTimer startedAt={rec.started_at} />
               : formatDuration(rec.duration_seconds)
@@ -104,7 +96,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-600 uppercase tracking-wider">Size</span>
-          <span className="text-sm text-gray-300 font-medium">
+          <span className="text-sm text-gray-300 font-medium font-mono tabular-nums">
             {rec.status === 'recording' && rec.size_bytes
               ? <span className="text-amber-400">{formatSize(rec.size_bytes)} ↑</span>
               : formatSize(rec.size_bytes)
@@ -120,19 +112,19 @@ function RecordingCard({ rec, onDelete, onPreview }) {
           <span className="text-sm text-gray-300">{fileFormat(rec.filename || rec.name)}</span>
         </div>
       </div>
-      <div className="flex gap-2 pt-1 border-t border-[#222233]">
+      <div className="flex gap-2 pt-1 border-t border-surface-600">
         {rec.status !== 'recording' && (
           <>
             <button
               onClick={() => onPreview(rec)}
-              className="flex-1 text-xs text-gray-300 hover:text-white border border-[#333355] hover:border-[#555577] py-1.5 rounded-lg transition-colors"
+              className="flex-1 text-xs text-gray-300 hover:text-white border border-surface-500 hover:border-surface-500 py-1.5 rounded-lg transition-colors"
             >
               Preview
             </button>
             <button
               onClick={handleDownload}
               disabled={downloading}
-              className="flex-1 text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/60 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              className="flex-1 text-xs text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/60 py-1.5 rounded-lg transition-colors disabled:opacity-50"
             >
               {downloading ? 'Preparing…' : 'Download'}
             </button>
@@ -145,7 +137,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
           Delete
         </button>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -154,13 +146,15 @@ function PreviewModal({ rec, onClose }) {
   const url = getRecordingStreamUrl(rec.id)
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fadeIn" onClick={onClose}>
       <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-gray-300 truncate">{rec.filename || rec.name}</span>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-sm px-2 py-1">✕ Close</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-white flex items-center gap-1 text-sm px-2 py-1">
+            <X size={16} /> Close
+          </button>
         </div>
-        <div className="bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
+        <div className="bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center border border-surface-600">
           {error ? (
             <span className="text-red-400 text-sm">{error}</span>
           ) : (
@@ -215,29 +209,40 @@ export default function RecordingsPage() {
   const totalBytes = completed.reduce((sum, r) => sum + (r.size_bytes || 0), 0)
 
   return (
-    <div className="p-6 min-h-screen bg-[#0a0a0f]">
+    <div className="relative p-6 min-h-screen bg-surface-900">
+      <div
+        className="absolute top-0 left-1/4 w-[450px] h-[260px] blur-[100px] opacity-[0.06] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #f87171, transparent 70%)' }}
+      />
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-white text-xl font-medium">Recordings</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {completed.length} recordings · {formatSize(totalBytes)} stored
-          </p>
+      <div className="relative flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <CirclePlay size={24} className="text-red-400" />
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Recordings</h1>
+            <p className="text-gray-500 text-sm mt-0.5 font-mono">
+              {completed.length} recordings · {formatSize(totalBytes)} stored
+            </p>
+          </div>
         </div>
-        <input
-          className="bg-[#111118] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 w-56"
-          placeholder="Search recordings…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            className="bg-surface-800 border border-surface-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-brand-500 w-56"
+            placeholder="Search recordings…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Active recordings */}
       {active.length > 0 && (
-        <div className="mb-6">
+        <div className="relative mb-6">
           <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <h2 className="text-sm font-medium text-white">Recording now</h2>
+            <StatusDot tone="critical" pulse size={8} />
+            <h2 className="text-sm font-semibold text-white">Recording now</h2>
             <span className="text-xs text-gray-500">({active.length})</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -249,10 +254,10 @@ export default function RecordingsPage() {
       )}
 
       {/* Completed recordings */}
-      <div>
+      <div className="relative">
         {active.length > 0 && (
           <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-sm font-medium text-white">Library</h2>
+            <h2 className="text-sm font-semibold text-white">Library</h2>
             {search && <span className="text-xs text-gray-500">{filtered.length} match{filtered.length !== 1 ? 'es' : ''}</span>}
           </div>
         )}

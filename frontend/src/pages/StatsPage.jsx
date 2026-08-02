@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ComposedChart,
-  AreaChart,
   Area,
   Line,
   Bar,
@@ -12,9 +11,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts'
+import { BarChart3 } from 'lucide-react'
 import { getStreams, getStatsHistory } from '../api/client'
+import Card from '../components/ui/Card'
 
 function formatDuration(seconds) {
   if (!seconds) return '—'
@@ -36,36 +36,34 @@ function TrendArrow({ current, previous }) {
   )
 }
 
-function MetricCard({ label, value, unit, previous, color = 'indigo' }) {
+function MetricCard({ label, value, unit, previous, color = 'brand' }) {
   const colorMap = {
-    indigo: 'text-indigo-400',
-    emerald: 'text-emerald-400',
-    amber: 'text-amber-400',
-    sky: 'text-sky-400',
+    brand:   'text-brand-300',
+    emerald: 'text-emerald-300',
+    amber:   'text-amber-300',
+    signal:  'text-signal-300',
   }
   return (
-    <div className="bg-[#111118] border border-[#222233] rounded-xl p-4 flex flex-col gap-2">
+    <Card className="p-4 flex flex-col gap-2">
       <div className="text-xs text-gray-500 uppercase tracking-wider">{label}</div>
       <div className="flex items-end gap-2">
-        <span className={`text-2xl font-medium ${colorMap[color]}`}>{value ?? '—'}</span>
+        <span className={`font-mono text-3xl font-bold tabular-nums ${colorMap[color]}`}>{value ?? '—'}</span>
         {unit && <span className="text-sm text-gray-500 mb-0.5">{unit}</span>}
-        <div className="mb-1 ml-auto">
-          <TrendArrow current={value} previous={previous} />
-        </div>
+        <div className="mb-1 ml-auto"><TrendArrow current={value} previous={previous} /></div>
       </div>
-    </div>
+    </Card>
   )
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-[#111118] border border-[#222233] rounded-lg px-3 py-2 text-xs shadow-xl">
+    <div className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-xs shadow-xl">
       <div className="text-gray-400 mb-1">{label}s ago</div>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2">
           <span style={{ color: p.color }}>{p.name}:</span>
-          <span className="text-white font-medium">{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</span>
+          <span className="text-white font-medium font-mono">{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</span>
         </div>
       ))}
     </div>
@@ -120,48 +118,54 @@ export default function StatsPage() {
   const stream = streams.find(s => (s.path || s.name) === selectedStream)
 
   return (
-    <div className="p-6 min-h-screen bg-[#0a0a0f]">
+    <div className="relative p-6 min-h-screen bg-surface-900">
+      <div
+        className="absolute top-0 right-1/4 w-[450px] h-[260px] blur-[100px] opacity-[0.06] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #22d3ee, transparent 70%)' }}
+      />
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-white text-xl font-medium">Live monitoring</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Real-time stream telemetry — 2s refresh</p>
+      <div className="relative flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <BarChart3 size={24} className="text-signal-400" />
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Live Monitoring</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Real-time stream telemetry — 2s refresh</p>
+          </div>
         </div>
         <select
-          className="bg-[#111118] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 min-w-[200px]"
+          className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 min-w-[200px]"
           value={selectedStream}
           onChange={e => setSelectedStream(e.target.value)}
         >
           <option value="">Select a stream…</option>
           {streams.map(s => (
-            <option key={s.path || s.name} value={s.path || s.name}>
-              {s.name || s.path}
-            </option>
+            <option key={s.path || s.name} value={s.path || s.name}>{s.name || s.path}</option>
           ))}
         </select>
       </div>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <MetricCard label="Bitrate" value={bitrateNow} previous={bitratePrev} unit="Mbps" color="indigo" />
-        <MetricCard label="RTT" value={rttNow} previous={rttPrev} unit="ms" color="sky" />
+      <div className="relative grid grid-cols-4 gap-3 mb-4">
+        <MetricCard label="Bitrate" value={bitrateNow} previous={bitratePrev} unit="Mbps" color="brand" />
+        <MetricCard label="RTT" value={rttNow} previous={rttPrev} unit="ms" color="signal" />
         <MetricCard label="Packet loss" value={lossNow} previous={lossPrev} unit="%" color="amber" />
         <MetricCard label="Viewers" value={viewers} previous={viewersPrev} color="emerald" />
       </div>
 
       {/* Main chart: Bitrate + RTT */}
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-4 mb-4">
+      <Card className="relative p-4 mb-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-white text-sm font-medium">Bitrate and RTT — 60s window</h2>
+            <h2 className="text-white text-sm font-semibold">Bitrate and RTT — 60s window</h2>
             <p className="text-gray-500 text-xs mt-0.5">Area: bitrate (Mbps) · Line: RTT (ms)</p>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5 text-gray-400">
-              <span className="w-3 h-0.5 rounded bg-indigo-500 inline-block" /> Bitrate
+              <span className="w-3 h-0.5 rounded bg-brand-500 inline-block" /> Bitrate
             </span>
             <span className="flex items-center gap-1.5 text-gray-400">
-              <span className="w-3 h-0.5 rounded bg-sky-400 inline-block" /> RTT
+              <span className="w-3 h-0.5 rounded bg-signal-400 inline-block" /> RTT
             </span>
           </div>
         </div>
@@ -169,11 +173,11 @@ export default function StatsPage() {
           <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="bitrateGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
+                <stop offset="5%" stopColor="#818cf8" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="#818cf8" stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#222233" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#28283c" vertical={false} />
             <XAxis
               dataKey="t"
               tick={{ fill: '#6b7280', fontSize: 10 }}
@@ -204,7 +208,7 @@ export default function StatsPage() {
               type="monotone"
               dataKey="bitrate"
               name="Bitrate (Mbps)"
-              stroke="#6366f1"
+              stroke="#818cf8"
               strokeWidth={1.5}
               fill="url(#bitrateGrad)"
               dot={false}
@@ -215,21 +219,21 @@ export default function StatsPage() {
               type="monotone"
               dataKey="rtt"
               name="RTT (ms)"
-              stroke="#38bdf8"
+              stroke="#22d3ee"
               strokeWidth={1.5}
               dot={false}
               connectNulls
             />
           </ComposedChart>
         </ResponsiveContainer>
-      </div>
+      </Card>
 
       {/* Packet loss bar chart */}
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-4 mb-4">
-        <h2 className="text-white text-sm font-medium mb-4">Packet loss — 60s window</h2>
+      <Card className="relative p-4 mb-4">
+        <h2 className="text-white text-sm font-semibold mb-4">Packet loss — 60s window</h2>
         <ResponsiveContainer width="100%" height={120}>
           <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#222233" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#28283c" vertical={false} />
             <XAxis
               dataKey="t"
               tick={{ fill: '#6b7280', fontSize: 10 }}
@@ -244,16 +248,16 @@ export default function StatsPage() {
               tickFormatter={v => `${v}%`}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="loss" name="Loss (%)" fill="#f59e0b" radius={[2, 2, 0, 0]} maxBarSize={8} />
+            <Bar dataKey="loss" name="Loss (%)" fill="#fbbf24" radius={[2, 2, 0, 0]} maxBarSize={8} />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </Card>
 
       {/* Bottom row: Connection details + Events */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="relative grid grid-cols-2 gap-4">
         {/* Connection details */}
-        <div className="bg-[#111118] border border-[#222233] rounded-xl p-4">
-          <h2 className="text-white text-sm font-medium mb-3">Connection details</h2>
+        <Card className="p-4">
+          <h2 className="text-white text-sm font-semibold mb-3">Connection details</h2>
           {!stream ? (
             <p className="text-gray-600 text-sm">No stream selected</p>
           ) : (
@@ -267,16 +271,16 @@ export default function StatsPage() {
               ].map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">{k}</span>
-                  <span className="text-gray-200 font-medium">{v}</span>
+                  <span className="text-gray-200 font-medium font-mono">{v}</span>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Events log */}
-        <div className="bg-[#111118] border border-[#222233] rounded-xl p-4">
-          <h2 className="text-white text-sm font-medium mb-3">Events</h2>
+        <Card className="p-4">
+          <h2 className="text-white text-sm font-semibold mb-3">Events</h2>
           <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
             {(latest.events || []).length === 0 && (
               <p className="text-gray-600 text-sm">No recent events</p>
@@ -296,7 +300,7 @@ export default function StatsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   )

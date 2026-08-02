@@ -338,7 +338,7 @@ export default function MultiviewerPage() {
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="w-64 shrink-0 border-r border-[#222233] p-3 overflow-y-auto">
+      <div className="w-64 shrink-0 border-r border-surface-600 p-3 overflow-y-auto">
         <div className="flex items-center justify-between mb-2 px-1">
           <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold">
             Live Streams
@@ -356,13 +356,13 @@ export default function MultiviewerPage() {
           <div className="flex flex-col gap-1.5 mb-3">
             <button
               onClick={copyLink}
-              className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+              className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold border border-brand-500/40 bg-brand-600/20 text-brand-300 hover:bg-brand-600/30 transition-colors"
             >
               {copied ? 'Link copied' : 'Copy standalone link'}
             </button>
             <button
               onClick={openStandalone}
-              className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold border border-[#222233] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a2e] transition-colors"
+              className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold border border-surface-600 text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
             >
               Open standalone view
             </button>
@@ -371,11 +371,11 @@ export default function MultiviewerPage() {
                 value={savingName}
                 onChange={(e) => setSavingName(e.target.value)}
                 placeholder="Save as…"
-                className="flex-1 min-w-0 text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+                className="flex-1 min-w-0 text-xs bg-surface-800 border border-surface-600 text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand-500/50"
               />
               <button
                 type="submit"
-                className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-semibold border border-[#222233] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a2e] transition-colors"
+                className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-semibold border border-surface-600 text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
               >
                 Save
               </button>
@@ -392,20 +392,20 @@ export default function MultiviewerPage() {
               {savedMultiviewers.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-surface-600 bg-surface-800"
                 >
                   <span className="truncate flex-1 text-gray-300" title={[...m.streams, ...m.youtube.map((y) => y.label)].join(', ')}>
                     {m.name}
                   </span>
                   <button
                     onClick={() => loadSavedMultiviewer(m)}
-                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-brand-500/40 bg-brand-600/20 text-brand-300 hover:bg-brand-600/30 transition-colors"
                   >
                     Load
                   </button>
                   <button
                     onClick={() => openSavedMultiviewer(m)}
-                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-[#222233] text-gray-400 hover:text-gray-200 hover:bg-[#1a1a2e] transition-colors"
+                    className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-surface-600 text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
                   >
                     Open
                   </button>
@@ -429,9 +429,9 @@ export default function MultiviewerPage() {
               {activeJobs.map((j) => (
                 <div
                   key={j.job_id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-surface-600 bg-surface-800"
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${j.running ? 'bg-green-500' : 'bg-gray-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${j.running ? 'bg-emerald-500' : 'bg-gray-500'}`} />
                   <span className="truncate flex-1 text-gray-300" title={j.paths.join(', ')}>
                     {j.paths.join(' + ')}
                     {j.audio_path && <span className="text-gray-500"> 🔊{j.audio_path}</span>}
@@ -461,19 +461,19 @@ export default function MultiviewerPage() {
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               placeholder="srt://... or YouTube URL"
-              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+              className="text-xs bg-surface-800 border border-surface-600 text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand-500/50"
             />
             <input
               value={linkName}
               onChange={(e) => setLinkName(e.target.value)}
               placeholder="Name"
-              className="text-xs bg-[#12121a] border border-[#222233] text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500/50"
+              className="text-xs bg-surface-800 border border-surface-600 text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand-500/50"
             />
             {linkError && <p className="text-xs text-red-400">{linkError}</p>}
             <button
               type="submit"
               disabled={addingLink}
-              className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/40 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-50 transition-colors"
+              className="px-2 py-1.5 rounded-lg text-xs font-semibold border border-brand-500/40 bg-brand-600/20 text-brand-300 hover:bg-brand-600/30 disabled:opacity-50 transition-colors"
             >
               {addingLink ? 'Adding…' : 'Add link'}
             </button>
@@ -484,10 +484,10 @@ export default function MultiviewerPage() {
               {externalSources.map((s) => (
                 <div
                   key={`src-${s.name}`}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-[#222233] bg-[#12121a]"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-surface-600 bg-surface-800"
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    s.status === 'live' || s.status === 'srt' ? 'bg-green-500' : s.status === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                    s.status === 'live' || s.status === 'srt' ? 'bg-emerald-500' : s.status === 'error' ? 'bg-red-500' : 'bg-amber-500'
                   }`} title={s.last_error || s.status} />
                   <span className="truncate flex-1 text-gray-300" title={s.url}>{s.name}</span>
                   <button
@@ -505,12 +505,12 @@ export default function MultiviewerPage() {
                   key={`yt-${y.videoId}`}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border transition-colors ${
                     pinnedYoutubeIds.has(y.videoId)
-                      ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
-                      : 'text-gray-300 hover:bg-[#1a1a2e] border-[#222233]'
+                      ? 'bg-brand-600/20 text-brand-300 border-brand-500/40'
+                      : 'text-gray-300 hover:bg-surface-700 border-surface-600'
                   } ${renamingId === y.videoId ? '' : 'cursor-pointer'}`}
                   onClick={renamingId === y.videoId ? undefined : () => toggleYoutubePin(y.videoId)}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pinnedYoutubeIds.has(y.videoId) ? 'bg-indigo-400' : 'bg-gray-600'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pinnedYoutubeIds.has(y.videoId) ? 'bg-brand-400' : 'bg-gray-600'}`} />
                   {renamingId === y.videoId ? (
                     <input
                       autoFocus
@@ -519,7 +519,7 @@ export default function MultiviewerPage() {
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => { if (e.key === 'Enter') saveRename(y.videoId); if (e.key === 'Escape') setRenamingId(null) }}
                       onBlur={() => saveRename(y.videoId)}
-                      className="flex-1 min-w-0 bg-[#1a1a2e] border border-indigo-500/40 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none"
+                      className="flex-1 min-w-0 bg-[#1a1a2e] border border-brand-500/40 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none"
                     />
                   ) : (
                     <span className="truncate flex-1" title={y.url}>{y.label || y.videoId}</span>
@@ -549,7 +549,7 @@ export default function MultiviewerPage() {
               Advanced: YouTube cookies (only needed if ingesting YouTube as a real composited stream, not an embed)
             </summary>
             <div className="flex items-center gap-2 mt-2 mb-1 px-1 text-xs">
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus?.present ? 'bg-green-500' : 'bg-gray-600'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus?.present ? 'bg-emerald-500' : 'bg-gray-600'}`} />
               <span className="text-gray-500 flex-1">
                 {cookiesStatus?.present ? 'YouTube cookies loaded' : 'No YouTube cookies (may hit bot checks)'}
               </span>
@@ -558,7 +558,7 @@ export default function MultiviewerPage() {
                   Clear
                 </button>
               ) : (
-                <label className="text-indigo-300 hover:text-indigo-200 cursor-pointer">
+                <label className="text-brand-300 hover:text-brand-200 cursor-pointer">
                   {uploadingCookies ? 'Uploading…' : 'Upload'}
                   <input type="file" accept=".txt" onChange={handleCookiesFile} disabled={uploadingCookies} className="hidden" />
                 </label>
@@ -578,13 +578,13 @@ export default function MultiviewerPage() {
               onClick={() => togglePin(s.path)}
               className={`flex items-center gap-2 px-2 py-2 rounded-lg text-left text-sm transition-colors border ${
                 pinned.has(s.path)
-                  ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
-                  : 'text-gray-300 hover:bg-[#1a1a2e] border-transparent'
+                  ? 'bg-brand-600/20 text-brand-300 border-brand-500/40'
+                  : 'text-gray-300 hover:bg-surface-700 border-transparent'
               }`}
             >
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${
-                  pinned.has(s.path) ? 'bg-indigo-400' : 'bg-gray-600'
+                  pinned.has(s.path) ? 'bg-brand-400' : 'bg-gray-600'
                 }`}
               />
               <span className="truncate flex-1">{s.name || s.path}</span>
@@ -614,7 +614,7 @@ export default function MultiviewerPage() {
                   allowFullScreen
                 />
                 <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white pointer-events-none">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   {y.label || y.videoId}
                 </div>
               </div>

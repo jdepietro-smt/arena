@@ -1,32 +1,30 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Settings as SettingsIcon, Radio } from 'lucide-react'
 import { getUsers, createUser, deleteUser } from '../api/client'
 import api from '../api/client'
+import Card from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
+import Badge from '../components/ui/Badge'
+import Tabs from '../components/ui/Tabs'
+import Button from '../components/ui/Button'
 
-const TABS = ['Server', 'Users', 'Recording', 'About']
+const TABS = [
+  { value: 'server', label: 'Server' },
+  { value: 'users', label: 'Users' },
+  { value: 'recording', label: 'Recording' },
+  { value: 'about', label: 'About' },
+]
 
 const ROLES = ['admin', 'operator', 'viewer']
 
 const defaultUserForm = { username: '', password: '', role: 'operator' }
 
-function TabButton({ label, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 text-sm rounded-lg transition-colors ${
-        active
-          ? 'bg-indigo-500/15 text-indigo-400 font-medium'
-          : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-      }`}
-    >
-      {label}
-    </button>
-  )
-}
+const inputClass = 'bg-surface-900 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 placeholder-gray-600'
 
 function FieldRow({ label, value, muted }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-[#222233] last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-surface-600 last:border-0">
       <span className="text-sm text-gray-400">{label}</span>
       <span className={`text-sm font-medium font-mono ${muted ? 'text-gray-500' : 'text-gray-100'}`}>{value || '—'}</span>
     </div>
@@ -37,23 +35,17 @@ function AddUserModal({ onClose, onSubmit, loading }) {
   const [form, setForm] = useState(defaultUserForm)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-6 w-full max-w-sm shadow-xl">
+    <Modal open onClose={onClose} maxWidth="max-w-sm">
+      <div className="p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-white font-medium text-base">Add user</h2>
+          <h2 className="text-white font-semibold text-base">Add user</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
-        <form
-          onSubmit={e => { e.preventDefault(); onSubmit(form) }}
-          className="flex flex-col gap-4"
-        >
+        <form onSubmit={e => { e.preventDefault(); onSubmit(form) }} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Username</label>
             <input
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+              className={inputClass}
               placeholder="operator1"
               value={form.username}
               onChange={e => set('username', e.target.value)}
@@ -65,7 +57,7 @@ function AddUserModal({ onClose, onSubmit, loading }) {
             <label className="text-xs text-gray-400">Password</label>
             <input
               type="password"
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+              className={inputClass}
               placeholder="Minimum 8 characters"
               value={form.password}
               onChange={e => set('password', e.target.value)}
@@ -76,33 +68,19 @@ function AddUserModal({ onClose, onSubmit, loading }) {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Role</label>
-            <select
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-              value={form.role}
-              onChange={e => set('role', e.target.value)}
-            >
+            <select className={inputClass} value={form.role} onChange={e => set('role', e.target.value)}>
               {ROLES.map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
           <div className="flex gap-2 justify-end mt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white border border-[#222233] rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 text-sm bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
-            >
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={loading}>
               {loading ? 'Creating…' : 'Create user'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -116,22 +94,22 @@ function ServerTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-4">
-        <h3 className="text-white text-sm font-medium mb-1">Server configuration</h3>
+      <Card className="p-4">
+        <h3 className="text-white text-sm font-semibold mb-1">Server configuration</h3>
         <p className="text-gray-500 text-xs mb-4">Read from environment / backend config</p>
         <FieldRow label="Server IP" value={config?.server_ip || window.location.hostname} />
         <FieldRow label="mediamtx API URL" value={config?.mediamtx_api_url} />
         <FieldRow label="SRT listen port" value={config?.srt_port} />
         <FieldRow label="HLS base URL" value={config?.hls_base_url} />
-      </div>
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-4">
-        <h3 className="text-white text-sm font-medium mb-1">TURN server</h3>
+      </Card>
+      <Card className="p-4">
+        <h3 className="text-white text-sm font-semibold mb-1">TURN server</h3>
         <p className="text-gray-500 text-xs mb-4">WebRTC relay configuration</p>
         <FieldRow label="TURN host" value={config?.turn_host} muted={!config?.turn_host} />
         <FieldRow label="TURN port" value={config?.turn_port} muted={!config?.turn_port} />
         <FieldRow label="TURN username" value={config?.turn_username} muted={!config?.turn_username} />
         <FieldRow label="Status" value={config?.turn_enabled ? 'Enabled' : 'Disabled'} muted={!config?.turn_enabled} />
-      </div>
+      </Card>
     </div>
   )
 }
@@ -161,10 +139,10 @@ function UsersTab() {
     }
   }
 
-  const roleColor = (role) => {
-    if (role === 'admin') return 'bg-red-500/15 text-red-400'
-    if (role === 'operator') return 'bg-indigo-500/15 text-indigo-400'
-    return 'bg-gray-500/15 text-gray-400'
+  const roleTone = (role) => {
+    if (role === 'admin') return 'critical'
+    if (role === 'operator') return 'info'
+    return 'muted'
   }
 
   return (
@@ -176,15 +154,15 @@ function UsersTab() {
           onSubmit={(form) => createMut.mutate(form)}
         />
       )}
-      <div className="bg-[#111118] border border-[#222233] rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#222233] flex items-center justify-between">
+      <Card className="overflow-hidden">
+        <div className="px-4 py-3 border-b border-surface-600 flex items-center justify-between">
           <div>
-            <h3 className="text-white text-sm font-medium">Users</h3>
+            <h3 className="text-white text-sm font-semibold">Users</h3>
             <p className="text-gray-500 text-xs mt-0.5">{users.length} account{users.length !== 1 ? 's' : ''}</p>
           </div>
           <button
             onClick={() => setShowAdd(true)}
-            className="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/60 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/60 px-3 py-1.5 rounded-lg transition-colors"
           >
             + Add user
           </button>
@@ -193,11 +171,11 @@ function UsersTab() {
         {!isLoading && users.length === 0 && (
           <div className="text-center py-8 text-gray-600 text-sm">No users found</div>
         )}
-        <div className="divide-y divide-[#222233]">
+        <div className="divide-y divide-surface-600">
           {users.map(user => (
             <div key={user.id} className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-indigo-500/15 flex items-center justify-center text-xs font-medium text-indigo-400">
+                <div className="w-8 h-8 rounded-full bg-brand-500/15 flex items-center justify-center text-xs font-semibold text-brand-400">
                   {(user.username || '?')[0].toUpperCase()}
                 </div>
                 <div>
@@ -206,16 +184,10 @@ function UsersTab() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${roleColor(user.role)}`}>
-                  {user.role}
-                </span>
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                  user.active !== false
-                    ? 'bg-emerald-500/15 text-emerald-400'
-                    : 'bg-gray-500/15 text-gray-500'
-                }`}>
+                <Badge tone={roleTone(user.role)}>{user.role}</Badge>
+                <Badge tone={user.active !== false ? 'good' : 'muted'}>
                   {user.active !== false ? 'Active' : 'Inactive'}
-                </span>
+                </Badge>
                 <button
                   onClick={() => handleDelete(user)}
                   className="text-xs text-red-400/60 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1 rounded-lg transition-colors"
@@ -226,7 +198,7 @@ function UsersTab() {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   )
 }
@@ -237,7 +209,7 @@ function RecordingTab() {
   const [autoDelete, setAutoDelete] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const { data: recConfig } = useQuery({
+  useQuery({
     queryKey: ['recording-config'],
     queryFn: () => api.get('/settings/recording').then(r => r.data).catch(() => ({})),
     onSuccess: (d) => {
@@ -259,13 +231,13 @@ function RecordingTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-4">
-        <h3 className="text-white text-sm font-medium mb-4">Storage settings</h3>
+      <Card className="p-4">
+        <h3 className="text-white text-sm font-semibold mb-4">Storage settings</h3>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Default output directory</label>
             <input
-              className="bg-[#0a0a0f] border border-[#222233] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-mono"
+              className={`${inputClass} font-mono`}
               value={dir}
               onChange={e => setDir(e.target.value)}
               placeholder="/recordings"
@@ -273,7 +245,7 @@ function RecordingTab() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">
-              Max storage limit: <span className="text-white font-medium">{maxGb} GB</span>
+              Max storage limit: <span className="text-white font-mono font-semibold">{maxGb} GB</span>
             </label>
             <input
               type="range"
@@ -282,37 +254,30 @@ function RecordingTab() {
               step={10}
               value={maxGb}
               onChange={e => setMaxGb(Number(e.target.value))}
-              className="w-full accent-indigo-500"
+              className="w-full accent-brand-500"
             />
             <div className="flex justify-between text-[10px] text-gray-600">
               <span>10 GB</span><span>2 TB</span>
             </div>
           </div>
-          <div className="flex items-center justify-between py-2 border-t border-[#222233]">
+          <div className="flex items-center justify-between py-2 border-t border-surface-600">
             <div>
               <div className="text-sm text-gray-200">Auto-delete oldest</div>
               <div className="text-xs text-gray-500 mt-0.5">Delete oldest recordings when storage limit is reached</div>
             </div>
             <button
               onClick={() => setAutoDelete(v => !v)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${autoDelete ? 'bg-indigo-500' : 'bg-[#222233]'}`}
+              className={`relative w-10 h-5 rounded-full transition-colors ${autoDelete ? 'bg-brand-500' : 'bg-surface-600'}`}
             >
-              <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${autoDelete ? 'translate-x-5' : ''}`}
-              />
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${autoDelete ? 'translate-x-5' : ''}`} />
             </button>
           </div>
         </div>
         <div className="flex items-center gap-3 mt-4">
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 text-sm bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors"
-          >
-            Save settings
-          </button>
+          <Button variant="primary" onClick={handleSave}>Save settings</Button>
           {saved && <span className="text-xs text-emerald-400">Saved</span>}
         </div>
-      </div>
+      </Card>
     </div>
   )
 }
@@ -325,22 +290,22 @@ function AboutTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-6 flex flex-col items-center gap-4">
+      <Card className="p-6 flex flex-col items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center">
-            <span className="text-indigo-400 text-2xl font-bold">S</span>
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500/20 to-signal-500/20 ring-1 ring-brand-500/30 flex items-center justify-center">
+            <Radio size={22} className="text-brand-400" />
           </div>
           <div>
-            <div className="text-white text-lg font-medium">Arena</div>
+            <div className="text-white text-lg font-bold">Arena</div>
             <div className="text-gray-500 text-xs">Broadcast stream management</div>
           </div>
         </div>
         <p className="text-gray-400 text-sm text-center max-w-md">
           End-to-end SDI ingestion, SRT transport, and stream routing for professional broadcast workflows.
         </p>
-      </div>
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-4">
-        <h3 className="text-white text-sm font-medium mb-1">Version information</h3>
+      </Card>
+      <Card className="p-4">
+        <h3 className="text-white text-sm font-semibold mb-1">Version information</h3>
         <p className="text-gray-500 text-xs mb-4">Build and dependency details</p>
         <FieldRow label="Arena version" value={info?.version || '0.1.0'} />
         <FieldRow label="mediamtx version" value={info?.mediamtx_version} muted={!info?.mediamtx_version} />
@@ -348,9 +313,9 @@ function AboutTab() {
         <FieldRow label="FFmpeg version" value={info?.ffmpeg_version} muted={!info?.ffmpeg_version} />
         <FieldRow label="Build date" value={info?.build_date} muted={!info?.build_date} />
         <FieldRow label="Commit" value={info?.commit ? info.commit.slice(0, 8) : null} muted={!info?.commit} />
-      </div>
-      <div className="bg-[#111118] border border-[#222233] rounded-xl p-4">
-        <h3 className="text-white text-sm font-medium mb-3">Resources</h3>
+      </Card>
+      <Card className="p-4">
+        <h3 className="text-white text-sm font-semibold mb-3">Resources</h3>
         <div className="flex flex-col gap-2">
           {[
             ['Documentation', 'https://github.com/your-org/arena/docs'],
@@ -363,41 +328,41 @@ function AboutTab() {
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5"
+              className="text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1.5"
             >
               {label}
-              <span className="text-xs text-indigo-500/50">↗</span>
+              <span className="text-xs text-brand-500/50">↗</span>
             </a>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   )
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('Server')
+  const [activeTab, setActiveTab] = useState('server')
 
   return (
-    <div className="p-6 min-h-screen bg-[#0a0a0f] max-w-3xl">
-      <div className="mb-6">
-        <h1 className="text-white text-xl font-medium">Settings</h1>
-        <p className="text-gray-500 text-sm mt-0.5">System configuration and administration</p>
+    <div className="relative p-6 min-h-screen bg-surface-900 max-w-3xl">
+      <div
+        className="absolute top-0 left-1/3 w-[400px] h-[240px] blur-[100px] opacity-[0.06] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #818cf8, transparent 70%)' }}
+      />
+      <div className="relative flex items-center gap-3 mb-6">
+        <SettingsIcon size={24} className="text-brand-400" />
+        <div>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">Settings</h1>
+          <p className="text-gray-500 text-sm mt-0.5">System configuration and administration</p>
+        </div>
       </div>
-      <div className="flex gap-1 mb-6 bg-[#111118] border border-[#222233] rounded-xl p-1 w-fit">
-        {TABS.map(tab => (
-          <TabButton
-            key={tab}
-            label={tab}
-            active={activeTab === tab}
-            onClick={() => setActiveTab(tab)}
-          />
-        ))}
+      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} className="relative mb-6" />
+      <div className="relative">
+        {activeTab === 'server' && <ServerTab />}
+        {activeTab === 'users' && <UsersTab />}
+        {activeTab === 'recording' && <RecordingTab />}
+        {activeTab === 'about' && <AboutTab />}
       </div>
-      {activeTab === 'Server' && <ServerTab />}
-      {activeTab === 'Users' && <UsersTab />}
-      {activeTab === 'Recording' && <RecordingTab />}
-      {activeTab === 'About' && <AboutTab />}
     </div>
   )
 }

@@ -101,7 +101,7 @@ export default function MultiviewTile({ path, label, fill = false, showLabel = t
       )}
       {showLabel && (
         <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white">
-          <span className={`w-2 h-2 rounded-full ${loaded ? 'bg-green-500' : 'bg-gray-500'}`} />
+          <span className={`w-2 h-2 rounded-full ${loaded ? 'bg-emerald-500' : 'bg-gray-500'}`} />
           {label || path}
         </div>
       )}

@@ -94,7 +94,7 @@ function YoutubeTile({ videoId, label, style, active, registerPlayer }) {
         allowFullScreen
       />
       <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-sm text-white pointer-events-none">
-        <span className="w-2 h-2 rounded-full bg-green-500" />
+        <span className="w-2 h-2 rounded-full bg-emerald-500" />
         {label || videoId}
       </div>
     </div>
@@ -275,7 +275,7 @@ export default function MultiviewWatchPage() {
   )
 
   return (
-    <div className="min-h-screen w-screen bg-[#0a0a0f] flex items-center justify-center p-3">
+    <div className="min-h-screen w-screen bg-surface-900 flex items-center justify-center p-3">
       <div
         ref={containerRef}
         className={isFullscreen
@@ -319,7 +319,7 @@ export default function MultiviewWatchPage() {
                 <select
                   value={activeAudio}
                   onChange={(e) => setActiveAudio(e.target.value)}
-                  className="text-xs bg-black/60 border border-white/20 text-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500/50"
+                  className="text-xs bg-black/60 border border-white/20 text-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-brand-500/50"
                 >
                   <option value="">Muted</option>
                   {paths.map((p) => (
