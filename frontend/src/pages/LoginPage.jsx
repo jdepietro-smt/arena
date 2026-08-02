@@ -92,7 +92,7 @@ export default function LoginPage() {
       />
 
       <div className="relative z-10 w-full max-w-[400px]">
-        <div className="bg-gradient-to-br from-[#151520] to-surface-800 border border-surface-600 rounded-2xl px-9 py-10 shadow-[0_24px_64px_rgba(0,0,0,0.55),0_0_0_1px_rgba(99,102,241,0.06)]">
+        <div className="bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-600 rounded-2xl px-9 py-10 shadow-[0_24px_64px_rgba(0,0,0,0.55),0_0_0_1px_rgba(99,102,241,0.08)]">
           <div className="text-center mb-9">
             <div className="flex justify-center mb-4.5">
               <LogoMark size={48} />

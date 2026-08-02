@@ -17,31 +17,34 @@ function Skeleton({ className = '' }) {
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
 const ACCENTS = {
-  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', glow: 'shadow-[0_0_20px_-6px_rgba(52,211,153,0.5)]' },
-  brand:   { bg: 'bg-brand-500/10',   text: 'text-brand-400',   glow: 'shadow-[0_0_20px_-6px_rgba(129,140,248,0.5)]' },
-  red:     { bg: 'bg-red-500/10',     text: 'text-red-400',     glow: 'shadow-[0_0_20px_-6px_rgba(248,113,113,0.5)]' },
-  sky:     { bg: 'bg-sky-500/10',     text: 'text-sky-400',     glow: 'shadow-[0_0_20px_-6px_rgba(56,189,248,0.5)]' },
+  emerald: { text: 'text-emerald-400', ring: 'group-hover:ring-emerald-500/30', glow: 'rgba(52,211,153,0.35)' },
+  brand:   { text: 'text-brand-400',   ring: 'group-hover:ring-brand-500/30',   glow: 'rgba(129,140,248,0.35)' },
+  red:     { text: 'text-red-400',     ring: 'group-hover:ring-red-500/30',     glow: 'rgba(248,113,113,0.35)' },
+  signal:  { text: 'text-signal-400',  ring: 'group-hover:ring-signal-500/30',  glow: 'rgba(34,211,238,0.35)' },
 }
 
 function StatCard({ label, value, unit, accent, icon: Icon, loading }) {
   const a = ACCENTS[accent] ?? ACCENTS.brand
   return (
-    <Card className="p-4 flex items-center gap-4" hover>
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${a.bg} ${a.glow}`}>
-        <Icon size={20} strokeWidth={1.75} className={a.text} />
+    <div className="group relative rounded-2xl p-5 overflow-hidden bg-gradient-to-br from-surface-800 to-surface-750 border border-surface-600 ring-1 ring-transparent transition-all hover:border-surface-500 hover:-translate-y-0.5">
+      {/* Ambient glow anchored to this card's own accent — quiet until hover */}
+      <div
+        className="absolute -top-6 -right-6 w-24 h-24 rounded-full blur-2xl opacity-40 group-hover:opacity-70 transition-opacity pointer-events-none"
+        style={{ background: a.glow }}
+      />
+      <div className="relative flex items-center justify-between mb-3">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.12em]">{label}</p>
+        <Icon size={18} strokeWidth={1.75} className={a.text} />
       </div>
-      <div className="min-w-0">
-        <p className="text-xs text-gray-500 uppercase tracking-wider truncate">{label}</p>
-        {loading ? (
-          <Skeleton className="h-6 w-20 mt-1" />
-        ) : (
-          <p className="text-2xl font-bold text-white leading-tight tracking-tight">
-            {value}
-            {unit && <span className="text-sm font-normal text-gray-500 ml-1">{unit}</span>}
-          </p>
-        )}
-      </div>
-    </Card>
+      {loading ? (
+        <Skeleton className="h-9 w-24" />
+      ) : (
+        <p className="relative font-mono text-4xl font-bold text-white leading-none tracking-tight tabular-nums">
+          {value}
+          {unit && <span className="text-base font-medium text-gray-500 ml-1.5">{unit}</span>}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -287,7 +290,11 @@ export default function DashboardPage() {
     ?? streams.reduce((acc, s) => acc + (s.readers || 0), 0)
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-4 p-6 bg-surface-900">
+    <div className="relative flex flex-col h-full min-h-0 gap-4 p-6 bg-surface-900">
+      <div
+        className="absolute top-0 left-1/4 w-[500px] h-[300px] blur-[100px] opacity-[0.07] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #818cf8, transparent 70%)' }}
+      />
 
       {/* Summary bar */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -317,7 +324,7 @@ export default function DashboardPage() {
           label="Connected Viewers"
           value={summaryLoading ? '' : totalViewers}
           loading={summaryLoading && streamsLoading}
-          accent="sky"
+          accent="signal"
           icon={Users}
         />
       </div>

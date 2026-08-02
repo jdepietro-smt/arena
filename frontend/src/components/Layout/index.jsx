@@ -76,9 +76,9 @@ function NavItem({ path, label, Icon }) {
     <NavLink
       to={path}
       className={({ isActive }) =>
-        `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] tracking-tight transition-colors border-l-2 ${
+        `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] tracking-tight transition-all border-l-2 ${
           isActive
-            ? 'text-brand-200 bg-brand-500/10 border-brand-500 font-semibold'
+            ? 'text-brand-200 bg-gradient-to-r from-brand-500/15 to-transparent border-brand-400 font-semibold shadow-[inset_0_0_20px_-8px_rgba(129,140,248,0.5)]'
             : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/[0.04] font-medium'
         }`
       }
@@ -182,10 +182,10 @@ export default function Layout() {
       <nav aria-label="Main navigation" className="w-[220px] shrink-0 flex flex-col z-[100] bg-gradient-to-b from-[#0c0c18] to-[#0a0a15] border-r border-white/[0.055] shadow-[4px_0_24px_rgba(0,0,0,0.3)]">
 
         {/* Brand */}
-        <div className="px-4 pt-5 pb-4 border-b border-white/5">
+        <div className="px-4 pt-6 pb-5 border-b border-white/5">
           <div className="flex items-center gap-2.5 px-0.5">
-            <LogoMark size={26} />
-            <span className="text-[16px] font-extrabold tracking-tight bg-gradient-to-r from-indigo-300 to-violet-300 bg-clip-text text-transparent">
+            <LogoMark size={30} />
+            <span className="text-[18px] font-extrabold tracking-tight bg-gradient-to-r from-indigo-300 via-violet-300 to-signal-400 bg-clip-text text-transparent">
               ArenaHub
             </span>
           </div>
@@ -212,11 +212,13 @@ export default function Layout() {
 
       {/* ── Main ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-[52px] shrink-0 flex items-center gap-3 px-6 z-50 bg-[rgba(7,7,13,0.85)] backdrop-blur-xl border-b border-white/[0.055]">
-          <h1 className="flex-1 m-0 text-[15px] font-bold text-gray-100 tracking-tight">
+        <header className="relative h-[72px] shrink-0 flex items-center gap-3 px-7 z-50 bg-[rgba(5,5,8,0.75)] backdrop-blur-xl border-b border-white/[0.06] overflow-hidden">
+          {/* Ambient accent glow, keyed to the page you're on — quiet, not a hero */}
+          <div className="absolute -top-16 left-8 w-64 h-32 bg-brand-500/10 blur-3xl rounded-full pointer-events-none" />
+          <h1 className="relative flex-1 m-0 text-[26px] font-extrabold tracking-tight bg-gradient-to-r from-gray-50 to-gray-400 bg-clip-text text-transparent text-balance">
             {pageTitle}
           </h1>
-          <div className="text-[11.5px] font-medium text-gray-700 uppercase tracking-wider">
+          <div className="relative text-[11px] font-semibold text-gray-600 uppercase tracking-[0.15em]">
             ArenaHub
           </div>
         </header>

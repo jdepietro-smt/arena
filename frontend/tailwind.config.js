@@ -15,20 +15,26 @@ export default {
           800: '#3730a3',
           900: '#1e1b4b',
         },
-        // One consolidated near-black scale — the app previously had 6+
-        // distinct hardcoded near-black hex values (#07070d, #0a0a0f,
-        // #0c0c18, #111118, #0d0d14, #12121a, #1e1e2e) scattered across
-        // pages with no shared name, so no page agreed with any other on
-        // "the" background/card/border color. These are that single scale;
-        // every page should reference surface-* by name, never a raw hex.
+        // Consolidated near-black scale, deliberately given more separation
+        // between steps than the old flat #111118-everywhere approach —
+        // real contrast between page canvas and card surface is what
+        // reads as depth rather than "one color, several names."
         surface: {
-          950: '#07070d',  // outermost app shell (Layout root)
-          900: '#0a0a0f',  // page background
-          800: '#111118',  // card / panel background
-          750: '#0d0d14',  // secondary panel, table stripe, nested chip
-          700: '#1a1a27',  // raised surface, hover state
-          600: '#222233',  // hairline borders
-          500: '#2d2d44',  // stronger borders, scrollbar thumb
+          950: '#050508',  // outermost app shell (Layout root)
+          900: '#08080c',  // page canvas
+          800: '#14141f',  // card / panel background — lighter than canvas on purpose
+          750: '#191926',  // secondary panel, table stripe, nested chip
+          700: '#1e1e30',  // raised surface, hover state
+          600: '#28283c',  // hairline borders
+          500: '#38385a',  // stronger borders, scrollbar thumb
+        },
+        // Cyan "signal" accent — a second hue reserved for live/data
+        // readouts (sparklines, live pulses, mono numerals) so the app
+        // reads as an actual broadcast monitoring surface, not just a
+        // generic indigo SaaS dashboard with different labels.
+        signal: {
+          400: '#22d3ee',
+          500: '#06b6d4',
         },
       },
       fontFamily: {

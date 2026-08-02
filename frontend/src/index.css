@@ -5,16 +5,16 @@
 @layer base {
   * { box-sizing: border-box; }
   body {
-    background-color: #0a0a0f;
+    background-color: #08080c;
     color: #e2e8f0;
     font-family: 'Inter', system-ui, sans-serif;
     margin: 0;
     -webkit-font-smoothing: antialiased;
   }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #111118; }
-  ::-webkit-scrollbar-thumb { background: #2d2d44; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3a3a56; }
+  ::-webkit-scrollbar-track { background: #14141f; }
+  ::-webkit-scrollbar-thumb { background: #38385a; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #47476e; }
 
   ::selection { background: rgba(99, 102, 241, 0.35); color: #fff; }
 
