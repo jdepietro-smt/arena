@@ -150,6 +150,19 @@ def _clean_stream_routes():
 
 
 @pytest.fixture(autouse=True)
+def _clean_rate_limiter():
+    """rate_limiter._hits is a module-level dict keyed by client IP, and
+    TestClient always uses the fixed IP 'testclient' — without resetting
+    this between tests, hits accumulate across the whole test session and
+    later tests calling a rate-limited endpoint start getting spurious
+    429s instead of the status code they're actually testing for."""
+    from backend.services import rate_limiter
+
+    yield
+    rate_limiter._hits.clear()
+
+
+@pytest.fixture(autouse=True)
 def _clean_users_and_login_limiter():
     """Router tests create their own users and hit /api/auth/token, which
     both writes rows to the users table and accumulates failure counters

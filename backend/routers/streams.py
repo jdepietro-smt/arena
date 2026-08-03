@@ -23,11 +23,18 @@ from ..models import (
     User,
 )
 from ..services.mediamtx import MediaMTXClient, MediaMTXError, get_client
+from ..services.rate_limiter import rate_limit
 from ..services.srt_stats import get_collector
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["streams"])
+
+# Starting/stopping a recording spawns a real ffmpeg process — 20/min per
+# IP is generous for legitimate use (nobody toggles a recording dozens of
+# times a minute) but stops a misbehaving client from spawning ffmpeg in
+# a tight loop.
+_recording_rate_limit = rate_limit(20, 60, scope="recording-toggle")
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +288,7 @@ async def start_recording(
     session: Session = Depends(get_session),
     _user: User = Depends(get_current_active_user),
     client: MediaMTXClient = Depends(get_client),
+    _rl: None = Depends(_recording_rate_limit),
 ) -> dict[str, Any]:
     """
     Instruct the recorder service to begin capturing the given stream.
@@ -337,6 +345,7 @@ async def stop_recording(
     path_name: str,
     session: Session = Depends(get_session),
     _user: User = Depends(get_current_active_user),
+    _rl: None = Depends(_recording_rate_limit),
 ) -> dict[str, Any]:
     """
     Stop an active recording for the given stream path and finalise the

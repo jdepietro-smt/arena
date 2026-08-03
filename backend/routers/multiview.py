@@ -24,8 +24,15 @@ from pydantic import BaseModel, Field
 from ..auth import get_current_active_user, require_admin
 from ..models import User
 from ..services.compositor import get_compositor, get_job_log
+from ..services.rate_limiter import rate_limit
 
 router = APIRouter(tags=["multiview"])
+
+# create_job spawns a real ffmpeg compositor process and takes no auth
+# (see module docstring) — this is the one mutating endpoint in the app
+# reachable with zero credentials, so it's the one where a per-IP cap
+# matters most.
+_create_job_rate_limit = rate_limit(15, 60, scope="multiview-create-job")
 
 
 class CompositeJobRequest(BaseModel):
@@ -50,7 +57,10 @@ class CompositeJobInfo(BaseModel):
 
 
 @router.post("/jobs", response_model=CompositeJobResponse, summary="Ensure a composite job is running")
-async def create_job(body: CompositeJobRequest) -> CompositeJobResponse:
+async def create_job(
+    body: CompositeJobRequest,
+    _rl: None = Depends(_create_job_rate_limit),
+) -> CompositeJobResponse:
     paths = [p.strip() for p in body.paths if p.strip()]
     if not paths:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No stream paths supplied")

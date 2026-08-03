@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from ..auth import get_current_active_user, require_admin
 from ..models import User
 from ..services.external_source import COOKIES_PATH, get_external_sources
+from ..services.rate_limiter import rate_limit
 
 _PLUGIN_ZIP_URL = (
     "https://github.com/Brainicism/bgutil-ytdlp-pot-provider"
@@ -32,6 +33,12 @@ router = APIRouter(tags=["sources"])
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _MAX_COOKIES_BYTES = 256 * 1024  # cookies.txt files are a few KB at most
+
+# Adding a source spawns a supervised yt-dlp+ffmpeg loop (or at minimum an
+# add_path call to mediamtx); a cookies upload writes to disk. Neither is
+# something a legitimate operator does dozens of times a minute.
+_add_source_rate_limit = rate_limit(10, 60, scope="add-source")
+_cookies_upload_rate_limit = rate_limit(5, 60, scope="cookies-upload")
 
 
 def _plugin_dir() -> str:
@@ -57,6 +64,7 @@ class ExternalSourceInfo(BaseModel):
 async def add_source(
     body: ExternalSourceRequest,
     _user: User = Depends(get_current_active_user),
+    _rl: None = Depends(_add_source_rate_limit),
 ) -> ExternalSourceInfo:
     name = body.name.strip()
     url = body.url.strip()
@@ -138,6 +146,7 @@ async def youtube_cookies_status(_user: User = Depends(get_current_active_user))
 async def upload_youtube_cookies(
     file: UploadFile,
     _admin: User = Depends(require_admin),
+    _rl: None = Depends(_cookies_upload_rate_limit),
 ) -> dict:
     data = await file.read(_MAX_COOKIES_BYTES + 1)
     if len(data) > _MAX_COOKIES_BYTES:

@@ -20,9 +20,15 @@ from ..auth import get_current_active_user, require_admin
 from ..database import get_session
 from ..models import User
 from ..services.db_backup import get_db_backup, run_backup_once
+from ..services.rate_limiter import rate_limit
 from ..services.recording_config import get_recording_config
 
 router = APIRouter(tags=["settings"])
+
+# A backup reads the whole sqlite file via sqlite3's backup API — cheap
+# for this app's DB size, but there's no reason for it to run more than
+# a couple of times a minute even under a scripted/automated trigger.
+_backup_rate_limit = rate_limit(5, 60, scope="db-backup")
 
 
 class RecordingSettingsUpdate(BaseModel):
@@ -50,7 +56,10 @@ async def backup_status(_user: User = Depends(get_current_active_user)) -> dict:
 
 
 @router.post("/backup", summary="Take a database backup right now (admin only)")
-async def trigger_backup(_admin: User = Depends(require_admin)) -> dict:
+async def trigger_backup(
+    _admin: User = Depends(require_admin),
+    _rl: None = Depends(_backup_rate_limit),
+) -> dict:
     path = await asyncio.to_thread(run_backup_once)
     if path is None:
         return {"ok": False, "reason": "DATABASE_URL is not sqlite, or the DB file doesn't exist yet"}

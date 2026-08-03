@@ -1,9 +1,9 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 import os
 
@@ -19,6 +19,7 @@ from .services.compositor import get_compositor
 from .services.external_source import get_external_sources
 from .services.hls_generator import get_hls_generator
 from .services.mediamtx import get_client
+from .services.rate_limiter import check_and_record
 from .routers import (
     streams, routes, recordings, stats, users, hls_proxy, whep_proxy,
     multiview, external_sources, alerts, redundancy, settings as settings_router,
@@ -124,6 +125,34 @@ async def _security_headers(request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
+
+# Coarse per-IP backstop across the whole API — only /auth/token had any
+# throttling before this (services/login_limiter.py); every other route,
+# including recording start/stop, source ingestion, and DB backup
+# triggers, had zero pushback against a client hammering it in a loop.
+# Generous on purpose: the dashboard itself polls several REST endpoints
+# every few seconds, often from more than one open tab/panel on the same
+# IP, and this must never be what makes normal use flaky. It's a
+# ceiling against abuse, not a per-endpoint throttle — see
+# services/rate_limiter.py's rate_limit() dependency for the tighter,
+# per-action limits applied to specific expensive endpoints below.
+_GLOBAL_RATE_LIMIT = 600
+_GLOBAL_RATE_WINDOW_S = 60.0
+
+
+@app.middleware("http")
+async def _global_rate_limit(request, call_next):
+    client_ip = request.client.host if request.client else "unknown"
+    retry_after = check_and_record(f"global:{client_ip}", _GLOBAL_RATE_LIMIT, _GLOBAL_RATE_WINDOW_S)
+    if retry_after is not None:
+        wait_s = int(retry_after) + 1
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"detail": f"Too many requests. Try again in {wait_s}s."},
+            headers={"Retry-After": str(wait_s)},
+        )
+    return await call_next(request)
 
 # API routers
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
