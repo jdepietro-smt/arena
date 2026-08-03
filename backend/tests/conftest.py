@@ -51,6 +51,38 @@ def _clean_managed_paths():
 
 
 @pytest.fixture(autouse=True)
+def _clean_recordings():
+    """Recording-router tests create Recording rows; keep them from
+    leaking into unrelated tests that list/count recordings."""
+    from sqlmodel import Session, select
+
+    from backend.database import engine
+    from backend.models import Recording
+
+    yield
+    with Session(engine) as session:
+        for row in session.exec(select(Recording)).all():
+            session.delete(row)
+        session.commit()
+
+
+@pytest.fixture(autouse=True)
+def _clean_stream_routes():
+    """Route-router tests create StreamRoute rows; keep them from leaking
+    into unrelated tests that list/count routes."""
+    from sqlmodel import Session, select
+
+    from backend.database import engine
+    from backend.models import StreamRoute
+
+    yield
+    with Session(engine) as session:
+        for row in session.exec(select(StreamRoute)).all():
+            session.delete(row)
+        session.commit()
+
+
+@pytest.fixture(autouse=True)
 def _clean_users_and_login_limiter():
     """Router tests create their own users and hit /api/auth/token, which
     both writes rows to the users table and accumulates failure counters
