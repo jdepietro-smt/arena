@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CirclePlay, Search, X } from 'lucide-react'
 import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl } from '../api/client'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import StatusDot from '../components/ui/StatusDot'
-import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { toast } from '../store/toast'
+import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
 
 function formatDuration(seconds) {
   if (seconds == null) return '—'
@@ -180,7 +180,7 @@ export default function RecordingsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [previewRec, setPreviewRec] = useState(null)
-  const [pendingDelete, setPendingDelete] = useState(null)
+  const pendingDeleteIds = usePendingDeleteIds()
 
   const { data: recordings = [], isLoading, isError } = useQuery({
     queryKey: ['recordings'],
@@ -188,21 +188,21 @@ export default function RecordingsPage() {
     refetchInterval: 5000,
   })
 
-  const deleteMut = useMutation({
-    mutationFn: (id) => deleteRecording(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['recordings'] })
-      toast.success('Recording deleted')
-      setPendingDelete(null)
-    },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete recording'),
-  })
+  function handleDelete(rec) {
+    scheduleDelete({
+      id: rec.id,
+      label: 'Recording',
+      onDelete: async () => {
+        await deleteRecording(rec.id)
+        qc.invalidateQueries({ queryKey: ['recordings'] })
+      },
+      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete recording'),
+    })
+  }
 
-  const handleDelete = (rec) => setPendingDelete(rec)
-  const confirmDelete = () => deleteMut.mutate(pendingDelete.id)
-
-  const active = recordings.filter(r => r.status === 'recording')
-  const completed = recordings.filter(r => r.status !== 'recording')
+  const visible = recordings.filter(r => !pendingDeleteIds.has(r.id))
+  const active = visible.filter(r => r.status === 'recording')
+  const completed = visible.filter(r => r.status !== 'recording')
 
   const filtered = completed.filter(r => {
     if (!search) return true
@@ -300,16 +300,6 @@ export default function RecordingsPage() {
       </div>
 
       {previewRec && <PreviewModal rec={previewRec} onClose={() => setPreviewRec(null)} />}
-
-      <ConfirmDialog
-        open={!!pendingDelete}
-        title="Delete recording"
-        message={pendingDelete ? `Delete "${pendingDelete.filename || pendingDelete.name}"? This cannot be undone.` : ''}
-        confirmLabel="Delete"
-        loading={deleteMut.isPending}
-        onConfirm={confirmDelete}
-        onCancel={() => setPendingDelete(null)}
-      />
     </div>
   )
 }

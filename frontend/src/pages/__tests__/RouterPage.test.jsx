@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { act } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import RouterPage from '../RouterPage'
 import ToastStack from '../../components/ui/Toast'
 import { useToastStore } from '../../store/toast'
+import { usePendingDeleteStore } from '../../store/pendingDelete'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
@@ -38,7 +39,10 @@ beforeEach(() => {
   activateRoute.mockReset()
   deactivateRoute.mockReset()
   deleteRoute.mockReset()
-  act(() => useToastStore.setState({ toasts: [] }))
+  act(() => {
+    useToastStore.setState({ toasts: [] })
+    usePendingDeleteStore.setState({ hidden: new Set() })
+  })
 })
 
 describe('RouterPage — routing matrix', () => {
@@ -159,37 +163,58 @@ describe('RouterPage — active routes', () => {
     await waitFor(() => expect(activateRoute).toHaveBeenCalledWith(2))
   })
 
-  it('deletes a route after confirming in the dialog, and does nothing if cancelled', async () => {
+  it('hides the route immediately on delete and only calls the API after the undo grace period', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
     getRoutes.mockResolvedValue([{ id: 3, name: 'Route 3', source_path: 'cam3', dest_url: 'srt://z', active: false }])
     deleteRoute.mockResolvedValue({})
     renderRouterPage()
     await screen.findByText('Route 3')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    let dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText('Delete route "Route 3"?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Route 3')).not.toBeInTheDocument()
+    expect(screen.getByText('Route deleted')).toBeInTheDocument()
     expect(deleteRoute).not.toHaveBeenCalled()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    dialog = screen.getByRole('dialog')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(deleteRoute).toHaveBeenCalledWith(3))
-    expect(await screen.findByText('Route deleted')).toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTime(6001))
+    expect(deleteRoute).toHaveBeenCalledWith(3)
+    vi.useRealTimers()
+  })
+
+  it('undoing a route delete restores it and never calls the API', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
+    getRoutes.mockResolvedValue([{ id: 3, name: 'Route 3', source_path: 'cam3', dest_url: 'srt://z', active: false }])
+    deleteRoute.mockResolvedValue({})
+    renderRouterPage()
+    await screen.findByText('Route 3')
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.queryByText('Route 3')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByText('Route 3')).toBeInTheDocument()
+
+    await act(async () => vi.advanceTimersByTime(10000))
+    expect(deleteRoute).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   it('shows an error toast when deleting a route fails', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
     getRoutes.mockResolvedValue([{ id: 4, name: 'Route 4', source_path: 'cam4', dest_url: 'srt://w', active: false }])
     deleteRoute.mockRejectedValue({ response: { data: { detail: 'Route is in use' } } })
     renderRouterPage()
     await screen.findByText('Route 4')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await act(async () => vi.advanceTimersByTime(6001))
 
-    expect(await screen.findByText('Route is in use')).toBeInTheDocument()
+    expect(screen.getByText('Route is in use')).toBeInTheDocument()
+    expect(screen.getByText('Route 4')).toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('shows a connection-error message instead of the empty state when the routes query fails', async () => {

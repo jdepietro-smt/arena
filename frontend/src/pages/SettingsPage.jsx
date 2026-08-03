@@ -8,8 +8,8 @@ import Modal from '../components/ui/Modal'
 import Badge from '../components/ui/Badge'
 import Tabs from '../components/ui/Tabs'
 import Button from '../components/ui/Button'
-import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { toast } from '../store/toast'
+import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
 
 const TABS = [
   { value: 'server', label: 'Server' },
@@ -119,12 +119,13 @@ function ServerTab() {
 function UsersTab() {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState(null)
+  const pendingDeleteIds = usePendingDeleteIds()
 
-  const { data: users = [], isLoading, isError } = useQuery({
+  const { data: allUsers = [], isLoading, isError } = useQuery({
     queryKey: ['users'],
     queryFn: getUsers,
   })
+  const users = allUsers.filter(u => !pendingDeleteIds.has(u.id))
 
   const createMut = useMutation({
     mutationFn: createUser,
@@ -136,17 +137,17 @@ function UsersTab() {
     onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to create user'),
   })
 
-  const deleteMut = useMutation({
-    mutationFn: deleteUser,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['users'] })
-      toast.success('User removed')
-      setPendingDelete(null)
-    },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to remove user'),
-  })
-
-  const handleDelete = (user) => setPendingDelete(user)
+  function handleDelete(user) {
+    scheduleDelete({
+      id: user.id,
+      label: 'User',
+      onDelete: async () => {
+        await deleteUser(user.id)
+        qc.invalidateQueries({ queryKey: ['users'] })
+      },
+      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to remove user'),
+    })
+  }
 
   const roleTone = (role) => {
     if (role === 'admin') return 'critical'
@@ -204,7 +205,6 @@ function UsersTab() {
                 </Badge>
                 <button
                   onClick={() => handleDelete(user)}
-                  disabled={deleteMut.isPending}
                   className="text-xs text-red-400/60 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
                 >
                   Remove
@@ -214,16 +214,6 @@ function UsersTab() {
           ))}
         </div>
       </Card>
-
-      <ConfirmDialog
-        open={!!pendingDelete}
-        title="Remove user"
-        message={pendingDelete ? `Remove user "${pendingDelete.username}"?` : ''}
-        confirmLabel="Remove"
-        loading={deleteMut.isPending}
-        onConfirm={() => deleteMut.mutate(pendingDelete.id)}
-        onCancel={() => setPendingDelete(null)}
-      />
     </div>
   )
 }

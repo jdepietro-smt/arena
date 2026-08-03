@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { act } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import RecordingsPage from '../RecordingsPage'
 import ToastStack from '../../components/ui/Toast'
 import { useToastStore } from '../../store/toast'
+import { usePendingDeleteStore } from '../../store/pendingDelete'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
@@ -39,7 +40,10 @@ function recording(overrides = {}) {
 beforeEach(() => {
   getRecordings.mockReset().mockResolvedValue([])
   deleteRecording.mockReset()
-  act(() => useToastStore.setState({ toasts: [] }))
+  act(() => {
+    useToastStore.setState({ toasts: [] })
+    usePendingDeleteStore.setState({ hidden: new Set() })
+  })
 })
 
 describe('RecordingsPage', () => {
@@ -62,37 +66,59 @@ describe('RecordingsPage', () => {
     expect(screen.queryByText('No recordings yet')).not.toBeInTheDocument()
   })
 
-  it('deletes a recording after confirming in the dialog, and does nothing if cancelled', async () => {
+  it('hides the recording immediately on delete and only calls the API after the undo grace period', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
     getRecordings.mockResolvedValue([recording()])
     deleteRecording.mockResolvedValue({})
     renderRecordingsPage()
     await screen.findByText('cam1_20260101.mp4')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText(/Delete "cam1_20260101.mp4"/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('cam1_20260101.mp4')).not.toBeInTheDocument()
+    expect(screen.getByText('Recording deleted')).toBeInTheDocument()
     expect(deleteRecording).not.toHaveBeenCalled()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await act(async () => vi.advanceTimersByTime(6001))
 
-    await waitFor(() => expect(deleteRecording).toHaveBeenCalledWith(1))
-    expect(await screen.findByText('Recording deleted')).toBeInTheDocument()
+    expect(deleteRecording).toHaveBeenCalledWith(1)
+    vi.useRealTimers()
   })
 
-  it('shows an error toast when deleting a recording fails', async () => {
+  it('undoing a delete restores the recording and never calls the API', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
+    getRecordings.mockResolvedValue([recording()])
+    deleteRecording.mockResolvedValue({})
+    renderRecordingsPage()
+    await screen.findByText('cam1_20260101.mp4')
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.queryByText('cam1_20260101.mp4')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByText('cam1_20260101.mp4')).toBeInTheDocument()
+
+    await act(async () => vi.advanceTimersByTime(10000))
+    expect(deleteRecording).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('shows an error toast and restores the recording if the delete fails after the grace period', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
     getRecordings.mockResolvedValue([recording()])
     deleteRecording.mockRejectedValue({ response: { data: { detail: 'File is locked' } } })
     renderRecordingsPage()
     await screen.findByText('cam1_20260101.mp4')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await act(async () => vi.advanceTimersByTime(6001))
 
-    expect(await screen.findByText('File is locked')).toBeInTheDocument()
+    expect(screen.getByText('File is locked')).toBeInTheDocument()
+    expect(screen.getByText('cam1_20260101.mp4')).toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('filters recordings by search', async () => {

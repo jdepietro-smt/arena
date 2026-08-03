@@ -13,8 +13,8 @@ import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
-import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { toast } from '../store/toast'
+import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
 
 const DEST_TYPES = ['SRT Out', 'HLS Re-stream', 'RTMP Out']
 
@@ -132,10 +132,11 @@ export default function RouterPage() {
   // matrix[sourcePath][destIndex] = true/false
   const [matrix, setMatrix] = useState({})
 
-  const [pendingDelete, setPendingDelete] = useState(null)
+  const pendingDeleteIds = usePendingDeleteIds()
 
   const { data: streams = [] } = useQuery({ queryKey: ['streams'], queryFn: getStreams, refetchInterval: 5000 })
-  const { data: routes = [], isError: routesError } = useQuery({ queryKey: ['routes'], queryFn: getRoutes, refetchInterval: 3000 })
+  const { data: allRoutes = [], isError: routesError } = useQuery({ queryKey: ['routes'], queryFn: getRoutes, refetchInterval: 3000 })
+  const routes = allRoutes.filter(r => !pendingDeleteIds.has(r.id))
 
   const createMut = useMutation({
     mutationFn: async (form) => {
@@ -165,15 +166,17 @@ export default function RouterPage() {
     onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to update route'),
   })
 
-  const deleteMut = useMutation({
-    mutationFn: (id) => deleteRoute(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['routes'] })
-      toast.success('Route deleted')
-      setPendingDelete(null)
-    },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete route'),
-  })
+  function handleDeleteRoute(route) {
+    scheduleDelete({
+      id: route.id,
+      label: 'Route',
+      onDelete: async () => {
+        await deleteRoute(route.id)
+        qc.invalidateQueries({ queryKey: ['routes'] })
+      },
+      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete route'),
+    })
+  }
 
   const toggleCell = (sourcePath, destIdx) => {
     setMatrix(m => ({
@@ -346,8 +349,7 @@ export default function RouterPage() {
                         {route.active ? 'Pause' : 'Activate'}
                       </button>
                       <button
-                        onClick={() => setPendingDelete(route)}
-                        disabled={deleteMut.isPending}
+                        onClick={() => handleDeleteRoute(route)}
                         className="text-[10px] text-red-400/70 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
                       >
                         Delete
@@ -360,16 +362,6 @@ export default function RouterPage() {
           </div>
         </Card>
       </div>
-
-      <ConfirmDialog
-        open={!!pendingDelete}
-        title="Delete route"
-        message={pendingDelete ? `Delete route "${pendingDelete.name}"?` : ''}
-        confirmLabel="Delete"
-        loading={deleteMut.isPending}
-        onConfirm={() => deleteMut.mutate(pendingDelete.id)}
-        onCancel={() => setPendingDelete(null)}
-      />
     </div>
   )
 }

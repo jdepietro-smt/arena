@@ -66,4 +66,24 @@ describe('ToastStack', () => {
     expect(screen.queryByText('Auto-dismiss')).not.toBeInTheDocument()
     vi.useRealTimers()
   })
+
+  it('renders an action button and runs its onClick, then dismisses the toast, when clicked', async () => {
+    render(<ToastStack />)
+    const onClick = vi.fn()
+    act(() => toast.info('Recording deleted', { action: { label: 'Undo', onClick } }))
+    await screen.findByText('Recording deleted')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+    expect(onClick).toHaveBeenCalled()
+    expect(screen.queryByText('Recording deleted')).not.toBeInTheDocument()
+  })
+
+  it('does not render an action button when none is provided', async () => {
+    render(<ToastStack />)
+    act(() => toast.info('Just a message'))
+    await screen.findByText('Just a message')
+
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+  })
 })

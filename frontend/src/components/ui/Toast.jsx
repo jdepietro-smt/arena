@@ -7,7 +7,7 @@ const TONES = {
   info:     { icon: Info,         className: 'border-brand-500/30 text-brand-300',     iconClass: 'text-brand-400' },
 }
 
-function ToastItem({ id, tone, message, onDismiss }) {
+function ToastItem({ id, tone, message, action, onDismiss }) {
   const t = TONES[tone] ?? TONES.info
   const Icon = t.icon
   return (
@@ -17,6 +17,14 @@ function ToastItem({ id, tone, message, onDismiss }) {
     >
       <Icon size={17} className={`shrink-0 mt-px ${t.iconClass}`} />
       <p className="flex-1 text-sm text-gray-200 leading-snug">{message}</p>
+      {action && (
+        <button
+          onClick={() => { action.onClick(); onDismiss(id) }}
+          className="shrink-0 text-xs font-semibold text-brand-300 hover:text-brand-200 transition-colors"
+        >
+          {action.label}
+        </button>
+      )}
       <button
         onClick={() => onDismiss(id)}
         className="shrink-0 text-gray-500 hover:text-white transition-colors"

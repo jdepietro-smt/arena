@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { act } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import AlertsPage from '../AlertsPage'
 import ToastStack from '../../components/ui/Toast'
 import { useToastStore } from '../../store/toast'
+import { usePendingDeleteStore } from '../../store/pendingDelete'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
@@ -47,7 +48,10 @@ beforeEach(() => {
   getRedundancyGateways.mockReset().mockResolvedValue([])
   toggleRedundancyGateway.mockReset()
   deleteRedundancyGateway.mockReset()
-  act(() => useToastStore.setState({ toasts: [] }))
+  act(() => {
+    useToastStore.setState({ toasts: [] })
+    usePendingDeleteStore.setState({ hidden: new Set() })
+  })
 })
 
 describe('AlertsPage — alert rules', () => {
@@ -92,7 +96,9 @@ describe('AlertsPage — alert rules', () => {
     expect(await screen.findByText('Rule not found')).toBeInTheDocument()
   })
 
-  it('deletes a rule after confirming in the dialog, and does nothing if cancelled', async () => {
+  it('hides a rule immediately on delete and only calls the API after the undo grace period', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
     getAlertRules.mockResolvedValue([
       { id: 1, stream_path: 'cam1', metric: 'bitrate', operator: 'lt', threshold: 500, is_active: true },
     ])
@@ -100,19 +106,35 @@ describe('AlertsPage — alert rules', () => {
     renderAlertsPage()
     await screen.findByText('cam1')
 
-    await userEvent.click(screen.getByRole('button', { name: '✕' }))
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText('Delete the rule for "cam1"?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '✕' }))
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('cam1')).not.toBeInTheDocument()
+    expect(screen.getByText('Alert rule deleted')).toBeInTheDocument()
     expect(deleteAlertRule).not.toHaveBeenCalled()
 
-    await userEvent.click(screen.getByRole('button', { name: '✕' }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await act(async () => vi.advanceTimersByTime(6001))
+    expect(deleteAlertRule).toHaveBeenCalledWith(1)
+    vi.useRealTimers()
+  })
 
-    await waitFor(() => expect(deleteAlertRule).toHaveBeenCalled())
-    expect(deleteAlertRule.mock.calls[0][0]).toBe(1)
-    expect(await screen.findByText('Alert rule deleted')).toBeInTheDocument()
+  it('undoing a rule delete restores it and never calls the API', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
+    getAlertRules.mockResolvedValue([
+      { id: 1, stream_path: 'cam1', metric: 'bitrate', operator: 'lt', threshold: 500, is_active: true },
+    ])
+    renderAlertsPage()
+    await screen.findByText('cam1')
+
+    await user.click(screen.getByRole('button', { name: '✕' }))
+    expect(screen.queryByText('cam1')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByText('cam1')).toBeInTheDocument()
+
+    await act(async () => vi.advanceTimersByTime(10000))
+    expect(deleteAlertRule).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })
 
@@ -130,7 +152,9 @@ describe('AlertsPage — redundancy gateways', () => {
     expect(screen.queryByText(/No redundancy gateways registered/)).not.toBeInTheDocument()
   })
 
-  it('deletes a gateway after confirming in the dialog', async () => {
+  it('hides a gateway immediately on delete and only calls the API after the undo grace period', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
     getRedundancyGateways.mockResolvedValue([
       { id: 9, name: 'Truck 1', stats_url: 'http://10.0.1.5:6400/', is_active: true },
     ])
@@ -138,15 +162,19 @@ describe('AlertsPage — redundancy gateways', () => {
     renderAlertsPage()
     await screen.findByRole('button', { name: '✕' })
 
-    await userEvent.click(screen.getByRole('button', { name: '✕' }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: '✕' }))
 
-    await waitFor(() => expect(deleteRedundancyGateway).toHaveBeenCalled())
-    expect(deleteRedundancyGateway.mock.calls[0][0]).toBe(9)
-    expect(await screen.findByText('Redundancy gateway deleted')).toBeInTheDocument()
+    expect(screen.getByText('Redundancy gateway deleted')).toBeInTheDocument()
+    expect(deleteRedundancyGateway).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTime(6001))
+    expect(deleteRedundancyGateway).toHaveBeenCalledWith(9)
+    vi.useRealTimers()
   })
 
-  it('shows an error toast when deleting a gateway fails', async () => {
+  it('shows an error toast when deleting a gateway fails after the grace period', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ delay: null })
     getRedundancyGateways.mockResolvedValue([
       { id: 9, name: 'Truck 1', stats_url: 'http://10.0.1.5:6400/', is_active: true },
     ])
@@ -154,9 +182,10 @@ describe('AlertsPage — redundancy gateways', () => {
     renderAlertsPage()
     await screen.findByRole('button', { name: '✕' })
 
-    await userEvent.click(screen.getByRole('button', { name: '✕' }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: '✕' }))
+    await act(async () => vi.advanceTimersByTime(6001))
 
-    expect(await screen.findByText('Gateway not found')).toBeInTheDocument()
+    expect(screen.getByText('Gateway not found')).toBeInTheDocument()
+    vi.useRealTimers()
   })
 })
