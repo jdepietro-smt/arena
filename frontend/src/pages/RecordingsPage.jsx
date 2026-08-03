@@ -252,7 +252,7 @@ export default function RecordingsPage() {
             <h2 className="text-sm font-semibold text-white">Recording now</h2>
             <span className="text-xs text-gray-500">({active.length})</span>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {active.map(rec => (
               <RecordingCard key={rec.id} rec={rec} onDelete={handleDelete} onPreview={setPreviewRec} />
             ))}
@@ -292,7 +292,7 @@ export default function RecordingsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map(rec => (
             <RecordingCard key={rec.id} rec={rec} onDelete={handleDelete} onPreview={setPreviewRec} />
           ))}

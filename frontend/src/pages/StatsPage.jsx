@@ -132,7 +132,7 @@ export default function StatsPage() {
       )}
 
       {/* Metric cards */}
-      <div className="relative grid grid-cols-4 gap-3 mb-4">
+      <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <MetricCard label="Bitrate" value={bitrateNow} previous={bitratePrev} unit="Mbps" color="brand" />
         <MetricCard label="RTT" value={rttNow} previous={rttPrev} unit="ms" color="signal" />
         <MetricCard label="Packet loss" value={lossNow} previous={lossPrev} unit="%" color="amber" />
@@ -142,7 +142,7 @@ export default function StatsPage() {
       {/* Bitrate and RTT — two single-axis charts, not one dual-axis chart:
           different scales (Mbps vs ms) compress and mislead against a
           shared frame. */}
-      <div className="relative grid grid-cols-2 gap-4 mb-4">
+      <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <Card className="p-4">
           <h2 className="text-white text-sm font-semibold mb-1">Bitrate — 60s window</h2>
           <p className="text-gray-500 text-xs mb-3">Mbps</p>
@@ -179,7 +179,7 @@ export default function StatsPage() {
       </Card>
 
       {/* Bottom row: Connection details + Events */}
-      <div className="relative grid grid-cols-2 gap-4">
+      <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Connection details */}
         <Card className="p-4">
           <h2 className="text-white text-sm font-semibold mb-3">Connection details</h2>

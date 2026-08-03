@@ -508,7 +508,7 @@ export default function AlertsPage() {
             No streams tracked yet.
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[...allPaths].sort().map(path => (
               <StreamHealthCard
                 key={path}
@@ -564,7 +564,7 @@ export default function AlertsPage() {
           SMPTE 2022-7 protection-switch monitoring — register an sdi_receive instance's --stats-port to watch path1/path2/output health.
         </p>
         {gatewaysWithStats.length > 0 && (
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
             {gatewaysWithStats.map(gw => <GatewayCard key={gw.id} gateway={gw} />)}
           </div>
         )}
