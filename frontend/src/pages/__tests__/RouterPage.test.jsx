@@ -1,8 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { act } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import RouterPage from '../RouterPage'
+import ToastStack from '../../components/ui/Toast'
+import { useToastStore } from '../../store/toast'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
@@ -23,6 +26,7 @@ function renderRouterPage() {
   return render(
     <QueryClientProvider client={queryClient}>
       <RouterPage />
+      <ToastStack />
     </QueryClientProvider>
   )
 }
@@ -34,7 +38,7 @@ beforeEach(() => {
   activateRoute.mockReset()
   deactivateRoute.mockReset()
   deleteRoute.mockReset()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  act(() => useToastStore.setState({ toasts: [] }))
 })
 
 describe('RouterPage — routing matrix', () => {
@@ -128,6 +132,7 @@ describe('RouterPage — active routes', () => {
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'New route' })).not.toBeInTheDocument()
     })
+    expect(await screen.findByText('Route created and activated')).toBeInTheDocument()
   })
 
   it('pauses an active route by calling deactivateRoute', async () => {
@@ -140,6 +145,7 @@ describe('RouterPage — active routes', () => {
 
     await waitFor(() => expect(deactivateRoute).toHaveBeenCalledWith(1))
     expect(activateRoute).not.toHaveBeenCalled()
+    expect(await screen.findByText('Route paused')).toBeInTheDocument()
   })
 
   it('activates an inactive route by calling activateRoute', async () => {
@@ -153,18 +159,44 @@ describe('RouterPage — active routes', () => {
     await waitFor(() => expect(activateRoute).toHaveBeenCalledWith(2))
   })
 
-  it('deletes a route after confirming, and does nothing if declined', async () => {
+  it('deletes a route after confirming in the dialog, and does nothing if cancelled', async () => {
     getRoutes.mockResolvedValue([{ id: 3, name: 'Route 3', source_path: 'cam3', dest_url: 'srt://z', active: false }])
     deleteRoute.mockResolvedValue({})
     renderRouterPage()
     await screen.findByText('Route 3')
 
-    window.confirm.mockReturnValueOnce(false)
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(deleteRoute).not.toHaveBeenCalled()
+    let dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Delete route "Route 3"?')).toBeInTheDocument()
 
-    window.confirm.mockReturnValueOnce(true)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(deleteRoute).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(deleteRoute).toHaveBeenCalledWith(3))
+    expect(await screen.findByText('Route deleted')).toBeInTheDocument()
+  })
+
+  it('shows an error toast when deleting a route fails', async () => {
+    getRoutes.mockResolvedValue([{ id: 4, name: 'Route 4', source_path: 'cam4', dest_url: 'srt://w', active: false }])
+    deleteRoute.mockRejectedValue({ response: { data: { detail: 'Route is in use' } } })
+    renderRouterPage()
+    await screen.findByText('Route 4')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByText('Route is in use')).toBeInTheDocument()
+  })
+
+  it('shows a connection-error message instead of the empty state when the routes query fails', async () => {
+    getRoutes.mockRejectedValue(new Error('network error'))
+    renderRouterPage()
+
+    expect(await screen.findByText('Could not load routes. Retrying…')).toBeInTheDocument()
+    expect(screen.queryByText('No routes configured')).not.toBeInTheDocument()
   })
 })

@@ -13,6 +13,8 @@ import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
+import { toast } from '../store/toast'
 
 const DEST_TYPES = ['SRT Out', 'HLS Re-stream', 'RTMP Out']
 
@@ -130,8 +132,10 @@ export default function RouterPage() {
   // matrix[sourcePath][destIndex] = true/false
   const [matrix, setMatrix] = useState({})
 
+  const [pendingDelete, setPendingDelete] = useState(null)
+
   const { data: streams = [] } = useQuery({ queryKey: ['streams'], queryFn: getStreams, refetchInterval: 5000 })
-  const { data: routes = [] } = useQuery({ queryKey: ['routes'], queryFn: getRoutes, refetchInterval: 3000 })
+  const { data: routes = [], isError: routesError } = useQuery({ queryKey: ['routes'], queryFn: getRoutes, refetchInterval: 3000 })
 
   const createMut = useMutation({
     mutationFn: async (form) => {
@@ -144,17 +148,31 @@ export default function RouterPage() {
       await activateRoute(route.id)
       return route
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['routes'] }); setShowNewRoute(false) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['routes'] })
+      setShowNewRoute(false)
+      toast.success('Route created and activated')
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to create route'),
   })
 
   const toggleMut = useMutation({
     mutationFn: ({ id, active }) => active ? deactivateRoute(id) : activateRoute(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['routes'] }),
+    onSuccess: (_data, { active }) => {
+      qc.invalidateQueries({ queryKey: ['routes'] })
+      toast.success(active ? 'Route paused' : 'Route activated')
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to update route'),
   })
 
   const deleteMut = useMutation({
     mutationFn: (id) => deleteRoute(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['routes'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['routes'] })
+      toast.success('Route deleted')
+      setPendingDelete(null)
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete route'),
   })
 
   const toggleCell = (sourcePath, destIdx) => {
@@ -293,7 +311,12 @@ export default function RouterPage() {
             </button>
           </div>
           <div className="divide-y divide-surface-600">
-            {routes.length === 0 && (
+            {routesError && (
+              <div className="text-center py-6 text-sm text-red-400 bg-red-500/10 border-b border-red-500/20">
+                Could not load routes. Retrying…
+              </div>
+            )}
+            {!routesError && routes.length === 0 && (
               <div className="text-center py-10 text-gray-600 text-sm">No routes configured</div>
             )}
             {routes.map(route => (
@@ -323,12 +346,9 @@ export default function RouterPage() {
                         {route.active ? 'Pause' : 'Activate'}
                       </button>
                       <button
-                        onClick={() => {
-                          if (window.confirm(`Delete route "${route.name}"?`)) {
-                            deleteMut.mutate(route.id)
-                          }
-                        }}
-                        className="text-[10px] text-red-400/70 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2 py-0.5 rounded transition-colors"
+                        onClick={() => setPendingDelete(route)}
+                        disabled={deleteMut.isPending}
+                        className="text-[10px] text-red-400/70 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
                       >
                         Delete
                       </button>
@@ -340,6 +360,16 @@ export default function RouterPage() {
           </div>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete route"
+        message={pendingDelete ? `Delete route "${pendingDelete.name}"?` : ''}
+        confirmLabel="Delete"
+        loading={deleteMut.isPending}
+        onConfirm={() => deleteMut.mutate(pendingDelete.id)}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

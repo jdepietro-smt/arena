@@ -309,7 +309,7 @@ function PreviewModal({ stream, onClose }) {
 export default function DashboardPage() {
   const [previewStream, setPreviewStream] = useState(null)
 
-  const { data: streams = [], isLoading: streamsLoading } = useQuery({
+  const { data: streams = [], isLoading: streamsLoading, isError: streamsError } = useQuery({
     queryKey: ['streams'],
     queryFn: getStreams,
     refetchInterval: 3000,
@@ -377,7 +377,12 @@ export default function DashboardPage() {
 
         {/* Stream grid */}
         <div className="flex-1 min-w-0 overflow-y-auto">
-          {streamsLoading ? (
+          {streamsError ? (
+            <div className="flex flex-col items-center justify-center h-full min-h-[360px] gap-3 rounded-2xl border border-dashed border-red-500/30 bg-red-500/5">
+              <p className="text-sm font-semibold text-red-400">Could not reach the server</p>
+              <p className="text-xs text-gray-500">Retrying automatically — check your connection</p>
+            </div>
+          ) : streamsLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i} className="overflow-hidden">

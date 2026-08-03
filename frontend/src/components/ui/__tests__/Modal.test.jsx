@@ -30,4 +30,37 @@ describe('Modal', () => {
     await userEvent.click(screen.getByText('content'))
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('closes on Escape', async () => {
+    const onClose = vi.fn()
+    render(<Modal open onClose={onClose}>content</Modal>)
+    await userEvent.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('moves focus to the first focusable element inside on open', async () => {
+    render(
+      <Modal open onClose={() => {}}>
+        <button>First</button>
+        <button>Second</button>
+      </Modal>
+    )
+    expect(screen.getByText('First')).toHaveFocus()
+  })
+
+  it('traps Tab focus within the dialog', async () => {
+    render(
+      <Modal open onClose={() => {}}>
+        <button>First</button>
+        <button>Second</button>
+      </Modal>
+    )
+    const first = screen.getByText('First')
+    const second = screen.getByText('Second')
+    expect(first).toHaveFocus()
+
+    second.focus()
+    await userEvent.tab()
+    expect(first).toHaveFocus() // wrapped from last back to first
+  })
 })

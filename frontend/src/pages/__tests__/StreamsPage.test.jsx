@@ -1,8 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { act } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import StreamsPage from '../StreamsPage'
+import ToastStack from '../../components/ui/Toast'
+import { useToastStore } from '../../store/toast'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
@@ -25,6 +28,7 @@ function renderStreamsPage() {
   return render(
     <QueryClientProvider client={queryClient}>
       <StreamsPage />
+      <ToastStack />
     </QueryClientProvider>
   )
 }
@@ -45,6 +49,7 @@ beforeEach(() => {
   startRecording.mockReset()
   stopRecording.mockReset()
   getPreviewUrls.mockReset().mockResolvedValue({ srt_url: 'srt://x', hls_url: '/hls/x', webrtc_url: '/watch/x' })
+  act(() => useToastStore.setState({ toasts: [] }))
 })
 
 describe('StreamsPage — Live Streams tab', () => {
@@ -128,6 +133,38 @@ describe('StreamsPage — Live Streams tab', () => {
 
     await waitFor(() => expect(stopRecording).toHaveBeenCalledWith('cam1'))
   })
+
+  it('shows a success toast when starting a recording succeeds', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', ready: true, recording: false })])
+    startRecording.mockResolvedValue({})
+    renderStreamsPage()
+    await screen.findByText('Camera 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Expand' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: /start recording/i }))
+
+    expect(await screen.findByText('Recording started')).toBeInTheDocument()
+  })
+
+  it('shows an error toast when starting a recording fails', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', ready: true, recording: false })])
+    startRecording.mockRejectedValue({ response: { data: { detail: 'Stream not ready' } } })
+    renderStreamsPage()
+    await screen.findByText('Camera 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Expand' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: /start recording/i }))
+
+    expect(await screen.findByText('Stream not ready')).toBeInTheDocument()
+  })
+
+  it('shows a connection-error message instead of the empty state when the streams query fails', async () => {
+    getStreams.mockRejectedValue(new Error('network error'))
+    renderStreamsPage()
+
+    expect(await screen.findByText('Could not load streams. Retrying…')).toBeInTheDocument()
+    expect(screen.queryByText('No streams connected')).not.toBeInTheDocument()
+  })
 })
 
 describe('StreamsPage — Presets tab', () => {
@@ -165,6 +202,7 @@ describe('StreamsPage — Presets tab', () => {
 
     await waitFor(() => expect(deletePreset).toHaveBeenCalled())
     expect(deletePreset.mock.calls[0][0]).toBe(1)
+    expect(await screen.findByText('Preset deleted')).toBeInTheDocument()
   })
 
   it('validates required fields before saving a new preset', async () => {

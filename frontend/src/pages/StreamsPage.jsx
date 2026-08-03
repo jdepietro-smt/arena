@@ -12,6 +12,7 @@ import Badge from '../components/ui/Badge'
 import Tabs from '../components/ui/Tabs'
 import Button from '../components/ui/Button'
 import StatusDot from '../components/ui/StatusDot'
+import { toast } from '../store/toast'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -93,7 +94,11 @@ function ExpandedRow({ stream }) {
     mutationFn: isRecording
       ? () => stopRecording(stream.publisher_id)
       : () => startRecording(stream.publisher_id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['streams'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['streams'] })
+      toast.success(isRecording ? 'Recording stopped' : 'Recording started')
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || `Failed to ${isRecording ? 'stop' : 'start'} recording`),
   })
 
   return (
@@ -167,7 +172,7 @@ function ExpandedRow({ stream }) {
 function LiveStreamsTab({ search }) {
   const [expandedId, setExpandedId] = useState(null)
 
-  const { data: streams = [], isLoading } = useQuery({
+  const { data: streams = [], isLoading, isError } = useQuery({
     queryKey: ['streams'],
     queryFn: getStreams,
     refetchInterval: 3000,
@@ -197,7 +202,15 @@ function LiveStreamsTab({ search }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-surface-700">
-          {isLoading
+          {isError
+            ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-red-400 bg-red-500/10">
+                    Could not load streams. Retrying…
+                  </td>
+                </tr>
+              )
+            : isLoading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i} className="bg-surface-800">
                   {cols.map(c => (
@@ -369,7 +382,11 @@ function PresetsTab({ onAddPreset }) {
 
   const deleteMutation = useMutation({
     mutationFn: deletePreset,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['presets'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['presets'] })
+      toast.success('Preset deleted')
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete preset'),
   })
 
   if (isLoading) {

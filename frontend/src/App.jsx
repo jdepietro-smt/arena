@@ -2,6 +2,7 @@ import { Component, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
 import Layout from './components/Layout'
+import ToastStack from './components/ui/Toast'
 
 // Route-level code splitting — each page becomes its own chunk, downloaded
 // on first navigation instead of all at once in the initial bundle.
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       </Suspense>
+      <ToastStack />
     </BrowserRouter>
     </ErrorBoundary>
   )

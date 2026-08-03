@@ -36,6 +36,16 @@ beforeEach(() => {
   getEvents.mockReset().mockResolvedValue([])
 })
 
+describe('DashboardPage — query error state', () => {
+  it('shows a connection-error message instead of the empty state when the streams query fails', async () => {
+    getStreams.mockRejectedValue(new Error('network error'))
+    renderDashboard()
+
+    expect(await screen.findByText('Could not reach the server')).toBeInTheDocument()
+    expect(screen.queryByText('No streams connected')).not.toBeInTheDocument()
+  })
+})
+
 describe('DashboardPage — empty state', () => {
   it('shows the "no streams" placeholder with the real SRT publish URL', async () => {
     renderDashboard()

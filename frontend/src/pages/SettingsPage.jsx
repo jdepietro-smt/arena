@@ -8,6 +8,8 @@ import Modal from '../components/ui/Modal'
 import Badge from '../components/ui/Badge'
 import Tabs from '../components/ui/Tabs'
 import Button from '../components/ui/Button'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
+import { toast } from '../store/toast'
 
 const TABS = [
   { value: 'server', label: 'Server' },
@@ -117,27 +119,34 @@ function ServerTab() {
 function UsersTab() {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, isError } = useQuery({
     queryKey: ['users'],
     queryFn: getUsers,
   })
 
   const createMut = useMutation({
     mutationFn: createUser,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setShowAdd(false) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      setShowAdd(false)
+      toast.success('User created')
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to create user'),
   })
 
   const deleteMut = useMutation({
     mutationFn: deleteUser,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('User removed')
+      setPendingDelete(null)
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to remove user'),
   })
 
-  const handleDelete = (user) => {
-    if (window.confirm(`Remove user "${user.username}"?`)) {
-      deleteMut.mutate(user.id)
-    }
-  }
+  const handleDelete = (user) => setPendingDelete(user)
 
   const roleTone = (role) => {
     if (role === 'admin') return 'critical'
@@ -167,8 +176,13 @@ function UsersTab() {
             + Add user
           </button>
         </div>
+        {isError && (
+          <div className="text-center py-6 text-sm text-red-400 bg-red-500/10 border-b border-red-500/20">
+            Could not load users. Retrying…
+          </div>
+        )}
         {isLoading && <div className="text-center py-8 text-gray-600 text-sm">Loading…</div>}
-        {!isLoading && users.length === 0 && (
+        {!isLoading && !isError && users.length === 0 && (
           <div className="text-center py-8 text-gray-600 text-sm">No users found</div>
         )}
         <div className="divide-y divide-surface-600">
@@ -190,7 +204,8 @@ function UsersTab() {
                 </Badge>
                 <button
                   onClick={() => handleDelete(user)}
-                  className="text-xs text-red-400/60 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1 rounded-lg transition-colors"
+                  disabled={deleteMut.isPending}
+                  className="text-xs text-red-400/60 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
                 >
                   Remove
                 </button>
@@ -199,6 +214,16 @@ function UsersTab() {
           ))}
         </div>
       </Card>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Remove user"
+        message={pendingDelete ? `Remove user "${pendingDelete.username}"?` : ''}
+        confirmLabel="Remove"
+        loading={deleteMut.isPending}
+        onConfirm={() => deleteMut.mutate(pendingDelete.id)}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }
@@ -230,8 +255,8 @@ function RecordingTab() {
       await api.put('/settings/recording', { output_dir: dir, max_storage_gb: maxGb, auto_delete: autoDelete })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
-    } catch {
-      // noop — API may not be wired yet
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to save recording settings')
     }
   }
 

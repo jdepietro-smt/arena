@@ -5,6 +5,8 @@ import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStre
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import StatusDot from '../components/ui/StatusDot'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
+import { toast } from '../store/toast'
 
 function formatDuration(seconds) {
   if (seconds == null) return '—'
@@ -176,8 +178,9 @@ export default function RecordingsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [previewRec, setPreviewRec] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
-  const { data: recordings = [], isLoading } = useQuery({
+  const { data: recordings = [], isLoading, isError } = useQuery({
     queryKey: ['recordings'],
     queryFn: getRecordings,
     refetchInterval: 5000,
@@ -185,14 +188,16 @@ export default function RecordingsPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id) => deleteRecording(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['recordings'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['recordings'] })
+      toast.success('Recording deleted')
+      setPendingDelete(null)
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete recording'),
   })
 
-  const handleDelete = (rec) => {
-    if (window.confirm(`Delete "${rec.filename || rec.name}"? This cannot be undone.`)) {
-      deleteMut.mutate(rec.id)
-    }
-  }
+  const handleDelete = (rec) => setPendingDelete(rec)
+  const confirmDelete = () => deleteMut.mutate(pendingDelete.id)
 
   const active = recordings.filter(r => r.status === 'recording')
   const completed = recordings.filter(r => r.status !== 'recording')
@@ -262,18 +267,24 @@ export default function RecordingsPage() {
           </div>
         )}
 
+        {isError && (
+          <div className="text-center py-6 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg mb-4">
+            Could not load recordings. Retrying…
+          </div>
+        )}
+
         {isLoading && (
           <div className="text-center py-20 text-gray-600">Loading…</div>
         )}
 
-        {!isLoading && filtered.length === 0 && !active.length && (
+        {!isLoading && !isError && filtered.length === 0 && !active.length && (
           <div className="text-center py-20">
             <div className="text-gray-500 text-sm">No recordings yet</div>
             <div className="text-gray-600 text-xs mt-1">Start recording a stream to see it here</div>
           </div>
         )}
 
-        {!isLoading && filtered.length === 0 && search && (
+        {!isLoading && !isError && filtered.length === 0 && search && (
           <div className="text-center py-10 text-gray-600 text-sm">
             No recordings match "{search}"
           </div>
@@ -287,6 +298,16 @@ export default function RecordingsPage() {
       </div>
 
       {previewRec && <PreviewModal rec={previewRec} onClose={() => setPreviewRec(null)} />}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete recording"
+        message={pendingDelete ? `Delete "${pendingDelete.filename || pendingDelete.name}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        loading={deleteMut.isPending}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

@@ -1,8 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { act } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import SettingsPage from '../SettingsPage'
+import ToastStack from '../../components/ui/Toast'
+import { useToastStore } from '../../store/toast'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
@@ -20,6 +23,7 @@ function renderSettingsPage() {
   return render(
     <QueryClientProvider client={queryClient}>
       <SettingsPage />
+      <ToastStack />
     </QueryClientProvider>
   )
 }
@@ -30,7 +34,7 @@ beforeEach(() => {
   deleteUser.mockReset()
   api.get.mockReset().mockResolvedValue({ data: {} })
   api.put.mockReset().mockResolvedValue({ data: {} })
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  act(() => useToastStore.setState({ toasts: [] }))
 })
 
 describe('SettingsPage', () => {
@@ -80,20 +84,46 @@ describe('SettingsPage', () => {
     })
   })
 
-  it('deletes a user after confirming, and does nothing if the confirm is declined', async () => {
+  it('deletes a user after confirming in the dialog, and does nothing if cancelled', async () => {
     getUsers.mockResolvedValue([{ id: 1, username: 'alice', email: null, role: 'viewer', active: true }])
+    deleteUser.mockResolvedValue({})
     renderSettingsPage()
     await userEvent.click(screen.getByRole('button', { name: 'Users' }))
     await screen.findByText('alice')
 
-    window.confirm.mockReturnValueOnce(false)
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
-    expect(deleteUser).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Remove user "alice"?')).toBeInTheDocument()
 
-    window.confirm.mockReturnValueOnce(true)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(deleteUser).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }))
     await waitFor(() => expect(deleteUser).toHaveBeenCalled())
     expect(deleteUser.mock.calls[0][0]).toBe(1)
+    expect(await screen.findByText('User removed')).toBeInTheDocument()
+  })
+
+  it('shows a connection-error message instead of the empty state when the users query fails', async () => {
+    getUsers.mockRejectedValue(new Error('network error'))
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('button', { name: 'Users' }))
+
+    expect(await screen.findByText('Could not load users. Retrying…')).toBeInTheDocument()
+    expect(screen.queryByText('No users found')).not.toBeInTheDocument()
+  })
+
+  it('shows an error toast when saving recording settings fails', async () => {
+    api.put.mockRejectedValue({ response: { data: { detail: 'Disk full' } } })
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('button', { name: 'Recording' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    expect(await screen.findByText('Disk full')).toBeInTheDocument()
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument()
   })
 
   it('loads the saved recording config into the form instead of the hardcoded default', async () => {
