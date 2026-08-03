@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import StatsPage from '../StatsPage'
@@ -41,7 +41,7 @@ describe('StatsPage', () => {
     renderStatsPage()
 
     expect(await screen.findByText('Camera 1')).toBeInTheDocument()
-    expect(getStatsHistory).toHaveBeenCalledWith('cam1', 60)
+    await waitFor(() => expect(getStatsHistory).toHaveBeenCalledWith('cam1', 60))
   })
 
   it('does not show the error banner when streams load successfully', async () => {
