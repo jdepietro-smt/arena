@@ -1,20 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  ComposedChart,
-  Area,
-  Line,
-  Bar,
-  BarChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
 import { BarChart3 } from 'lucide-react'
 import { getStreams, getStatsHistory } from '../api/client'
 import Card from '../components/ui/Card'
+import TimeSeriesChart from '../components/charts/TimeSeriesChart'
+import BarChartMini from '../components/charts/BarChartMini'
 
 function formatDuration(seconds) {
   if (!seconds) return '—'
@@ -52,21 +42,6 @@ function MetricCard({ label, value, unit, previous, color = 'brand' }) {
         <div className="mb-1 ml-auto"><TrendArrow current={value} previous={previous} /></div>
       </div>
     </Card>
-  )
-}
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-xs shadow-xl">
-      <div className="text-gray-400 mb-1">{label}s ago</div>
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span style={{ color: p.color }}>{p.name}:</span>
-          <span className="text-white font-medium font-mono">{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</span>
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -164,104 +139,43 @@ export default function StatsPage() {
         <MetricCard label="Viewers" value={viewers} previous={viewersPrev} color="emerald" />
       </div>
 
-      {/* Main chart: Bitrate + RTT */}
-      <Card className="relative p-4 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-white text-sm font-semibold">Bitrate and RTT — 60s window</h2>
-            <p className="text-gray-500 text-xs mt-0.5">Area: bitrate (Mbps) · Line: RTT (ms)</p>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <span className="flex items-center gap-1.5 text-gray-400">
-              <span className="w-3 h-0.5 rounded bg-brand-500 inline-block" /> Bitrate
-            </span>
-            <span className="flex items-center gap-1.5 text-gray-400">
-              <span className="w-3 h-0.5 rounded bg-signal-400 inline-block" /> RTT
-            </span>
-          </div>
-        </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="bitrateGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#818cf8" stopOpacity={0.35} />
-                <stop offset="95%" stopColor="#818cf8" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#28283c" vertical={false} />
-            <XAxis
-              dataKey="t"
-              tick={{ fill: '#6b7280', fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={v => `${v}s`}
-            />
-            <YAxis
-              yAxisId="left"
-              tick={{ fill: '#6b7280', fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={v => `${v}`}
-              label={{ value: 'Mbps', angle: -90, position: 'insideLeft', fill: '#6b7280', fontSize: 10, offset: 8 }}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tick={{ fill: '#6b7280', fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={v => `${v}`}
-              label={{ value: 'ms', angle: 90, position: 'insideRight', fill: '#6b7280', fontSize: 10, offset: 8 }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Area
-              yAxisId="left"
-              type="monotone"
-              dataKey="bitrate"
-              name="Bitrate (Mbps)"
-              stroke="#818cf8"
-              strokeWidth={1.5}
-              fill="url(#bitrateGrad)"
-              dot={false}
-              connectNulls
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="rtt"
-              name="RTT (ms)"
-              stroke="#22d3ee"
-              strokeWidth={1.5}
-              dot={false}
-              connectNulls
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </Card>
+      {/* Bitrate and RTT — two single-axis charts, not one dual-axis chart:
+          different scales (Mbps vs ms) compress and mislead against a
+          shared frame. */}
+      <div className="relative grid grid-cols-2 gap-4 mb-4">
+        <Card className="p-4">
+          <h2 className="text-white text-sm font-semibold mb-1">Bitrate — 60s window</h2>
+          <p className="text-gray-500 text-xs mb-3">Mbps</p>
+          <TimeSeriesChart
+            data={chartData.map(d => ({ x: d.t, y: d.bitrate }))}
+            height={200}
+            color="#818cf8"
+            variant="area"
+            unit=" Mbps"
+          />
+        </Card>
+        <Card className="p-4">
+          <h2 className="text-white text-sm font-semibold mb-1">RTT — 60s window</h2>
+          <p className="text-gray-500 text-xs mb-3">ms</p>
+          <TimeSeriesChart
+            data={chartData.map(d => ({ x: d.t, y: d.rtt }))}
+            height={200}
+            color="#22d3ee"
+            variant="line"
+            unit=" ms"
+          />
+        </Card>
+      </div>
 
       {/* Packet loss bar chart */}
       <Card className="relative p-4 mb-4">
         <h2 className="text-white text-sm font-semibold mb-4">Packet loss — 60s window</h2>
-        <ResponsiveContainer width="100%" height={120}>
-          <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#28283c" vertical={false} />
-            <XAxis
-              dataKey="t"
-              tick={{ fill: '#6b7280', fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={v => `${v}s`}
-            />
-            <YAxis
-              tick={{ fill: '#6b7280', fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={v => `${v}%`}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="loss" name="Loss (%)" fill="#fbbf24" radius={[2, 2, 0, 0]} maxBarSize={8} />
-          </BarChart>
-        </ResponsiveContainer>
+        <BarChartMini
+          data={chartData.map(d => ({ x: d.t, y: d.loss }))}
+          height={120}
+          color="#fbbf24"
+          unit="%"
+        />
       </Card>
 
       {/* Bottom row: Connection details + Events */}

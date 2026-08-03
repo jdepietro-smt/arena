@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts'
 import { Play, Users, MonitorPlay } from 'lucide-react'
 import { startRecording, stopRecording } from '../api/client'
 import { startWhep } from '../utils/whep'
 import StatusDot from './ui/StatusDot'
+import Sparkline from './charts/Sparkline'
 
 function CardThumbnail({ whepUrl, onLatency }) {
   const videoRef = useRef(null)
@@ -126,29 +126,13 @@ function PulsingDot({ live }) {
 
 function MiniSparkline({ data }) {
   if (!data || data.length === 0) return null
-  const points = data.map((v, i) => ({ i, v }))
   return (
-    <ResponsiveContainer width="100%" height={36}>
-      <LineChart data={points} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
-        <Line
-          type="monotone"
-          dataKey="v"
-          stroke="#818cf8"
-          strokeWidth={1.5}
-          dot={false}
-          isAnimationActive={false}
-        />
-        <Tooltip
-          content={({ active, payload }) =>
-            active && payload?.length ? (
-              <div className="text-xs bg-surface-700 text-brand-300 px-2 py-1 rounded border border-surface-600">
-                {(payload[0].value / 1000).toFixed(1)} Mbps
-              </div>
-            ) : null
-          }
-        />
-      </LineChart>
-    </ResponsiveContainer>
+    <Sparkline
+      data={data}
+      height={36}
+      color="#818cf8"
+      formatValue={(v) => `${(v / 1000).toFixed(1)} Mbps`}
+    />
   )
 }
 
