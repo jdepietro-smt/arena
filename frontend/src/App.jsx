@@ -7,6 +7,7 @@ import ToastStack from './components/ui/Toast'
 // Route-level code splitting — each page becomes its own chunk, downloaded
 // on first navigation instead of all at once in the initial bundle.
 const LoginPage = lazy(() => import('./pages/LoginPage'))
+const OverviewPage = lazy(() => import('./pages/OverviewPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const StreamsPage = lazy(() => import('./pages/StreamsPage'))
 const MultiviewerPage = lazy(() => import('./pages/MultiviewerPage'))
@@ -73,6 +74,7 @@ export default function App() {
             </ProtectedRoute>
           }
         >
+          <Route path="overview"    element={<OverviewPage />} />
           <Route path="dashboard"   element={<DashboardPage />} />
           <Route path="streams"     element={<StreamsPage />} />
           <Route path="multiviewer" element={<MultiviewerPage />} />

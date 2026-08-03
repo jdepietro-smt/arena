@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import {
-  LayoutGrid, Radio, LayoutPanelTop, Waypoints, CirclePlay,
+  Activity, LayoutGrid, Radio, LayoutPanelTop, Waypoints, CirclePlay,
   BarChart3, BellRing, Settings, LogOut, ChevronDown, Menu, X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
@@ -10,6 +10,7 @@ import StatusDot from '../ui/StatusDot'
 // ── Nav config ────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
+  { path: '/overview',    label: 'Overview',    Icon: Activity },
   { path: '/dashboard',   label: 'Dashboard',   Icon: LayoutGrid },
   { path: '/streams',     label: 'Streams',     Icon: Radio },
   { path: '/multiviewer', label: 'Multiviewer', Icon: LayoutPanelTop },
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
 ]
 
 const PAGE_TITLES = {
+  '/overview':    'Overview',
   '/dashboard':   'Dashboard',
   '/streams':     'Streams',
   '/multiviewer': 'Multiviewer',
