@@ -112,7 +112,7 @@ function ExpandedRow({ stream }) {
             ) : stream.path && stream.ready ? (
               <WhepPlayer src={`/api/whep/${stream.path}/whep`} />
             ) : (
-              <div className="w-[320px] h-[180px] bg-surface-800 border border-surface-600 rounded-lg flex items-center justify-center text-gray-600 text-xs">
+              <div className="w-[320px] h-[180px] bg-surface-800 border border-surface-600 rounded-lg flex items-center justify-center text-gray-400 text-xs">
                 {stream.ready ? 'No HLS available' : 'Stream offline'}
               </div>
             )}
@@ -223,7 +223,7 @@ function LiveStreamsTab({ search }) {
             : filtered.length === 0
               ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-600 text-sm bg-surface-800">
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm bg-surface-800">
                     {search ? 'No streams match your search' : 'No streams connected'}
                   </td>
                 </tr>
@@ -401,7 +401,7 @@ function PresetsTab({ onAddPreset }) {
 
   if (presets.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 text-gray-600 gap-3">
+      <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-3">
         <PackageOpen size={40} strokeWidth={1} />
         <p className="text-sm">No presets yet</p>
         <button onClick={onAddPreset} className="text-xs text-brand-400 hover:text-brand-300 transition-colors">
@@ -425,7 +425,7 @@ function PresetsTab({ onAddPreset }) {
             <button
               onClick={() => deleteMutation.mutate(preset.id)}
               disabled={deleteMutation.isPending}
-              className="shrink-0 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all"
+              className="shrink-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-all"
               title="Delete preset"
             >
               <Trash2 size={15} />
@@ -433,7 +433,7 @@ function PresetsTab({ onAddPreset }) {
           </div>
 
           <div className="min-w-0">
-            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">SRT URL</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">SRT URL</p>
             <div className="flex items-center gap-1.5">
               <code className="flex-1 text-[11px] font-mono text-gray-400 bg-surface-900 border border-surface-600 rounded px-2 py-1.5 truncate">
                 {preset.srt_url || '—'}
@@ -441,7 +441,7 @@ function PresetsTab({ onAddPreset }) {
               {preset.srt_url && (
                 <button
                   onClick={() => navigator.clipboard.writeText(preset.srt_url)}
-                  className="shrink-0 text-gray-600 hover:text-brand-400 transition-colors"
+                  className="shrink-0 text-gray-400 hover:text-brand-400 transition-colors"
                   title="Copy URL"
                 >
                   <Copy size={13} />

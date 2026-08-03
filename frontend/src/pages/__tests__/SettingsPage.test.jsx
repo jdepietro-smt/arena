@@ -49,7 +49,7 @@ describe('SettingsPage', () => {
 
   it('shows the empty state when there are no users', async () => {
     renderSettingsPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Users' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
 
     expect(await screen.findByText('No users found')).toBeInTheDocument()
   })
@@ -60,7 +60,7 @@ describe('SettingsPage', () => {
       { id: 2, username: 'bob', email: null, role: 'viewer', active: false },
     ])
     renderSettingsPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Users' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
 
     expect(await screen.findByText('alice')).toBeInTheDocument()
     expect(screen.getByText('bob')).toBeInTheDocument()
@@ -71,7 +71,7 @@ describe('SettingsPage', () => {
   it('creates a user through the Add user modal and refreshes the list', async () => {
     createUser.mockResolvedValue({ id: 3, username: 'newop', role: 'operator' })
     renderSettingsPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Users' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
     await userEvent.click(await screen.findByRole('button', { name: /add user/i }))
 
     await userEvent.type(screen.getByPlaceholderText('operator1'), 'newop')
@@ -94,7 +94,7 @@ describe('SettingsPage', () => {
     getUsers.mockResolvedValue([{ id: 1, username: 'alice', email: null, role: 'viewer', active: true }])
     deleteUser.mockResolvedValue({})
     renderSettingsPage()
-    await user.click(screen.getByRole('button', { name: 'Users' }))
+    await user.click(screen.getByRole('tab', { name: 'Users' }))
     await screen.findByText('alice')
 
     await user.click(screen.getByRole('button', { name: 'Remove' }))
@@ -114,7 +114,7 @@ describe('SettingsPage', () => {
     getUsers.mockResolvedValue([{ id: 1, username: 'alice', email: null, role: 'viewer', active: true }])
     deleteUser.mockResolvedValue({})
     renderSettingsPage()
-    await user.click(screen.getByRole('button', { name: 'Users' }))
+    await user.click(screen.getByRole('tab', { name: 'Users' }))
     await screen.findByText('alice')
 
     await user.click(screen.getByRole('button', { name: 'Remove' }))
@@ -131,7 +131,7 @@ describe('SettingsPage', () => {
   it('shows a connection-error message instead of the empty state when the users query fails', async () => {
     getUsers.mockRejectedValue(new Error('network error'))
     renderSettingsPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Users' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
 
     expect(await screen.findByText('Could not load users. Retrying…')).toBeInTheDocument()
     expect(screen.queryByText('No users found')).not.toBeInTheDocument()
@@ -140,7 +140,7 @@ describe('SettingsPage', () => {
   it('shows an error toast when saving recording settings fails', async () => {
     api.put.mockRejectedValue({ response: { data: { detail: 'Disk full' } } })
     renderSettingsPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Recording' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Recording' }))
 
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }))
 
@@ -156,7 +156,7 @@ describe('SettingsPage', () => {
       return Promise.resolve({ data: {} })
     })
     renderSettingsPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Recording' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Recording' }))
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('/mnt/real-recordings')).toBeInTheDocument()
@@ -166,7 +166,7 @@ describe('SettingsPage', () => {
 
   it('saves recording settings and shows a confirmation', async () => {
     renderSettingsPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Recording' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Recording' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }))
 
     await waitFor(() => {

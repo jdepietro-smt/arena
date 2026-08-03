@@ -257,7 +257,7 @@ export default function MultiviewWatchPage() {
       Could not start composite: {jobError} — retrying…
     </div>
   ) : layers.length === 0 ? (
-    <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm bg-black">
+    <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm bg-black">
       Compositing streams…
     </div>
   ) : (
@@ -283,7 +283,7 @@ export default function MultiviewWatchPage() {
           : 'relative w-full max-w-6xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl'}
       >
         {paths.length === 0 && youtubeIds.length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
+          <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
             No streams specified — add ?streams=path1,path2 and/or ?youtube=videoId to the URL.
           </div>
         ) : (

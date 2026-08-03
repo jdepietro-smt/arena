@@ -24,7 +24,7 @@ function Field({ id, label, icon: Icon, ...inputProps }) {
         {label}
       </label>
       <div className="group flex items-center gap-2.5 h-11 px-3.5 rounded-lg bg-surface-900 border border-surface-600 transition-colors focus-within:border-brand-500 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.18)]">
-        <Icon size={16} className="shrink-0 text-gray-600 transition-colors group-focus-within:text-brand-400" />
+        <Icon size={16} className="shrink-0 text-gray-400 transition-colors group-focus-within:text-brand-400" />
         <input
           id={id}
           className="flex-1 bg-transparent border-none outline-none text-gray-200 text-sm placeholder:text-gray-700"
@@ -109,7 +109,7 @@ export default function LoginPage() {
             <h1 className="m-0 mb-1.5 text-[22px] font-extrabold tracking-tight text-gray-100 text-balance">
               Arena
             </h1>
-            <p className="m-0 text-[13px] text-gray-600 uppercase tracking-wider font-semibold">
+            <p className="m-0 text-[13px] text-gray-400 uppercase tracking-wider font-semibold">
               Professional Stream Management
             </p>
           </div>
@@ -167,7 +167,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center mt-5 text-xs text-gray-700 tracking-wide">
+        <p className="text-center mt-5 text-xs text-gray-400 tracking-wide">
           Arena — SDI Stream Management
         </p>
       </div>

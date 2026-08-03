@@ -169,7 +169,7 @@ describe('StreamsPage — Live Streams tab', () => {
 
 describe('StreamsPage — Presets tab', () => {
   async function goToPresetsTab() {
-    await userEvent.click(screen.getByRole('button', { name: 'Presets' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Presets' }))
   }
 
   it('shows the empty state when there are no presets', async () => {

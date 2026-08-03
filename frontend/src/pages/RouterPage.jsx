@@ -242,7 +242,7 @@ export default function RouterPage() {
                   {destinations.map((d, i) => (
                     <th key={i} className="px-3 py-3 text-center text-gray-400 font-normal text-xs min-w-[110px]">
                       <div className="text-gray-300 font-medium">{d.label}</div>
-                      <div className="text-gray-600 text-[10px] mt-0.5 truncate max-w-[100px] mx-auto">{d.url}</div>
+                      <div className="text-gray-400 text-[10px] mt-0.5 truncate max-w-[100px] mx-auto">{d.url}</div>
                     </th>
                   ))}
                   <th className="px-3 py-3 text-center w-12">
@@ -259,7 +259,7 @@ export default function RouterPage() {
               <tbody>
                 {streams.length === 0 && (
                   <tr>
-                    <td colSpan={destinations.length + 2} className="text-center py-10 text-gray-600 text-sm">
+                    <td colSpan={destinations.length + 2} className="text-center py-10 text-gray-400 text-sm">
                       No active streams
                     </td>
                   </tr>
@@ -270,7 +270,7 @@ export default function RouterPage() {
                     <tr key={path} className={si % 2 === 1 ? 'bg-white/[0.02]' : ''}>
                       <td className="px-4 py-3 text-gray-200 text-sm font-medium border-r border-surface-600">
                         <div>{stream.name || path}</div>
-                        {stream.codec && <div className="text-gray-600 text-xs">{stream.codec}</div>}
+                        {stream.codec && <div className="text-gray-400 text-xs">{stream.codec}</div>}
                       </td>
                       {destinations.map((_, di) => {
                         const routed = isRouted(path, di)
@@ -278,14 +278,16 @@ export default function RouterPage() {
                           <td key={di} className="px-3 py-3 text-center">
                             <button
                               onClick={() => toggleCell(path, di)}
-                              className={`w-8 h-8 rounded-lg border transition-all ${
+                              aria-pressed={routed}
+                              aria-label={`Route ${stream.name || path} to ${destinations[di].label}`}
+                              className={`w-8 h-8 rounded-lg border transition-all focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2 ${
                                 routed
                                   ? 'bg-emerald-500/20 border-emerald-500/60 hover:bg-emerald-500/30'
                                   : 'bg-transparent border-surface-600 hover:border-surface-500 hover:bg-white/5'
                               }`}
                               title={routed ? 'Click to unroute' : 'Click to route'}
                             >
-                              {routed && <span className="text-emerald-400 text-xs font-bold">✓</span>}
+                              {routed && <span className="text-emerald-400 text-xs font-bold" aria-hidden="true">✓</span>}
                             </button>
                           </td>
                         )
@@ -320,7 +322,7 @@ export default function RouterPage() {
               </div>
             )}
             {!routesError && routes.length === 0 && (
-              <div className="text-center py-10 text-gray-600 text-sm">No routes configured</div>
+              <div className="text-center py-10 text-gray-400 text-sm">No routes configured</div>
             )}
             {routes.map(route => (
               <div key={route.id} className="px-4 py-3">
@@ -329,11 +331,11 @@ export default function RouterPage() {
                     <div className="text-gray-100 text-sm font-medium truncate">{route.name}</div>
                     <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500 min-w-0">
                       <span className="text-gray-400 truncate max-w-[90px]">{route.source_path || route.source}</span>
-                      <span className="text-gray-600 flex-shrink-0">→</span>
+                      <span className="text-gray-400 flex-shrink-0">→</span>
                       <span className="text-gray-400 truncate max-w-[90px]">{route.dest_url || route.dest}</span>
                     </div>
                     {route.bitrate_kbps && (
-                      <div className="text-xs text-gray-600 font-mono mt-0.5">
+                      <div className="text-xs text-gray-400 font-mono mt-0.5">
                         {(route.bitrate_kbps / 1000).toFixed(1)} Mbps
                       </div>
                     )}

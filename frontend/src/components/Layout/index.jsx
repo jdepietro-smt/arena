@@ -131,7 +131,7 @@ function UserDropdown({ user, onLogout }) {
             </div>
           )}
         </div>
-        <ChevronDown size={13} className="text-gray-600 shrink-0" />
+        <ChevronDown size={13} className="text-gray-400 shrink-0" />
       </button>
 
       {open && (
@@ -140,7 +140,7 @@ function UserDropdown({ user, onLogout }) {
           role="menu"
         >
           <div className="px-3 py-2.5 border-b border-white/[0.06]">
-            <div className="text-[11px] text-gray-600 mb-0.5">Signed in as</div>
+            <div className="text-[11px] text-gray-400 mb-0.5">Signed in as</div>
             <div className="text-[13px] font-semibold text-gray-200">{user?.username || '—'}</div>
           </div>
           <button
@@ -186,6 +186,16 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-950">
+      {/* Skip link — invisible until focused, so keyboard users get one Tab
+          to reach page content instead of tabbing through the entire
+          sidebar nav on every single page load/navigation. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-600 focus:text-white focus:text-sm focus:font-semibold focus:shadow-lg"
+      >
+        Skip to main content
+      </a>
+
       {/* Mobile backdrop — closes the drawer on tap-outside */}
       {mobileNavOpen && (
         <div
@@ -235,7 +245,7 @@ export default function Layout() {
         <div className="px-2.5 py-3 border-t border-white/5 flex flex-col gap-2.5">
           <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.03]">
             <StatusDot tone={healthTone} pulse={apiOnline === true} size={7} />
-            <span className="text-[11.5px] font-medium text-gray-600">API {healthLabel}</span>
+            <span className="text-[11.5px] font-medium text-gray-400">API {healthLabel}</span>
           </div>
           <UserDropdown user={user} onLogout={handleLogout} />
         </div>
@@ -256,12 +266,12 @@ export default function Layout() {
           <h1 className="relative flex-1 min-w-0 m-0 text-xl sm:text-[26px] font-extrabold tracking-tight bg-gradient-to-r from-gray-50 to-gray-400 bg-clip-text text-transparent text-balance truncate">
             {pageTitle}
           </h1>
-          <div className="relative hidden sm:block text-[11px] font-semibold text-gray-600 uppercase tracking-[0.15em] shrink-0">
+          <div className="relative hidden sm:block text-[11px] font-semibold text-gray-400 uppercase tracking-[0.15em] shrink-0">
             ArenaHub
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>

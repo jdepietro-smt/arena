@@ -169,7 +169,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
         {isLive ? (
           <CardThumbnail whepUrl={whepUrl} onLatency={setLatencyMs} />
         ) : (
-          <div className="flex flex-col items-center gap-1 text-gray-600">
+          <div className="flex flex-col items-center gap-1 text-gray-400">
             <MonitorPlay size={30} strokeWidth={1.5} />
             <span className="text-xs">No Signal</span>
           </div>
@@ -220,7 +220,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
                 ~{latencyMs} <span className="text-gray-500 font-normal">ms</span>
               </span>
             ) : (
-              <span className="text-xs font-mono font-semibold text-gray-600">— <span className="text-gray-700 font-normal">ms</span></span>
+              <span className="text-xs font-mono font-semibold text-gray-400">— <span className="text-gray-500 font-normal">ms</span></span>
             )}
           </div>
           <div className="flex flex-col bg-surface-900 rounded-lg py-1.5 px-1">
@@ -245,7 +245,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
             disabled={!isLive || recMutation.isPending}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
               ${!isLive
-                ? 'bg-surface-700/50 text-gray-600 cursor-not-allowed'
+                ? 'bg-surface-700/50 text-gray-400 cursor-not-allowed'
                 : isRecording
                   ? 'bg-red-600 hover:bg-red-700 text-white'
                   : 'bg-surface-700 hover:bg-surface-600 text-gray-300 border border-surface-500'
@@ -260,7 +260,7 @@ export default function StreamCard({ stream, onPreview, sparklineData }) {
             disabled={!isLive}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors
               ${!isLive
-                ? 'bg-surface-700/50 text-gray-600 border-surface-600 cursor-not-allowed'
+                ? 'bg-surface-700/50 text-gray-400 border-surface-600 cursor-not-allowed'
                 : 'bg-surface-700 hover:bg-brand-600/20 text-brand-400 border-brand-500/30 hover:border-brand-500/60'
               }
             `}

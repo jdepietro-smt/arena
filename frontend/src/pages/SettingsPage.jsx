@@ -182,9 +182,9 @@ function UsersTab() {
             Could not load users. Retrying…
           </div>
         )}
-        {isLoading && <div className="text-center py-8 text-gray-600 text-sm">Loading…</div>}
+        {isLoading && <div className="text-center py-8 text-gray-400 text-sm">Loading…</div>}
         {!isLoading && !isError && users.length === 0 && (
-          <div className="text-center py-8 text-gray-600 text-sm">No users found</div>
+          <div className="text-center py-8 text-gray-400 text-sm">No users found</div>
         )}
         <div className="divide-y divide-surface-600">
           {users.map(user => (
@@ -277,7 +277,7 @@ function RecordingTab() {
               onChange={e => setMaxGb(Number(e.target.value))}
               className="w-full accent-brand-500"
             />
-            <div className="flex justify-between text-[10px] text-gray-600">
+            <div className="flex justify-between text-[10px] text-gray-400">
               <span>10 GB</span><span>2 TB</span>
             </div>
           </div>

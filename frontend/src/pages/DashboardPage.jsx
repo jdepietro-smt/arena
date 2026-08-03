@@ -84,7 +84,7 @@ function EventRow({ ev }) {
         <p className="text-xs font-medium text-gray-300 truncate">{ev.stream_path || '—'}</p>
         <p className="text-[11px] text-gray-500 truncate">{ev.message || meta.label}</p>
       </div>
-      <span className="text-[10px] text-gray-600 whitespace-nowrap shrink-0 mt-0.5">{timeAgo(ev.created_at)}</span>
+      <span className="text-[10px] text-gray-400 whitespace-nowrap shrink-0 mt-0.5">{timeAgo(ev.created_at)}</span>
     </div>
   )
 }
@@ -123,11 +123,11 @@ function EventSidebar() {
     <Card as="aside" className="w-full lg:w-[280px] shrink-0 flex flex-col overflow-hidden max-h-64 lg:max-h-none">
       <div className="px-4 py-3 border-b border-surface-600 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-white">Recent Events</h2>
-        <span className="text-xs text-gray-600">{events.length}</span>
+        <span className="text-xs text-gray-400">{events.length}</span>
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-surface-700">
         {events.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-gray-600 text-center">No events yet</p>
+          <p className="px-4 py-6 text-xs text-gray-400 text-center">No events yet</p>
         ) : (
           events.slice(0, 8).map(ev => <EventRow key={ev.id} ev={ev} />)
         )}
@@ -251,7 +251,7 @@ function WhepPlayer({ url, onPcReady }) {
 function LatencyBar({ stats }) {
   if (!stats) {
     return (
-      <div className="px-5 py-2.5 border-t border-surface-600 text-xs text-gray-600 font-mono">
+      <div className="px-5 py-2.5 border-t border-surface-600 text-xs text-gray-400 font-mono">
         Measuring latency…
       </div>
     )
@@ -413,7 +413,7 @@ export default function DashboardPage() {
               </div>
               <div className="relative text-center">
                 <p className="text-base font-semibold text-gray-300">No streams connected</p>
-                <p className="text-sm text-gray-600 mt-1">Publish an SRT stream to this server to see it here</p>
+                <p className="text-sm text-gray-400 mt-1">Publish an SRT stream to this server to see it here</p>
               </div>
               <code className="relative text-xs font-mono text-signal-400/80 bg-surface-800 border border-surface-600 rounded-lg px-3 py-1.5 mt-1">
                 srt://{window.location.hostname}:8890?streamid=publish:mystream

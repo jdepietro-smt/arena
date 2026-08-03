@@ -67,9 +67,13 @@ describe('RouterPage — routing matrix', () => {
     await screen.findByText('Camera 1')
 
     const [firstCell] = screen.getAllByTitle('Click to route')
+    expect(firstCell).toHaveAttribute('aria-pressed', 'false')
+    expect(firstCell).toHaveAccessibleName('Route Camera 1 to SRT Primary')
+
     await userEvent.click(firstCell)
 
     expect(screen.getByTitle('Click to unroute')).toBeInTheDocument()
+    expect(firstCell).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('adds a new destination column via the Add destination modal', async () => {

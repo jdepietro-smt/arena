@@ -92,9 +92,9 @@ function MetricBadge({ metric, value }) {
     : Math.round(value)
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wider">{METRIC_LABEL[metric]}</span>
+      <span className="text-[10px] text-gray-400 uppercase tracking-wider">{METRIC_LABEL[metric]}</span>
       <span className="text-sm font-medium font-mono" style={{ color }}>
-        {display}{value != null && <span className="text-gray-600 ml-0.5 text-xs">{METRIC_UNIT[metric]}</span>}
+        {display}{value != null && <span className="text-gray-400 ml-0.5 text-xs">{METRIC_UNIT[metric]}</span>}
       </span>
     </div>
   )
@@ -125,7 +125,7 @@ function StreamHealthCard({ path, name, live, downStreams }) {
           <MetricBadge metric="packet_loss" value={live.packet_loss_pct} />
         </div>
       ) : (
-        <div className="text-xs text-gray-600">No live telemetry — mediamtx no longer lists this path.</div>
+        <div className="text-xs text-gray-400">No live telemetry — mediamtx no longer lists this path.</div>
       )}
     </div>
   )
@@ -244,7 +244,7 @@ function gatewayTone(stats) {
 function PathBadge({ label, up }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wider">{label}</span>
+      <span className="text-[10px] text-gray-400 uppercase tracking-wider">{label}</span>
       <span className="text-sm font-medium" style={{ color: up ? STATUS.good.hex : STATUS.critical.hex }}>
         {up ? 'Up' : 'Down'}
       </span>
@@ -267,7 +267,7 @@ function GatewayCard({ gateway }) {
       <div className="flex items-center justify-between mb-3">
         <div className="min-w-0">
           <span className="text-sm font-medium text-gray-100 truncate block">{gateway.name}</span>
-          {gateway.stream_path && <span className="text-xs text-gray-600">{gateway.stream_path}</span>}
+          {gateway.stream_path && <span className="text-xs text-gray-400">{gateway.stream_path}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <StatusDot tone={tone} pulse={tone !== 'good'} />
@@ -281,7 +281,7 @@ function GatewayCard({ gateway }) {
           <PathBadge label="Output" up={!!stats.output_connected} />
         </div>
       ) : (
-        <div className="text-xs text-gray-600">No response from {gateway.stats_url} — is sdi_receive running?</div>
+        <div className="text-xs text-gray-400">No response from {gateway.stats_url} — is sdi_receive running?</div>
       )}
     </div>
   )
@@ -348,7 +348,7 @@ function GatewayRow({ gateway, onToggle, onDelete, toggling, deleting }) {
       <span className="text-sm text-gray-200 truncate flex-1">
         <span className="font-medium">{gateway.name}</span>
         <span className="text-gray-500"> — {gateway.stats_url}</span>
-        {gateway.stream_path && <span className="text-gray-600"> ({gateway.stream_path})</span>}
+        {gateway.stream_path && <span className="text-gray-400"> ({gateway.stream_path})</span>}
       </span>
       <button
         onClick={() => onToggle(gateway.id)}
@@ -504,7 +504,7 @@ export default function AlertsPage() {
           </div>
         )}
         {allPaths.size === 0 ? (
-          <div className="text-center py-10 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
+          <div className="text-center py-10 text-gray-400 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No streams tracked yet.
           </div>
         ) : (
@@ -538,7 +538,7 @@ export default function AlertsPage() {
           </div>
         )}
         {!rulesError && rules.length === 0 ? (
-          <div className="text-center py-8 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
+          <div className="text-center py-8 text-gray-400 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No alert rules configured — connectivity is still monitored for every stream by default.
           </div>
         ) : (
@@ -560,7 +560,7 @@ export default function AlertsPage() {
 
       <div className="mt-6">
         <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Redundancy gateways</h2>
-        <p className="text-gray-600 text-xs mb-3">
+        <p className="text-gray-400 text-xs mb-3">
           SMPTE 2022-7 protection-switch monitoring — register an sdi_receive instance's --stats-port to watch path1/path2/output health.
         </p>
         {gatewaysWithStats.length > 0 && (
@@ -582,7 +582,7 @@ export default function AlertsPage() {
           </div>
         )}
         {!gatewaysError && gatewaysWithStats.length === 0 ? (
-          <div className="text-center py-8 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
+          <div className="text-center py-8 text-gray-400 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No redundancy gateways registered — sdi_receive dual-path setups run unmonitored until one is added here.
           </div>
         ) : (

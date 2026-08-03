@@ -184,7 +184,7 @@ export default function StatsPage() {
         <Card className="p-4">
           <h2 className="text-white text-sm font-semibold mb-3">Connection details</h2>
           {!stream ? (
-            <p className="text-gray-600 text-sm">No stream selected</p>
+            <p className="text-gray-400 text-sm">No stream selected</p>
           ) : (
             <div className="flex flex-col gap-2">
               {[
@@ -208,11 +208,11 @@ export default function StatsPage() {
           <h2 className="text-white text-sm font-semibold mb-3">Events</h2>
           <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
             {(latest.events || []).length === 0 && (
-              <p className="text-gray-600 text-sm">No recent events</p>
+              <p className="text-gray-400 text-sm">No recent events</p>
             )}
             {(latest.events || []).map((ev, i) => (
               <div key={i} className="flex items-start gap-2 text-xs">
-                <span className="text-gray-600 flex-shrink-0 font-mono">
+                <span className="text-gray-400 flex-shrink-0 font-mono">
                   {new Date(ev.ts).toLocaleTimeString()}
                 </span>
                 <span className={`flex-shrink-0 ${

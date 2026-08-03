@@ -459,7 +459,7 @@ export default function MultiviewerPage() {
           <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
             External Links
           </h2>
-          <p className="text-xs text-gray-600 mb-2 px-1">
+          <p className="text-xs text-gray-400 mb-2 px-1">
             One field for either — an srt:// URL becomes a real ingested stream (shows up in Live Streams below once ready); a YouTube URL becomes an embed (YouTube's own player, no bot-check risk).
           </p>
 
@@ -535,7 +535,7 @@ export default function MultiviewerPage() {
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => { if (e.key === 'Enter') saveRename(y.videoId); if (e.key === 'Escape') setRenamingId(null) }}
                       onBlur={() => saveRename(y.videoId)}
-                      className="flex-1 min-w-0 bg-[#1a1a2e] border border-brand-500/40 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none"
+                      className="flex-1 min-w-0 bg-[#1a1a2e] border border-brand-500/40 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400"
                     />
                   ) : (
                     <span className="truncate flex-1" title={y.url}>{y.label || y.videoId}</span>
@@ -561,7 +561,7 @@ export default function MultiviewerPage() {
           )}
 
           <details>
-            <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-400 px-1">
+            <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-400 px-1">
               Advanced: YouTube cookies (only needed if ingesting YouTube as a real composited stream, not an embed)
             </summary>
             <div className="flex items-center gap-2 mt-2 mb-1 px-1 text-xs">
@@ -588,7 +588,7 @@ export default function MultiviewerPage() {
           <p className="text-sm text-red-400 px-1 mb-2">Could not load streams. Retrying…</p>
         )}
         {!streamsError && liveStreams.length === 0 && (
-          <p className="text-sm text-gray-600 px-1">No live streams right now.</p>
+          <p className="text-sm text-gray-400 px-1">No live streams right now.</p>
         )}
         <div className="flex flex-col gap-1">
           {liveStreams.map((s) => (
@@ -614,7 +614,7 @@ export default function MultiviewerPage() {
 
       <div className="flex-1 p-4 overflow-auto">
         {pinnedStreams.length === 0 && pinnedYoutubeEmbeds.length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">
+          <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
             Select streams or YouTube embeds from the left to add them to the multiviewer.
           </div>
         ) : (

@@ -90,7 +90,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-gray-600 uppercase tracking-wider">Duration</span>
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider">Duration</span>
           <span className="text-sm text-gray-300 font-medium font-mono tabular-nums">
             {rec.status === 'recording'
               ? <ElapsedTimer startedAt={rec.started_at} />
@@ -99,7 +99,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-gray-600 uppercase tracking-wider">Size</span>
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider">Size</span>
           <span className="text-sm text-gray-300 font-medium font-mono tabular-nums">
             {rec.status === 'recording' && rec.size_bytes
               ? <span className="text-amber-400">{formatSize(rec.size_bytes)} ↑</span>
@@ -108,11 +108,11 @@ function RecordingCard({ rec, onDelete, onPreview }) {
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-gray-600 uppercase tracking-wider">Recorded</span>
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider">Recorded</span>
           <span className="text-sm text-gray-300">{formatTimestamp(rec.started_at || rec.created_at)}</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-gray-600 uppercase tracking-wider">Format</span>
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider">Format</span>
           <span className="text-sm text-gray-300">{fileFormat(rec.filename || rec.name)}</span>
         </div>
       </div>
@@ -276,18 +276,18 @@ export default function RecordingsPage() {
         )}
 
         {isLoading && (
-          <div className="text-center py-20 text-gray-600">Loading…</div>
+          <div className="text-center py-20 text-gray-400">Loading…</div>
         )}
 
         {!isLoading && !isError && filtered.length === 0 && !active.length && (
           <div className="text-center py-20">
             <div className="text-gray-500 text-sm">No recordings yet</div>
-            <div className="text-gray-600 text-xs mt-1">Start recording a stream to see it here</div>
+            <div className="text-gray-400 text-xs mt-1">Start recording a stream to see it here</div>
           </div>
         )}
 
         {!isLoading && !isError && filtered.length === 0 && search && (
-          <div className="text-center py-10 text-gray-600 text-sm">
+          <div className="text-center py-10 text-gray-400 text-sm">
             No recordings match "{search}"
           </div>
         )}
