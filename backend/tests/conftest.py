@@ -51,6 +51,57 @@ def _clean_managed_paths():
 
 
 @pytest.fixture(autouse=True)
+def _clean_events():
+    """Events-router tests create Event rows; keep them from leaking into
+    unrelated tests."""
+    from sqlmodel import Session, select
+
+    from backend.database import engine
+    from backend.models import Event
+
+    yield
+    with Session(engine) as session:
+        for row in session.exec(select(Event)).all():
+            session.delete(row)
+        session.commit()
+
+
+@pytest.fixture(autouse=True)
+def _clean_alert_rules_and_gateways():
+    """Alerts/redundancy-router tests create AlertRule / RedundancyGateway
+    rows; keep them from leaking into unrelated tests."""
+    from sqlmodel import Session, select
+
+    from backend.database import engine
+    from backend.models import AlertRule, RedundancyGateway
+
+    yield
+    with Session(engine) as session:
+        for row in session.exec(select(AlertRule)).all():
+            session.delete(row)
+        for row in session.exec(select(RedundancyGateway)).all():
+            session.delete(row)
+        session.commit()
+
+
+@pytest.fixture(autouse=True)
+def _clean_recording_config():
+    """Settings-router tests write to the RecordingConfig singleton row;
+    reset it so later tests see the app's real defaults again."""
+    from sqlmodel import Session
+
+    from backend.database import engine
+    from backend.models import RecordingConfig
+
+    yield
+    with Session(engine) as session:
+        config = session.get(RecordingConfig, 1)
+        if config is not None:
+            session.delete(config)
+            session.commit()
+
+
+@pytest.fixture(autouse=True)
 def _clean_stream_presets():
     """Streams-router preset tests create StreamPreset rows; keep them
     from leaking into unrelated tests."""
