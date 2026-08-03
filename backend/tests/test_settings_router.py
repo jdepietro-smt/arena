@@ -28,6 +28,47 @@ def test_get_recording_settings_returns_defaults(client, auth_headers):
     assert "auto_delete" in body
 
 
+def test_get_server_settings_requires_auth(client):
+    resp = client.get("/api/settings/server")
+    assert resp.status_code == 401
+
+
+def test_get_server_settings_reflects_config(client, auth_headers):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+    resp = client.get("/api/settings/server", headers=auth)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["mediamtx_api_url"]
+    assert body["srt_port"]
+    assert body["hls_base_url"]
+    # No TURN server is configured for this deployment — these should
+    # read as absent, not fabricated.
+    assert body["turn_enabled"] is False
+    assert body["turn_host"] is None
+
+
+def test_get_about_info_requires_auth(client):
+    resp = client.get("/api/settings/about")
+    assert resp.status_code == 401
+
+
+def test_get_about_info_returns_version(client, auth_headers):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+    resp = client.get("/api/settings/about", headers=auth)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["version"] == "1.0.0"
+    # mediamtx/GStreamer/FFmpeg versions are deliberately not probed —
+    # this service has no runtime dependency on any of them.
+    assert body["mediamtx_version"] is None
+    assert body["gstreamer_version"] is None
+    assert body["ffmpeg_version"] is None
+
+
 def test_update_recording_settings_requires_admin(client, auth_headers):
     auth, _ = auth_headers(UserRole.viewer, username="viewer1")
 

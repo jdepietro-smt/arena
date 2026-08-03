@@ -9,7 +9,13 @@ venv_test/
 # Local dev DB / secrets
 *.db
 .env
+*.env.e2e
 
 # Node / frontend build artifacts (frontend/dist is intentionally committed —
 # see frontend/README or deploy.sh for why)
 frontend/node_modules/
+
+# Playwright E2E output — local-only runs against a real server, never in CI
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
