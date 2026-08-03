@@ -10,3 +10,14 @@ if (typeof globalThis.IntersectionObserver === 'undefined') {
     disconnect() {}
   }
 }
+
+// jsdom doesn't implement ResizeObserver either — recharts'
+// ResponsiveContainer (StatsPage.jsx's charts) uses it to size the SVG to
+// its parent. Same minimal stub; no test needs it to actually fire.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}

@@ -7,6 +7,7 @@ import {
   getYoutubeCookiesStatus, uploadYoutubeCookies, removeYoutubeCookies,
 } from '../api/client'
 import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
+import { toast } from '../store/toast'
 
 function parseStreamsParam(searchParams) {
   return new Set(
@@ -51,7 +52,7 @@ export default function MultiviewerPage() {
   const queryClient = useQueryClient()
   const [stoppingId, setStoppingId] = useState(null)
 
-  const { data: streams = [] } = useQuery({
+  const { data: streams = [], isError: streamsError } = useQuery({
     queryKey: ['streams'],
     queryFn: getStreams,
     refetchInterval: 3000,
@@ -70,6 +71,8 @@ export default function MultiviewerPage() {
     try {
       await stopMultiviewJob(jobId)
       queryClient.invalidateQueries({ queryKey: ['multiview-jobs'] })
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to stop composite job')
     } finally {
       setStoppingId(null)
     }
@@ -88,6 +91,8 @@ export default function MultiviewerPage() {
     try {
       await removeExternalSource(name)
       queryClient.invalidateQueries({ queryKey: ['external-sources'] })
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || `Failed to remove "${name}"`)
     } finally {
       setRemovingSource(null)
     }
@@ -122,6 +127,8 @@ export default function MultiviewerPage() {
     try {
       await removeYoutubeCookies()
       queryClient.invalidateQueries({ queryKey: ['youtube-cookies-status'] })
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to remove cookies')
     } finally {
       setUploadingCookies(false)
     }
@@ -503,12 +510,21 @@ export default function MultiviewerPage() {
               {youtubeEmbeds.map((y) => (
                 <div
                   key={`yt-${y.videoId}`}
+                  role={renamingId === y.videoId ? undefined : 'button'}
+                  tabIndex={renamingId === y.videoId ? undefined : 0}
+                  aria-pressed={renamingId === y.videoId ? undefined : pinnedYoutubeIds.has(y.videoId)}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border transition-colors ${
                     pinnedYoutubeIds.has(y.videoId)
                       ? 'bg-brand-600/20 text-brand-300 border-brand-500/40'
                       : 'text-gray-300 hover:bg-surface-700 border-surface-600'
                   } ${renamingId === y.videoId ? '' : 'cursor-pointer'}`}
                   onClick={renamingId === y.videoId ? undefined : () => toggleYoutubePin(y.videoId)}
+                  onKeyDown={renamingId === y.videoId ? undefined : (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      toggleYoutubePin(y.videoId)
+                    }
+                  }}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pinnedYoutubeIds.has(y.videoId) ? 'bg-brand-400' : 'bg-gray-600'}`} />
                   {renamingId === y.videoId ? (
@@ -568,7 +584,10 @@ export default function MultiviewerPage() {
           </details>
         </div>
 
-        {liveStreams.length === 0 && (
+        {streamsError && (
+          <p className="text-sm text-red-400 px-1 mb-2">Could not load streams. Retrying…</p>
+        )}
+        {!streamsError && liveStreams.length === 0 && (
           <p className="text-sm text-gray-600 px-1">No live streams right now.</p>
         )}
         <div className="flex flex-col gap-1">

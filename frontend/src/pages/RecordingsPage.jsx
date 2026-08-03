@@ -72,6 +72,8 @@ function RecordingCard({ rec, onDelete, onPreview }) {
       a.click()
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10000)
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to download recording')
     } finally {
       setDownloading(false)
     }

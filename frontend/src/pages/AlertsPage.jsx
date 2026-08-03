@@ -6,6 +6,8 @@ import {
   getRedundancyStatus, getRedundancyGateways,
   createRedundancyGateway, toggleRedundancyGateway, deleteRedundancyGateway,
 } from '../api/client'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
+import { toast } from '../store/toast'
 
 // Status palette — validated for CVD-safety and dark-surface contrast
 // (dataviz skill's fixed status palette, never themed/reused for series color).
@@ -375,7 +377,10 @@ export default function AlertsPage() {
   const [formError, setFormError] = useState(null)
   const [gatewayFormError, setGatewayFormError] = useState(null)
 
-  const { data: streams = [] } = useQuery({
+  const [pendingDeleteRule, setPendingDeleteRule] = useState(null)
+  const [pendingDeleteGateway, setPendingDeleteGateway] = useState(null)
+
+  const { data: streams = [], isError: streamsError } = useQuery({
     queryKey: ['streams'],
     queryFn: getStreams,
     refetchInterval: 5000,
@@ -387,7 +392,7 @@ export default function AlertsPage() {
     refetchInterval: 5000,
   })
 
-  const { data: rules = [] } = useQuery({
+  const { data: rules = [], isError: rulesError } = useQuery({
     queryKey: ['alert-rules'],
     queryFn: getAlertRules,
     refetchInterval: 5000,
@@ -395,19 +400,32 @@ export default function AlertsPage() {
 
   const createMut = useMutation({
     mutationFn: createAlertRule,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['alert-rules'] }); setFormError(null) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alert-rules'] })
+      setFormError(null)
+      toast.success('Alert rule added')
+    },
     onError: (err) => setFormError(err.response?.data?.detail || err.message || 'Failed to create rule'),
   })
   const toggleMut = useMutation({
     mutationFn: toggleAlertRule,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['alert-rules'] }),
+    onSuccess: (rule) => {
+      qc.invalidateQueries({ queryKey: ['alert-rules'] })
+      toast.success(rule?.is_active ? 'Rule enabled' : 'Rule disabled')
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to update rule'),
   })
   const deleteMut = useMutation({
     mutationFn: deleteAlertRule,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['alert-rules'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alert-rules'] })
+      toast.success('Alert rule deleted')
+      setPendingDeleteRule(null)
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete rule'),
   })
 
-  const { data: gateways = [] } = useQuery({
+  const { data: gateways = [], isError: gatewaysError } = useQuery({
     queryKey: ['redundancy-gateways'],
     queryFn: getRedundancyGateways,
     refetchInterval: 5000,
@@ -421,16 +439,29 @@ export default function AlertsPage() {
 
   const createGatewayMut = useMutation({
     mutationFn: createRedundancyGateway,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['redundancy-gateways'] }); setGatewayFormError(null) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['redundancy-gateways'] })
+      setGatewayFormError(null)
+      toast.success('Redundancy gateway added')
+    },
     onError: (err) => setGatewayFormError(err.response?.data?.detail || err.message || 'Failed to add gateway'),
   })
   const toggleGatewayMut = useMutation({
     mutationFn: toggleRedundancyGateway,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['redundancy-gateways'] }),
+    onSuccess: (gateway) => {
+      qc.invalidateQueries({ queryKey: ['redundancy-gateways'] })
+      toast.success(gateway?.is_active ? 'Gateway enabled' : 'Gateway disabled')
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to update gateway'),
   })
   const deleteGatewayMut = useMutation({
     mutationFn: deleteRedundancyGateway,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['redundancy-gateways'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['redundancy-gateways'] })
+      toast.success('Redundancy gateway deleted')
+      setPendingDeleteGateway(null)
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete gateway'),
   })
 
   // The CRUD list (/redundancy) and the polled status (/redundancy/status)
@@ -462,6 +493,11 @@ export default function AlertsPage() {
 
       <div className="mb-6">
         <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Stream health</h2>
+        {streamsError && (
+          <div className="text-center py-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl mb-3">
+            Could not load streams. Retrying…
+          </div>
+        )}
         {allPaths.size === 0 ? (
           <div className="text-center py-10 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No streams tracked yet.
@@ -491,7 +527,12 @@ export default function AlertsPage() {
             error={formError}
           />
         </div>
-        {rules.length === 0 ? (
+        {rulesError && (
+          <div className="text-center py-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl mb-3">
+            Could not load alert rules. Retrying…
+          </div>
+        )}
+        {!rulesError && rules.length === 0 ? (
           <div className="text-center py-8 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No alert rules configured — connectivity is still monitored for every stream by default.
           </div>
@@ -503,7 +544,7 @@ export default function AlertsPage() {
                 rule={rule}
                 firing={firingRuleIds.has(rule.id)}
                 onToggle={(id) => toggleMut.mutate(id)}
-                onDelete={(id) => deleteMut.mutate(id)}
+                onDelete={() => setPendingDeleteRule(rule)}
                 toggling={toggleMut.isPending}
                 deleting={deleteMut.isPending}
               />
@@ -530,7 +571,12 @@ export default function AlertsPage() {
             error={gatewayFormError}
           />
         </div>
-        {gatewaysWithStats.length === 0 ? (
+        {gatewaysError && (
+          <div className="text-center py-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl mb-3">
+            Could not load redundancy gateways. Retrying…
+          </div>
+        )}
+        {!gatewaysError && gatewaysWithStats.length === 0 ? (
           <div className="text-center py-8 text-gray-600 text-sm bg-surface-800 border border-surface-600 rounded-xl">
             No redundancy gateways registered — sdi_receive dual-path setups run unmonitored until one is added here.
           </div>
@@ -541,7 +587,7 @@ export default function AlertsPage() {
                 key={gw.id}
                 gateway={gw}
                 onToggle={(id) => toggleGatewayMut.mutate(id)}
-                onDelete={(id) => deleteGatewayMut.mutate(id)}
+                onDelete={() => setPendingDeleteGateway(gw)}
                 toggling={toggleGatewayMut.isPending}
                 deleting={deleteGatewayMut.isPending}
               />
@@ -549,6 +595,25 @@ export default function AlertsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDeleteRule}
+        title="Delete alert rule"
+        message={pendingDeleteRule ? `Delete the rule for "${pendingDeleteRule.stream_path}"?` : ''}
+        confirmLabel="Delete"
+        loading={deleteMut.isPending}
+        onConfirm={() => deleteMut.mutate(pendingDeleteRule.id)}
+        onCancel={() => setPendingDeleteRule(null)}
+      />
+      <ConfirmDialog
+        open={!!pendingDeleteGateway}
+        title="Delete redundancy gateway"
+        message={pendingDeleteGateway ? `Delete gateway "${pendingDeleteGateway.name}"?` : ''}
+        confirmLabel="Delete"
+        loading={deleteGatewayMut.isPending}
+        onConfirm={() => deleteGatewayMut.mutate(pendingDeleteGateway.id)}
+        onCancel={() => setPendingDeleteGateway(null)}
+      />
     </div>
   )
 }

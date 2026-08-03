@@ -73,7 +73,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function StatsPage() {
   const [selectedStream, setSelectedStream] = useState('')
 
-  const { data: streams = [] } = useQuery({
+  const { data: streams = [], isError: streamsError } = useQuery({
     queryKey: ['streams'],
     queryFn: getStreams,
     refetchInterval: 5000,
@@ -149,6 +149,12 @@ export default function StatsPage() {
           ))}
         </select>
       </div>
+
+      {streamsError && (
+        <div className="relative text-center py-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg mb-4">
+          Could not load streams. Retrying…
+        </div>
+      )}
 
       {/* Metric cards */}
       <div className="relative grid grid-cols-4 gap-3 mb-4">
