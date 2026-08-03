@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
@@ -31,7 +32,19 @@ _CORS = {"Access-Control-Allow-Origin": "*"}
 
 @router.get("/{path_name}/{filename:path}")
 async def hls_proxy(path_name: str, filename: str) -> Response:
-    file_path = os.path.join(HLS_DIR, path_name, filename)
+    # This endpoint takes no auth (watching a live stream isn't a
+    # privileged action here — see multiview.py's create_job for the same
+    # call), so the path-traversal guard below is the only thing standing
+    # between an anonymous request and arbitrary file read: filename uses
+    # FastAPI's `:path` converter to allow segment separators for nested
+    # HLS assets, which also means it happily accepts "../" — confirmed
+    # live that "cam1/../../../etc/passwd" resolves clean outside HLS_DIR
+    # without this check.
+    base = Path(HLS_DIR).resolve()
+    file_path = (base / path_name / filename).resolve()
+    if base not in file_path.parents and file_path != base:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    file_path = str(file_path)
 
     if not os.path.isfile(file_path):
         # Stream not live yet or segment rolled off — HLS.js will retry

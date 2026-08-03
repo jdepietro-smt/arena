@@ -83,18 +83,15 @@ async def list_sources(_user: User = Depends(get_current_active_user)) -> list[E
     return [ExternalSourceInfo(**s) for s in get_external_sources().list()]
 
 
-@router.delete("/{name}", summary="Stop and remove an external source")
-async def remove_source(name: str, _user: User = Depends(get_current_active_user)) -> dict:
-    removed = await get_external_sources().remove(name)
-    if not removed:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No source '{name}'")
-    return {"removed": name}
-
-
 # ---------------------------------------------------------------------------
 # YouTube cookies — lets yt-dlp authenticate as a real signed-in session,
 # needed because YouTube challenges plain requests from datacenter IPs.
 # Uploaded through the app instead of requiring server file-transfer tooling.
+#
+# Defined BEFORE DELETE /{name} below — otherwise that generic route
+# matches "/youtube-cookies" as name="youtube-cookies" first (FastAPI
+# matches in registration order), permanently shadowing the cookies-delete
+# endpoint with a 404. Confirmed live: it never actually ran.
 # ---------------------------------------------------------------------------
 
 
@@ -161,6 +158,14 @@ async def delete_youtube_cookies(_admin: User = Depends(require_admin)) -> dict:
         os.remove(COOKIES_PATH)
         return {"removed": True}
     return {"removed": False}
+
+
+@router.delete("/{name}", summary="Stop and remove an external source")
+async def remove_source(name: str, _user: User = Depends(get_current_active_user)) -> dict:
+    removed = await get_external_sources().remove(name)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No source '{name}'")
+    return {"removed": name}
 
 
 @router.get("/debug/pot-provider-health", summary="Debug: is the bgutil Docker provider actually reachable")
