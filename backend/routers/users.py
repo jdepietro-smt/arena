@@ -111,7 +111,7 @@ async def list_users(
 
 
 @router.post(
-    "/",
+    "",
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a user (admin only)",

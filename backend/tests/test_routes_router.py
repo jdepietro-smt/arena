@@ -30,7 +30,7 @@ def test_list_routes_requires_auth(client):
 def test_create_and_list_route(client, auth_headers):
     headers, _ = auth_headers(UserRole.viewer, username="viewer1")
 
-    create_resp = client.post("/api/routes/", headers=headers, json=_route_payload())
+    create_resp = client.post("/api/routes", headers=headers, json=_route_payload())
     assert create_resp.status_code == 201
     body = create_resp.json()
     assert body["name"] == "test-route"
@@ -47,16 +47,16 @@ def test_create_and_list_route(client, auth_headers):
 
 def test_create_duplicate_route_name_is_409(client, auth_headers):
     headers, _ = auth_headers(UserRole.viewer, username="viewer1")
-    client.post("/api/routes/", headers=headers, json=_route_payload())
+    client.post("/api/routes", headers=headers, json=_route_payload())
 
-    resp = client.post("/api/routes/", headers=headers, json=_route_payload())
+    resp = client.post("/api/routes", headers=headers, json=_route_payload())
 
     assert resp.status_code == 409
 
 
 def test_get_single_route(client, auth_headers):
     headers, _ = auth_headers(UserRole.viewer, username="viewer1")
-    created = client.post("/api/routes/", headers=headers, json=_route_payload()).json()
+    created = client.post("/api/routes", headers=headers, json=_route_payload()).json()
 
     resp = client.get(f"/api/routes/{created['id']}", headers=headers)
 
@@ -74,7 +74,7 @@ def test_get_nonexistent_route_is_404(client, auth_headers):
 
 def test_deactivate_already_inactive_route_is_409(client, auth_headers):
     headers, _ = auth_headers(UserRole.viewer, username="viewer1")
-    created = client.post("/api/routes/", headers=headers, json=_route_payload()).json()
+    created = client.post("/api/routes", headers=headers, json=_route_payload()).json()
 
     resp = client.put(f"/api/routes/{created['id']}/deactivate", headers=headers)
 
@@ -83,7 +83,7 @@ def test_deactivate_already_inactive_route_is_409(client, auth_headers):
 
 def test_delete_route_requires_admin(client, auth_headers):
     headers, _ = auth_headers(UserRole.viewer, username="viewer1")
-    created = client.post("/api/routes/", headers=headers, json=_route_payload()).json()
+    created = client.post("/api/routes", headers=headers, json=_route_payload()).json()
 
     resp = client.delete(f"/api/routes/{created['id']}", headers=headers)
 
@@ -92,7 +92,7 @@ def test_delete_route_requires_admin(client, auth_headers):
 
 def test_admin_can_delete_route(client, auth_headers):
     headers, _ = auth_headers(UserRole.admin, username="admin1")
-    created = client.post("/api/routes/", headers=headers, json=_route_payload()).json()
+    created = client.post("/api/routes", headers=headers, json=_route_payload()).json()
 
     resp = client.delete(f"/api/routes/{created['id']}", headers=headers)
     assert resp.status_code == 200

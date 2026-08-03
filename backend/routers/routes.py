@@ -80,7 +80,7 @@ async def list_routes(
 
 
 @router.post(
-    "/",
+    "",
     response_model=RouteRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new route",

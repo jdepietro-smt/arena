@@ -1,0 +1,1 @@
+function o(t,g){var a,i;const n=(i=(a=t==null?void 0:t.response)==null?void 0:a.data)==null?void 0:i.detail;return typeof n=="string"&&n?n:Array.isArray(n)&&n.length?n.map(s=>(s==null?void 0:s.msg)||String(s)).join("; "):(t==null?void 0:t.message)||g}export{o as g};

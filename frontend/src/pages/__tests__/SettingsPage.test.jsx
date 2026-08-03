@@ -75,17 +75,49 @@ describe('SettingsPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: /add user/i }))
 
     await userEvent.type(screen.getByPlaceholderText('operator1'), 'newop')
+    await userEvent.type(screen.getByPlaceholderText('operator1@arena.local'), 'newop@arena.local')
     await userEvent.type(screen.getByPlaceholderText('Minimum 8 characters'), 'Password123!')
     await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
     await waitFor(() => {
       expect(createUser).toHaveBeenCalled()
     })
-    expect(createUser.mock.calls[0][0]).toEqual({ username: 'newop', password: 'Password123!', role: 'operator' })
+    expect(createUser.mock.calls[0][0]).toEqual({
+      username: 'newop', email: 'newop@arena.local', password: 'Password123!', role: 'operator',
+    })
     // Modal closes on success.
     await waitFor(() => {
       expect(screen.queryByText('Add user')).not.toBeInTheDocument()
     })
+  })
+
+  it('shows a readable error toast (and does not crash) on a 422 validation error', async () => {
+    // FastAPI sends `detail` as an array of {type, loc, msg, input} objects
+    // for request-validation errors, not a string — rendering that array
+    // directly used to crash the whole app ("Objects are not valid as a
+    // React child").
+    createUser.mockRejectedValue({
+      response: {
+        status: 422,
+        data: {
+          detail: [
+            { type: 'missing', loc: ['body', 'email'], msg: 'Field required', input: {} },
+          ],
+        },
+      },
+    })
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
+    await userEvent.click(await screen.findByRole('button', { name: /add user/i }))
+
+    await userEvent.type(screen.getByPlaceholderText('operator1'), 'newop')
+    await userEvent.type(screen.getByPlaceholderText('operator1@arena.local'), 'newop@arena.local')
+    await userEvent.type(screen.getByPlaceholderText('Minimum 8 characters'), 'Password123!')
+    await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+
+    expect(await screen.findByText('Field required')).toBeInTheDocument()
+    // The page is still alive and interactive — not an error-boundary crash.
+    expect(screen.getByRole('button', { name: 'Create user' })).toBeInTheDocument()
   })
 
   it('hides the user immediately on remove and only calls the API after the undo grace period', async () => {

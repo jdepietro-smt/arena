@@ -13,6 +13,7 @@ import Tabs from '../components/ui/Tabs'
 import Button from '../components/ui/Button'
 import StatusDot from '../components/ui/StatusDot'
 import { toast } from '../store/toast'
+import { getErrorMessage } from '../utils/errors'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ function ExpandedRow({ stream }) {
       queryClient.invalidateQueries({ queryKey: ['streams'] })
       toast.success(isRecording ? 'Recording stopped' : 'Recording started')
     },
-    onError: (err) => toast.error(err?.response?.data?.detail || `Failed to ${isRecording ? 'stop' : 'start'} recording`),
+    onError: (err) => toast.error(getErrorMessage(err, `Failed to ${isRecording ? 'stop' : 'start'} recording`)),
   })
 
   return (
@@ -315,7 +316,7 @@ function AddPresetModal({ onClose }) {
       queryClient.invalidateQueries({ queryKey: ['presets'] })
       onClose()
     },
-    onError: (err) => setError(err?.response?.data?.detail || 'Failed to save preset'),
+    onError: (err) => setError(getErrorMessage(err, 'Failed to save preset')),
   })
 
   function handleSubmit(e) {
@@ -386,7 +387,7 @@ function PresetsTab({ onAddPreset }) {
       queryClient.invalidateQueries({ queryKey: ['presets'] })
       toast.success('Preset deleted')
     },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete preset'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete preset')),
   })
 
   if (isLoading) {

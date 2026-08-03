@@ -7,6 +7,7 @@ import Badge from '../components/ui/Badge'
 import StatusDot from '../components/ui/StatusDot'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
+import { getErrorMessage } from '../utils/errors'
 
 function formatDuration(seconds) {
   if (seconds == null) return '—'
@@ -73,7 +74,7 @@ function RecordingCard({ rec, onDelete, onPreview }) {
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10000)
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Failed to download recording')
+      toast.error(getErrorMessage(err, 'Failed to download recording'))
     } finally {
       setDownloading(false)
     }
@@ -196,7 +197,7 @@ export default function RecordingsPage() {
         await deleteRecording(rec.id)
         qc.invalidateQueries({ queryKey: ['recordings'] })
       },
-      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete recording'),
+      onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete recording')),
     })
   }
 

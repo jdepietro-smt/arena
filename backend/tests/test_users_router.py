@@ -44,7 +44,7 @@ def test_create_user_requires_admin(client, auth_headers):
     headers, _ = auth_headers(UserRole.operator, username="op1")
 
     resp = client.post(
-        "/api/users/",
+        "/api/users",
         headers=headers,
         json={"username": "x", "email": "x@example.com", "password": "Password123!", "role": "viewer"},
     )

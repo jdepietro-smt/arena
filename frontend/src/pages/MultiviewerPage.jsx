@@ -8,6 +8,7 @@ import {
 } from '../api/client'
 import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
 import { toast } from '../store/toast'
+import { getErrorMessage } from '../utils/errors'
 
 function parseStreamsParam(searchParams) {
   return new Set(
@@ -72,7 +73,7 @@ export default function MultiviewerPage() {
       await stopMultiviewJob(jobId)
       queryClient.invalidateQueries({ queryKey: ['multiview-jobs'] })
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Failed to stop composite job')
+      toast.error(getErrorMessage(err, 'Failed to stop composite job'))
     } finally {
       setStoppingId(null)
     }
@@ -92,7 +93,7 @@ export default function MultiviewerPage() {
       await removeExternalSource(name)
       queryClient.invalidateQueries({ queryKey: ['external-sources'] })
     } catch (err) {
-      toast.error(err?.response?.data?.detail || `Failed to remove "${name}"`)
+      toast.error(getErrorMessage(err, `Failed to remove "${name}"`))
     } finally {
       setRemovingSource(null)
     }
@@ -116,7 +117,7 @@ export default function MultiviewerPage() {
       await uploadYoutubeCookies(file)
       queryClient.invalidateQueries({ queryKey: ['youtube-cookies-status'] })
     } catch (err) {
-      setCookiesError(err.response?.data?.detail || err.message || 'Upload failed')
+      setCookiesError(getErrorMessage(err, 'Upload failed'))
     } finally {
       setUploadingCookies(false)
     }
@@ -128,7 +129,7 @@ export default function MultiviewerPage() {
       await removeYoutubeCookies()
       queryClient.invalidateQueries({ queryKey: ['youtube-cookies-status'] })
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Failed to remove cookies')
+      toast.error(getErrorMessage(err, 'Failed to remove cookies'))
     } finally {
       setUploadingCookies(false)
     }
@@ -239,7 +240,7 @@ export default function MultiviewerPage() {
         setLinkUrl('')
         setLinkName('')
       } catch (err) {
-        setLinkError(err.response?.data?.detail || err.message || 'Failed to add source')
+        setLinkError(getErrorMessage(err, 'Failed to add source'))
       } finally {
         setAddingLink(false)
       }

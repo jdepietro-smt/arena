@@ -15,6 +15,7 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
+import { getErrorMessage } from '../utils/errors'
 
 const DEST_TYPES = ['SRT Out', 'HLS Re-stream', 'RTMP Out']
 
@@ -154,7 +155,7 @@ export default function RouterPage() {
       setShowNewRoute(false)
       toast.success('Route created and activated')
     },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to create route'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to create route')),
   })
 
   const toggleMut = useMutation({
@@ -163,7 +164,7 @@ export default function RouterPage() {
       qc.invalidateQueries({ queryKey: ['routes'] })
       toast.success(active ? 'Route paused' : 'Route activated')
     },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to update route'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update route')),
   })
 
   function handleDeleteRoute(route) {
@@ -174,7 +175,7 @@ export default function RouterPage() {
         await deleteRoute(route.id)
         qc.invalidateQueries({ queryKey: ['routes'] })
       },
-      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete route'),
+      onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete route')),
     })
   }
 

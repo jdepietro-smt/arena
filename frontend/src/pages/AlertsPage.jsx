@@ -8,6 +8,7 @@ import {
 } from '../api/client'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
+import { getErrorMessage } from '../utils/errors'
 
 // Status palette — validated for CVD-safety and dark-surface contrast
 // (dataviz skill's fixed status palette, never themed/reused for series color).
@@ -405,7 +406,7 @@ export default function AlertsPage() {
       setFormError(null)
       toast.success('Alert rule added')
     },
-    onError: (err) => setFormError(err.response?.data?.detail || err.message || 'Failed to create rule'),
+    onError: (err) => setFormError(getErrorMessage(err, 'Failed to create rule')),
   })
   const toggleMut = useMutation({
     mutationFn: toggleAlertRule,
@@ -413,7 +414,7 @@ export default function AlertsPage() {
       qc.invalidateQueries({ queryKey: ['alert-rules'] })
       toast.success(rule?.is_active ? 'Rule enabled' : 'Rule disabled')
     },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to update rule'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update rule')),
   })
   function handleDeleteRule(rule) {
     scheduleDelete({
@@ -423,7 +424,7 @@ export default function AlertsPage() {
         await deleteAlertRule(rule.id)
         qc.invalidateQueries({ queryKey: ['alert-rules'] })
       },
-      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete rule'),
+      onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete rule')),
     })
   }
 
@@ -447,7 +448,7 @@ export default function AlertsPage() {
       setGatewayFormError(null)
       toast.success('Redundancy gateway added')
     },
-    onError: (err) => setGatewayFormError(err.response?.data?.detail || err.message || 'Failed to add gateway'),
+    onError: (err) => setGatewayFormError(getErrorMessage(err, 'Failed to add gateway')),
   })
   const toggleGatewayMut = useMutation({
     mutationFn: toggleRedundancyGateway,
@@ -455,7 +456,7 @@ export default function AlertsPage() {
       qc.invalidateQueries({ queryKey: ['redundancy-gateways'] })
       toast.success(gateway?.is_active ? 'Gateway enabled' : 'Gateway disabled')
     },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to update gateway'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update gateway')),
   })
   function handleDeleteGateway(gateway) {
     scheduleDelete({
@@ -465,7 +466,7 @@ export default function AlertsPage() {
         await deleteRedundancyGateway(gateway.id)
         qc.invalidateQueries({ queryKey: ['redundancy-gateways'] })
       },
-      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to delete gateway'),
+      onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete gateway')),
     })
   }
 

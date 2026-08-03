@@ -10,6 +10,7 @@ import Tabs from '../components/ui/Tabs'
 import Button from '../components/ui/Button'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
+import { getErrorMessage } from '../utils/errors'
 
 const TABS = [
   { value: 'server', label: 'Server' },
@@ -20,7 +21,7 @@ const TABS = [
 
 const ROLES = ['admin', 'operator', 'viewer']
 
-const defaultUserForm = { username: '', password: '', role: 'operator' }
+const defaultUserForm = { username: '', email: '', password: '', role: 'operator' }
 
 const inputClass = 'bg-surface-900 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 placeholder-gray-600'
 
@@ -51,6 +52,18 @@ function AddUserModal({ onClose, onSubmit, loading }) {
               placeholder="operator1"
               value={form.username}
               onChange={e => set('username', e.target.value)}
+              required
+              autoComplete="off"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">Email</label>
+            <input
+              type="email"
+              className={inputClass}
+              placeholder="operator1@arena.local"
+              value={form.email}
+              onChange={e => set('email', e.target.value)}
               required
               autoComplete="off"
             />
@@ -134,7 +147,7 @@ function UsersTab() {
       setShowAdd(false)
       toast.success('User created')
     },
-    onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to create user'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to create user')),
   })
 
   function handleDelete(user) {
@@ -145,7 +158,7 @@ function UsersTab() {
         await deleteUser(user.id)
         qc.invalidateQueries({ queryKey: ['users'] })
       },
-      onError: (err) => toast.error(err?.response?.data?.detail || 'Failed to remove user'),
+      onError: (err) => toast.error(getErrorMessage(err, 'Failed to remove user')),
     })
   }
 
@@ -246,7 +259,7 @@ function RecordingTab() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Failed to save recording settings')
+      toast.error(getErrorMessage(err, 'Failed to save recording settings'))
     }
   }
 
