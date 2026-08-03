@@ -48,3 +48,97 @@ def _clean_managed_paths():
         for row in session.exec(select(ManagedPath)).all():
             session.delete(row)
         session.commit()
+
+
+@pytest.fixture(autouse=True)
+def _clean_users_and_login_limiter():
+    """Router tests create their own users and hit /api/auth/token, which
+    both writes rows to the users table and accumulates failure counters
+    in the in-memory login limiter (keyed by TestClient's fixed source IP,
+    'testclient') — without this, a lockout test would poison every test
+    that logs in afterward in the same run."""
+    from sqlmodel import Session, select
+
+    from backend.database import engine
+    from backend.models import User
+    from backend.services import login_limiter
+
+    yield
+    with Session(engine) as session:
+        for row in session.exec(select(User)).all():
+            session.delete(row)
+        session.commit()
+    login_limiter._failures.clear()
+    login_limiter._locked_until.clear()
+
+
+@pytest.fixture
+def client():
+    """TestClient constructed WITHOUT entering it as a context manager, so
+    FastAPI's lifespan (which calls out to a live mediamtx instance and
+    starts several background monitor loops) never runs — router tests
+    only need the ASGI app + DB, not the full running service."""
+    from fastapi.testclient import TestClient
+
+    from backend.main import app
+
+    return TestClient(app)
+
+
+def _make_user(session, *, username, password, role, email=None, is_active=True):
+    from backend.auth import get_password_hash
+    from backend.models import User
+
+    user = User(
+        username=username,
+        # NOT @arena.local — EmailStr/email-validator rejects .local as a
+        # reserved special-use TLD (confirmed via a live 422), so any test
+        # user needs a normal deliverable-looking domain.
+        email=email or f"{username}@example.com",
+        hashed_password=get_password_hash(password),
+        role=role,
+        is_active=is_active,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def make_user():
+    """Factory fixture: make_user(username=..., password=..., role=...) ->
+    User, committed to the test DB."""
+    from sqlmodel import Session
+
+    from backend.database import engine
+
+    def _factory(*, username, password="Password123!", role, email=None, is_active=True):
+        with Session(engine) as session:
+            return _make_user(
+                session, username=username, password=password, role=role,
+                email=email, is_active=is_active,
+            )
+
+    return _factory
+
+
+@pytest.fixture
+def auth_headers(client, make_user):
+    """Factory fixture: auth_headers(role=UserRole.admin) -> ({"Authorization":
+    "Bearer ..."}, User) for a freshly created user of that role, logged in
+    through the real /api/auth/token endpoint."""
+    def _factory(role, *, username=None, password="Password123!"):
+        from backend.models import UserRole
+
+        username = username or f"{role.value if hasattr(role, 'value') else role}-user"
+        user = make_user(username=username, password=password, role=role)
+        resp = client.post(
+            "/api/auth/token",
+            data={"username": username, "password": password},
+        )
+        assert resp.status_code == 200, resp.text
+        token = resp.json()["access_token"]
+        return {"Authorization": f"Bearer {token}"}, user
+
+    return _factory
