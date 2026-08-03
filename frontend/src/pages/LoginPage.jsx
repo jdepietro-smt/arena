@@ -1,4 +1,4 @@
-import { useState, useId } from 'react'
+import { useState, useId, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, AlertCircle, Loader2 } from 'lucide-react'
 import { login } from '../api/client'
@@ -48,10 +48,19 @@ export default function LoginPage() {
   const usernameId = useId()
   const passwordId = useId()
 
-  if (token) {
-    navigate('/dashboard', { replace: true })
-    return null
-  }
+  // Navigation is a side effect, not something to trigger during render —
+  // doing it inline in the render body only "worked" because the real app's
+  // route actually changes afterward, unmounting this component before a
+  // second call could happen. Anywhere that isn't true (e.g. this component
+  // staying mounted, as happens under test with no <Routes> configured)
+  // the render-time call re-fires on every re-render token stays truthy for,
+  // which can spiral into a render loop. useEffect is the correct place for
+  // a redirect driven by external state.
+  useEffect(() => {
+    if (token) navigate('/dashboard', { replace: true })
+  }, [token, navigate])
+
+  if (token) return null
 
   async function handleSubmit(e) {
     e.preventDefault()
