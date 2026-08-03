@@ -51,6 +51,22 @@ def _clean_managed_paths():
 
 
 @pytest.fixture(autouse=True)
+def _clean_stream_presets():
+    """Streams-router preset tests create StreamPreset rows; keep them
+    from leaking into unrelated tests."""
+    from sqlmodel import Session, select
+
+    from backend.database import engine
+    from backend.models import StreamPreset
+
+    yield
+    with Session(engine) as session:
+        for row in session.exec(select(StreamPreset)).all():
+            session.delete(row)
+        session.commit()
+
+
+@pytest.fixture(autouse=True)
 def _clean_recordings():
     """Recording-router tests create Recording rows; keep them from
     leaking into unrelated tests that list/count recordings."""
@@ -102,6 +118,19 @@ def _clean_users_and_login_limiter():
         session.commit()
     login_limiter._failures.clear()
     login_limiter._locked_until.clear()
+
+
+@pytest.fixture
+def db_session():
+    """Plain SQLModel Session against the test DB, for tests that need to
+    insert rows directly (e.g. a pre-existing Recording) rather than going
+    through an API call."""
+    from sqlmodel import Session
+
+    from backend.database import engine
+
+    with Session(engine) as session:
+        yield session
 
 
 @pytest.fixture
