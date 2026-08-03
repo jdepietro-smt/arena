@@ -1,0 +1,1 @@
+import{j as t}from"./query-vendor-cWI2VeM7.js";function n({children:r,className:s="",hover:e=!1,as:o="div",...a}){return t.jsx(o,{className:`bg-surface-800 border border-surface-600 rounded-xl ${e?"transition-colors hover:border-surface-500":""} ${s}`,...a,children:r})}export{n as C};

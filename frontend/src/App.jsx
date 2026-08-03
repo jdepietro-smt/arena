@@ -1,18 +1,29 @@
-import { Component } from 'react'
+import { Component, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
 import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
-import StreamsPage from './pages/StreamsPage'
-import MultiviewerPage from './pages/MultiviewerPage'
-import RouterPage from './pages/RouterPage'
-import RecordingsPage from './pages/RecordingsPage'
-import StatsPage from './pages/StatsPage'
-import AlertsPage from './pages/AlertsPage'
-import SettingsPage from './pages/SettingsPage'
-import PlayerPage from './pages/PlayerPage'
-import MultiviewWatchPage from './pages/MultiviewWatchPage'
+
+// Route-level code splitting — each page becomes its own chunk, downloaded
+// on first navigation instead of all at once in the initial bundle.
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const StreamsPage = lazy(() => import('./pages/StreamsPage'))
+const MultiviewerPage = lazy(() => import('./pages/MultiviewerPage'))
+const RouterPage = lazy(() => import('./pages/RouterPage'))
+const RecordingsPage = lazy(() => import('./pages/RecordingsPage'))
+const StatsPage = lazy(() => import('./pages/StatsPage'))
+const AlertsPage = lazy(() => import('./pages/AlertsPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const PlayerPage = lazy(() => import('./pages/PlayerPage'))
+const MultiviewWatchPage = lazy(() => import('./pages/MultiviewWatchPage'))
+
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-surface-900">
+      <div className="h-8 w-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+    </div>
+  )
+}
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -49,6 +60,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <BrowserRouter>
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -73,6 +85,7 @@ export default function App() {
         <Route path="/multiview" element={<MultiviewWatchPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
     </ErrorBoundary>
   )
