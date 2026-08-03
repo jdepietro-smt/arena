@@ -2,10 +2,26 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Annotated, Any, List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, StringConstraints
 from sqlmodel import Column, Field, JSON, SQLModel
+
+# A basic x@y.z shape check — deliberately NOT pydantic's EmailStr, which
+# also enforces real-world deliverability (rejects reserved/special-use
+# TLDs like .local, .internal, .test). Confirmed live: that rejected the
+# seeded default admin's own address (admin@arena.local) the moment an
+# admin tried to register a second user with a similarly internal
+# address. Nothing in this app ever sends mail to this field — it's a
+# unique identifier, not a delivery target — so deliverability isn't a
+# real constraint here, only the SQL uniqueness on User.email.
+#
+# Applied via Annotated/StringConstraints rather than sqlmodel's Field
+# (`Field(pattern=...)`) — sqlmodel 0.0.21's Field wrapper doesn't forward
+# `pattern` to pydantic, so that raised a bare TypeError at class-definition
+# time instead of actually validating anything.
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+EmailShape = Annotated[str, StringConstraints(pattern=EMAIL_PATTERN)]
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +228,7 @@ class ManagedPath(SQLModel, table=True):
 
 class UserCreate(BaseModel):
     username: str
-    email: EmailStr
+    email: EmailShape
     password: str
     role: UserRole = UserRole.viewer
 

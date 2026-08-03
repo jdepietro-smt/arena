@@ -138,6 +138,47 @@ def test_register_as_admin_creates_user(client, auth_headers):
     assert "hashed_password" not in body
 
 
+def test_register_accepts_internal_local_domain_email(client, auth_headers):
+    """Regression test: EmailStr (pydantic's deliverability-aware email
+    type) used to reject .local as a reserved special-use TLD, which
+    meant an admin could never register a user with an internal address
+    like the seeded default admin's own admin@arena.local — confirmed
+    live via a 422 before models.py switched to a plain shape-only regex
+    (EMAIL_PATTERN). Nothing in this app ever sends mail to this field,
+    so deliverability was never a real constraint here."""
+    headers, _ = auth_headers(UserRole.admin, username="admin-user")
+
+    resp = client.post(
+        "/api/auth/register",
+        headers=headers,
+        json={
+            "username": "internaluser",
+            "email": "internaluser@arena.local",
+            "password": "Password123!",
+            "role": "viewer",
+        },
+    )
+
+    assert resp.status_code == 201
+
+
+def test_register_rejects_malformed_email(client, auth_headers):
+    headers, _ = auth_headers(UserRole.admin, username="admin-user")
+
+    resp = client.post(
+        "/api/auth/register",
+        headers=headers,
+        json={
+            "username": "baduser",
+            "email": "not-an-email",
+            "password": "Password123!",
+            "role": "viewer",
+        },
+    )
+
+    assert resp.status_code == 422
+
+
 def test_register_duplicate_username_is_409(client, auth_headers, make_user):
     headers, _ = auth_headers(UserRole.admin, username="admin-user")
     make_user(username="taken", password="Password123!", role=UserRole.viewer)

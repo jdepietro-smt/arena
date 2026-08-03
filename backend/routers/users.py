@@ -53,7 +53,9 @@ def _assert_not_self(current_user: User, target_id: int, action: str = "perform 
 # Request / response schemas
 # ---------------------------------------------------------------------------
 
-from pydantic import BaseModel, EmailStr  # noqa: E402 — after imports above for clarity
+from pydantic import BaseModel  # noqa: E402 — after imports above for clarity
+
+from ..models import EmailShape  # noqa: E402
 
 
 class UserUpdate(BaseModel):
@@ -61,7 +63,7 @@ class UserUpdate(BaseModel):
 
     role: UserRole | None = None
     is_active: bool | None = None
-    email: EmailStr | None = None
+    email: EmailShape | None = None
     password: str | None = None  # If provided, the password is re-hashed.
 
 

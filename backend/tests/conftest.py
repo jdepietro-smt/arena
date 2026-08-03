@@ -216,9 +216,6 @@ def _make_user(session, *, username, password, role, email=None, is_active=True)
 
     user = User(
         username=username,
-        # NOT @arena.local — EmailStr/email-validator rejects .local as a
-        # reserved special-use TLD (confirmed via a live 422), so any test
-        # user needs a normal deliverable-looking domain.
         email=email or f"{username}@example.com",
         hashed_password=get_password_hash(password),
         role=role,
