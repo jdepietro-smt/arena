@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import StatsPage from '../StatsPage'
@@ -11,11 +12,13 @@ vi.mock('../../api/client', () => ({
 
 import { getStreams, getStatsHistory } from '../../api/client'
 
-function renderStatsPage() {
+function renderStatsPage(initialPath = '/stats') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <StatsPage />
+      <MemoryRouter initialEntries={[initialPath]}>
+        <StatsPage />
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -50,5 +53,18 @@ describe('StatsPage', () => {
 
     await screen.findByText('Camera 1')
     expect(screen.queryByText('Could not load streams. Retrying…')).not.toBeInTheDocument()
+  })
+
+  it('preselects the stream named in a ?stream= deep link instead of the first one', async () => {
+    getStreams.mockResolvedValue([
+      { path: 'cam1', name: 'Camera 1' },
+      { path: 'cam2', name: 'Camera 2' },
+    ])
+    renderStatsPage('/stats?stream=cam2')
+
+    await screen.findByRole('option', { name: 'Camera 2' })
+    await waitFor(() => expect(getStatsHistory).toHaveBeenCalledWith('cam2', 60))
+    expect(screen.getByRole('combobox').value).toBe('cam2')
+    expect(getStatsHistory).not.toHaveBeenCalledWith('cam1', 60)
   })
 })

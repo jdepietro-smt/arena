@@ -12,6 +12,7 @@ import StatusDot from '../ui/StatusDot'
 // would drag that whole module into the main entry bundle just for a
 // floating widget most sessions never open.
 const AssistantWidget = lazy(() => import('../AssistantWidget'))
+const CommandPalette = lazy(() => import('../CommandPalette'))
 
 // ── Nav config ────────────────────────────────────────────────────────────────
 
@@ -283,6 +284,10 @@ export default function Layout() {
           <h1 className="relative flex-1 min-w-0 m-0 text-xl sm:text-[26px] font-extrabold tracking-tight bg-gradient-to-r from-gray-50 to-gray-400 bg-clip-text text-transparent text-balance truncate">
             {pageTitle}
           </h1>
+          <div className="relative hidden md:flex items-center gap-1.5 text-[11px] text-gray-500 shrink-0">
+            <kbd className="border border-surface-600 rounded px-1.5 py-0.5 font-mono">⌘K</kbd>
+            <span>to jump anywhere</span>
+          </div>
           <div className="relative hidden sm:block text-[11px] font-semibold text-gray-400 uppercase tracking-[0.15em] shrink-0">
             ArenaHub
           </div>
@@ -295,6 +300,9 @@ export default function Layout() {
 
       <Suspense fallback={null}>
         <AssistantWidget />
+      </Suspense>
+      <Suspense fallback={null}>
+        <CommandPalette />
       </Suspense>
     </div>
   )

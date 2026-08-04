@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart3 } from 'lucide-react'
 import { getStreams, getStatsHistory } from '../api/client'
@@ -46,7 +47,8 @@ function MetricCard({ label, value, unit, previous, color = 'brand' }) {
 }
 
 export default function StatsPage() {
-  const [selectedStream, setSelectedStream] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selectedStream, setSelectedStream] = useState(searchParams.get('stream') || '')
 
   const { data: streams = [], isError: streamsError } = useQuery({
     queryKey: ['streams'],
@@ -63,6 +65,13 @@ export default function StatsPage() {
       setSelectedStream(streams[0].path || streams[0].name)
     }
   }, [streams, selectedStream])
+
+  // Keeps a deep link (e.g. from the command palette's "jump to stream")
+  // shareable/bookmarkable, and reflects manual selection back into the URL.
+  function selectStream(path) {
+    setSelectedStream(path)
+    setSearchParams(path ? { stream: path } : {}, { replace: true })
+  }
 
   const { data: history = [] } = useQuery({
     queryKey: ['stats', selectedStream],
@@ -116,7 +125,7 @@ export default function StatsPage() {
         <select
           className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 min-w-[200px]"
           value={selectedStream}
-          onChange={e => setSelectedStream(e.target.value)}
+          onChange={e => selectStream(e.target.value)}
         >
           <option value="">Select a stream…</option>
           {streams.map(s => (
