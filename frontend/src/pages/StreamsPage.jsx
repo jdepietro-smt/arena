@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, ChevronRight, Copy, Trash2, PackageOpen, Radio } from 'lucide-react'
+import { Search, Plus, ChevronRight, Copy, Trash2, PackageOpen, Radio, X } from 'lucide-react'
 import {
   getStreams, getPresets, savePreset, deletePreset,
   startRecording, stopRecording, getPreviewUrls,
@@ -104,7 +104,7 @@ function ExpandedRow({ stream }) {
 
   return (
     <tr className="bg-surface-750">
-      <td colSpan={7} className="px-6 py-4">
+      <td colSpan={8} className="px-6 py-4">
         <div className="flex gap-6 items-start">
           {/* HLS preview */}
           <div className="shrink-0">
@@ -168,10 +168,72 @@ function ExpandedRow({ stream }) {
   )
 }
 
+// ── Bulk actions bar ────────────────────────────────────────────────────────────
+
+function BulkActionsBar({ selectedStreams, onClear }) {
+  const queryClient = useQueryClient()
+  const [pending, setPending] = useState(false)
+
+  const startable = selectedStreams.filter(s => s.ready && !s.recording)
+  const stoppable = selectedStreams.filter(s => s.recording)
+
+  async function bulkAction(kind, targets) {
+    if (pending || targets.length === 0) return
+    setPending(true)
+    const results = await Promise.allSettled(
+      targets.map(s => (kind === 'start' ? startRecording(s.publisher_id) : stopRecording(s.publisher_id)))
+    )
+    setPending(false)
+    queryClient.invalidateQueries({ queryKey: ['streams'] })
+
+    const failed = results.filter(r => r.status === 'rejected').length
+    const succeeded = results.length - failed
+    const verb = kind === 'start' ? 'Started' : 'Stopped'
+    if (failed === 0) {
+      toast.success(`${verb} recording on ${succeeded} stream${succeeded === 1 ? '' : 's'}`)
+    } else if (succeeded === 0) {
+      toast.error(`Failed to ${kind} recording on all ${failed} selected stream${failed === 1 ? '' : 's'}`)
+    } else {
+      toast.error(`${verb} recording on ${succeeded}, failed on ${failed}`)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-brand-500/30 bg-brand-500/[0.06]">
+      <span className="text-sm font-medium text-gray-200">
+        {selectedStreams.length} selected
+      </span>
+      <div className="flex-1" />
+      <Button
+        variant="ghost" size="sm"
+        disabled={pending || startable.length === 0}
+        onClick={() => bulkAction('start', startable)}
+      >
+        Start Recording{startable.length > 0 ? ` (${startable.length})` : ''}
+      </Button>
+      <Button
+        variant="ghost" size="sm"
+        disabled={pending || stoppable.length === 0}
+        onClick={() => bulkAction('stop', stoppable)}
+      >
+        Stop Recording{stoppable.length > 0 ? ` (${stoppable.length})` : ''}
+      </Button>
+      <button
+        onClick={onClear}
+        className="text-gray-400 hover:text-white p-1 rounded focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2"
+        aria-label="Clear selection"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  )
+}
+
 // ── Live Streams tab ──────────────────────────────────────────────────────────
 
 function LiveStreamsTab({ search }) {
   const [expandedId, setExpandedId] = useState(null)
+  const [selected, setSelected] = useState(new Set())
 
   const { data: streams = [], isLoading, isError } = useQuery({
     queryKey: ['streams'],
@@ -188,16 +250,44 @@ function LiveStreamsTab({ search }) {
     )
   })
 
-  const cols = ['Name', 'Status', 'Source', 'Bitrate', 'Viewers', 'Duration', 'Actions']
+  function toggleOne(id) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allSelected = filtered.length > 0 && filtered.every(s => selected.has(s.publisher_id))
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(filtered.map(s => s.publisher_id)))
+  }
+
+  const selectedStreams = filtered.filter(s => selected.has(s.publisher_id))
+
+  const cols = ['', 'Name', 'Status', 'Source', 'Bitrate', 'Viewers', 'Duration', 'Actions']
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-surface-600">
+    <div className="flex flex-col gap-3">
+      {selectedStreams.length > 0 && (
+        <BulkActionsBar selectedStreams={selectedStreams} onClear={() => setSelected(new Set())} />
+      )}
+      <div className="overflow-x-auto rounded-xl border border-surface-600">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-surface-600 bg-surface-750">
-            {cols.map(c => (
-              <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                {c}
+            {cols.map((c, i) => (
+              <th key={c || `col-${i}`} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                {i === 0 && filtered.length > 0 ? (
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    aria-label="Select all streams"
+                    className="rounded border-surface-500 bg-surface-900 text-brand-500 focus:ring-brand-500"
+                  />
+                ) : c}
               </th>
             ))}
           </tr>
@@ -206,7 +296,7 @@ function LiveStreamsTab({ search }) {
           {isError
             ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-red-400 bg-red-500/10">
+                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-red-400 bg-red-500/10">
                     Could not load streams. Retrying…
                   </td>
                 </tr>
@@ -214,8 +304,8 @@ function LiveStreamsTab({ search }) {
             : isLoading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i} className="bg-surface-800">
-                  {cols.map(c => (
-                    <td key={c} className="px-4 py-3">
+                  {cols.map((c, ci) => (
+                    <td key={c || `cell-${ci}`} className="px-4 py-3">
                       <Skeleton className="h-4 w-full" />
                     </td>
                   ))}
@@ -224,7 +314,7 @@ function LiveStreamsTab({ search }) {
             : filtered.length === 0
               ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm bg-surface-800">
+                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm bg-surface-800">
                     {search ? 'No streams match your search' : 'No streams connected'}
                   </td>
                 </tr>
@@ -242,6 +332,17 @@ function LiveStreamsTab({ search }) {
                       className={`bg-surface-800 hover:bg-surface-750 transition-colors cursor-pointer ${isExpanded ? 'bg-surface-750' : ''}`}
                       onClick={() => setExpandedId(isExpanded ? null : stream.publisher_id)}
                     >
+                      {/* Select */}
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(stream.publisher_id)}
+                          onChange={() => toggleOne(stream.publisher_id)}
+                          aria-label={`Select ${stream.name || stream.publisher_id}`}
+                          className="rounded border-surface-500 bg-surface-900 text-brand-500 focus:ring-brand-500"
+                        />
+                      </td>
+
                       {/* Name */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -299,6 +400,7 @@ function LiveStreamsTab({ search }) {
           }
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

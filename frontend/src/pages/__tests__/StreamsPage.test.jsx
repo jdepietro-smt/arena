@@ -167,6 +167,100 @@ describe('StreamsPage — Live Streams tab', () => {
   })
 })
 
+describe('StreamsPage — bulk actions', () => {
+  it('shows no bulk actions bar until a stream is selected', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', name: 'Studio A' })])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+  })
+
+  it('selecting a stream shows the bulk actions bar with a count', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', name: 'Studio A' })])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Studio A' }))
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+  })
+
+  it('"select all" selects every filtered stream and updates the count', async () => {
+    getStreams.mockResolvedValue([
+      stream({ publisher_id: 'cam1', name: 'Studio A' }),
+      stream({ publisher_id: 'cam2', name: 'Studio B' }),
+    ])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all streams' }))
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+  })
+
+  it('bulk-starts recording only on selected streams that are live and not already recording', async () => {
+    startRecording.mockResolvedValue({})
+    getStreams.mockResolvedValue([
+      stream({ publisher_id: 'cam1', name: 'Studio A', ready: true, recording: false }),
+      stream({ publisher_id: 'cam2', name: 'Studio B', ready: false, recording: false }),
+    ])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all streams' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start Recording (1)' }))
+
+    await waitFor(() => expect(startRecording).toHaveBeenCalledTimes(1))
+    expect(startRecording).toHaveBeenCalledWith('cam1')
+    expect(await screen.findByText('Started recording on 1 stream')).toBeInTheDocument()
+  })
+
+  it('bulk-stops recording only on selected streams currently recording', async () => {
+    stopRecording.mockResolvedValue({})
+    getStreams.mockResolvedValue([
+      stream({ publisher_id: 'cam1', name: 'Studio A', ready: true, recording: true }),
+      stream({ publisher_id: 'cam2', name: 'Studio B', ready: true, recording: false }),
+    ])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all streams' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Stop Recording (1)' }))
+
+    await waitFor(() => expect(stopRecording).toHaveBeenCalledTimes(1))
+    expect(stopRecording).toHaveBeenCalledWith('cam1')
+    expect(await screen.findByText('Stopped recording on 1 stream')).toBeInTheDocument()
+  })
+
+  it('shows a partial-failure toast when some bulk actions fail', async () => {
+    startRecording.mockImplementation((id) => id === 'cam1' ? Promise.resolve({}) : Promise.reject(new Error('boom')))
+    getStreams.mockResolvedValue([
+      stream({ publisher_id: 'cam1', name: 'Studio A', ready: true, recording: false }),
+      stream({ publisher_id: 'cam2', name: 'Studio B', ready: true, recording: false }),
+    ])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all streams' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start Recording (2)' }))
+
+    expect(await screen.findByText('Started recording on 1, failed on 1')).toBeInTheDocument()
+  })
+
+  it('clears the selection via the close button on the bulk actions bar', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', name: 'Studio A' })])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Studio A' }))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }))
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
+  })
+})
+
 describe('StreamsPage — Presets tab', () => {
   async function goToPresetsTab() {
     await userEvent.click(screen.getByRole('tab', { name: 'Presets' }))
