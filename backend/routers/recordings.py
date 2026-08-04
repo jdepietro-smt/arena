@@ -20,8 +20,9 @@ from sqlmodel import Session, select
 from ..auth import get_current_active_user, get_current_user_flexible, require_admin
 from ..config import settings
 from ..database import get_session
-from ..models import Recording, RecordingRead, User
-from ..services.recording_config import get_recordings_dir
+from ..models import Recording, RecordingRead, RecordingStatus, User
+from ..services.recording_config import get_recording_config, get_recordings_dir
+from ..services.storage_forecast import compute_storage_forecast
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,28 @@ async def list_recordings(
     query = query.offset(offset).limit(limit)
     recordings = session.exec(query).all()
     return [RecordingRead.model_validate(r) for r in recordings]
+
+
+@router.get(
+    "/storage-forecast",
+    summary="Projected days until recording storage fills up, from recent growth",
+)
+async def storage_forecast(
+    session: Session = Depends(get_session),
+    _user: User = Depends(get_current_active_user),
+) -> dict:
+    """
+    Fits a trend line over daily cumulative recording size and projects
+    forward to the configured storage limit. Only meaningful with
+    auto_delete off — see storage_forecast.py's module docstring.
+    """
+    config = get_recording_config(session)
+    recordings = session.exec(
+        select(Recording).where(Recording.status == RecordingStatus.complete)
+    ).all()
+    forecast = compute_storage_forecast(recordings, config.max_storage_gb)
+    forecast["auto_delete"] = config.auto_delete
+    return forecast
 
 
 @router.get(

@@ -15,10 +15,11 @@ vi.mock('../../api/client', () => ({
   fetchRecordingBlobUrl: vi.fn(),
   getRecordingStreamUrl: vi.fn(() => '/api/recordings/1/stream'),
   getRecordingThumbnailUrl: vi.fn(() => '/api/recordings/1/thumbnail'),
+  getStorageForecast: vi.fn(),
   default: { get: vi.fn() },
 }))
 
-import { getRecordings, deleteRecording } from '../../api/client'
+import { getRecordings, deleteRecording, getStorageForecast } from '../../api/client'
 import api from '../../api/client'
 
 vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
@@ -47,6 +48,7 @@ beforeEach(() => {
   getRecordings.mockReset().mockResolvedValue([])
   deleteRecording.mockReset()
   api.get.mockReset().mockResolvedValue({ data: null })
+  getStorageForecast.mockReset().mockResolvedValue({ available: false })
   act(() => {
     useToastStore.setState({ toasts: [] })
     usePendingDeleteStore.setState({ hidden: new Set() })
@@ -220,5 +222,36 @@ describe('RecordingsPage', () => {
     renderRecordingsPage()
 
     expect(await screen.findByText(/new recordings may fail/)).toBeInTheDocument()
+  })
+
+  it('shows a growth forecast when auto-delete is off and a trend is available', async () => {
+    api.get.mockResolvedValue({ data: { max_storage_gb: 500, auto_delete: false } })
+    getStorageForecast.mockResolvedValue({ available: true, trend_gb_per_day: 2.5, days_until_full: 12, current_gb: 30 })
+    getRecordings.mockResolvedValue([recording({ size_bytes: 5_000_000_000 })])
+    renderRecordingsPage()
+
+    expect(await screen.findByText(/Growing ~2\.5 GB\/day/)).toBeInTheDocument()
+    expect(screen.getByText(/fills up in 12 days/)).toBeInTheDocument()
+  })
+
+  it('does not show a forecast when auto-delete is on, even if a trend is available', async () => {
+    api.get.mockResolvedValue({ data: { max_storage_gb: 500, auto_delete: true } })
+    getStorageForecast.mockResolvedValue({ available: true, trend_gb_per_day: 2.5, days_until_full: 12, current_gb: 30 })
+    getRecordings.mockResolvedValue([recording({ size_bytes: 5_000_000_000 })])
+    renderRecordingsPage()
+    await screen.findByText('Storage used')
+
+    expect(getStorageForecast).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Growing ~/)).not.toBeInTheDocument()
+  })
+
+  it('does not show a forecast when there is not enough history yet', async () => {
+    api.get.mockResolvedValue({ data: { max_storage_gb: 500, auto_delete: false } })
+    getStorageForecast.mockResolvedValue({ available: false })
+    getRecordings.mockResolvedValue([recording({ size_bytes: 5_000_000_000 })])
+    renderRecordingsPage()
+
+    await screen.findByText('Storage used')
+    expect(screen.queryByText(/Growing ~/)).not.toBeInTheDocument()
   })
 })

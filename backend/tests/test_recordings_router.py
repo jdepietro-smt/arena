@@ -216,3 +216,49 @@ def test_thumbnail_via_token_query_param(client, auth_headers, recordings_dir):
 
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/jpeg"
+
+
+def test_storage_forecast_unavailable_with_too_little_history(client, auth_headers, recordings_dir):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+    _make_recording(started_at=datetime.utcnow(), ended_at=datetime.utcnow(), size_bytes=1024)
+
+    resp = client.get("/api/recordings/storage-forecast", headers=auth)
+
+    assert resp.status_code == 200
+    assert resp.json()["available"] is False
+
+
+def test_storage_forecast_projects_days_until_full(client, auth_headers, recordings_dir):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+    gb = 1024**3
+    for days_ago, size in [(3, 1 * gb), (2, 1 * gb), (1, 1 * gb), (0, 1 * gb)]:
+        started = datetime.utcnow() - timedelta(days=days_ago)
+        _make_recording(
+            filename=f"cam1_{days_ago}.mp4",
+            started_at=started, ended_at=started + timedelta(minutes=5),
+            size_bytes=size,
+        )
+
+    resp = client.get("/api/recordings/storage-forecast", headers=auth)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["available"] is True
+    assert body["trend_gb_per_day"] == pytest.approx(1.0, abs=0.01)
+    assert body["current_gb"] == pytest.approx(4.0, abs=0.01)
+    # 500 GB default limit, growing 1 GB/day from ~4 GB used
+    assert body["days_until_full"] == pytest.approx(496.0, abs=1.0)
+
+
+def test_storage_forecast_reports_auto_delete_flag(client, auth_headers, recordings_dir):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+    with Session(engine) as session:
+        config = session.get(RecordingConfig, 1)
+        config.auto_delete = True
+        session.add(config)
+        session.commit()
+
+    resp = client.get("/api/recordings/storage-forecast", headers=auth)
+
+    assert resp.status_code == 200
+    assert resp.json()["auto_delete"] is True

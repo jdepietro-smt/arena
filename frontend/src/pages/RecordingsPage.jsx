@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CirclePlay, Search, X, Download, Film } from 'lucide-react'
-import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl, getRecordingThumbnailUrl } from '../api/client'
+import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl, getRecordingThumbnailUrl, getStorageForecast } from '../api/client'
 import api from '../api/client'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
@@ -40,10 +40,25 @@ function usageTone(pct) {
   return { bar: 'bg-emerald-500', text: 'text-emerald-400' }
 }
 
+function formatDaysUntilFull(days) {
+  if (days < 1) return 'less than a day'
+  if (days < 2) return '1 day'
+  if (days < 60) return `${Math.round(days)} days`
+  return `${Math.round(days / 30)} months`
+}
+
 function StorageUsageBar({ usedBytes }) {
   const { data: config } = useQuery({
     queryKey: ['recording-config'],
     queryFn: () => api.get('/settings/recording').then(r => r.data).catch(() => null),
+  })
+  // Only meaningful when auto_delete is off — with it on, retention deletes
+  // the oldest recordings before the limit is hit, so the library size
+  // oscillates rather than trending toward full (see storage_forecast.py).
+  const { data: forecast } = useQuery({
+    queryKey: ['storage-forecast'],
+    queryFn: getStorageForecast,
+    enabled: config?.auto_delete === false,
   })
 
   const maxGb = config?.max_storage_gb
@@ -52,6 +67,8 @@ function StorageUsageBar({ usedBytes }) {
   const usedGb = usedBytes / 1e9
   const pct = Math.min(100, (usedGb / maxGb) * 100)
   const tone = usageTone(pct)
+  const showForecast = config?.auto_delete === false && forecast?.available
+    && forecast.trend_gb_per_day > 0 && forecast.days_until_full != null
 
   return (
     <Card className="p-4 mb-6">
@@ -72,6 +89,11 @@ function StorageUsageBar({ usedBytes }) {
           Storage nearly full — {config?.auto_delete
             ? 'oldest recordings will be deleted automatically as new ones come in.'
             : 'auto-delete is off, so new recordings may fail once the limit is reached.'}
+        </p>
+      )}
+      {showForecast && (
+        <p className="text-xs text-gray-500 mt-2">
+          Growing ~{forecast.trend_gb_per_day.toFixed(1)} GB/day — at this rate, storage fills up in {formatDaysUntilFull(forecast.days_until_full)}.
         </p>
       )}
     </Card>

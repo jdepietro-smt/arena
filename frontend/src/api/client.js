@@ -43,6 +43,7 @@ export const deleteRoute  = (id) => api.delete(`/routes/${id}`)
 // caller an object URL — works for both playback and triggering a save.
 export const getRecordings  = () => api.get('/recordings').then(r => r.data)
 export const deleteRecording = (id) => api.delete(`/recordings/${id}`)
+export const getStorageForecast = () => api.get('/recordings/storage-forecast').then(r => r.data)
 
 // Direct URL (token in query, since <video src> can't send an Authorization
 // header) — lets the browser range-request the file instead of blob-fetching
