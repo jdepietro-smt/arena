@@ -16,11 +16,15 @@ vi.mock('../../api/client', () => ({
   startRecording: vi.fn(),
   stopRecording: vi.fn(),
   getPreviewUrls: vi.fn(),
+  getFavorites: vi.fn(),
+  addFavorite: vi.fn(),
+  removeFavorite: vi.fn(),
 }))
 
 import {
   getStreams, getPresets, savePreset, deletePreset,
   startRecording, stopRecording, getPreviewUrls,
+  getFavorites, addFavorite, removeFavorite,
 } from '../../api/client'
 
 function renderStreamsPage() {
@@ -49,6 +53,9 @@ beforeEach(() => {
   startRecording.mockReset()
   stopRecording.mockReset()
   getPreviewUrls.mockReset().mockResolvedValue({ srt_url: 'srt://x', hls_url: '/hls/x', webrtc_url: '/watch/x' })
+  getFavorites.mockReset().mockResolvedValue([])
+  addFavorite.mockReset().mockResolvedValue({})
+  removeFavorite.mockReset().mockResolvedValue({})
   act(() => useToastStore.setState({ toasts: [] }))
 })
 
@@ -164,6 +171,61 @@ describe('StreamsPage — Live Streams tab', () => {
 
     expect(await screen.findByText('Could not load streams. Retrying…')).toBeInTheDocument()
     expect(screen.queryByText('No streams connected')).not.toBeInTheDocument()
+  })
+})
+
+describe('StreamsPage — favorites', () => {
+  it('pins a stream and moves it to the top of the list', async () => {
+    getStreams.mockResolvedValue([
+      stream({ publisher_id: 'cam1', name: 'Studio A' }),
+      stream({ publisher_id: 'cam2', name: 'Studio B' }),
+    ])
+    renderStreamsPage()
+    await screen.findByText('Studio B')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Pin Studio B' }))
+
+    expect(addFavorite).toHaveBeenCalled()
+    expect(addFavorite.mock.calls[0][0]).toBe('Studio B')
+  })
+
+  it('sorts a favorited stream first even though it was returned second', async () => {
+    getFavorites.mockResolvedValue(['Studio B'])
+    getStreams.mockResolvedValue([
+      stream({ publisher_id: 'cam1', name: 'Studio A' }),
+      stream({ publisher_id: 'cam2', name: 'Studio B' }),
+    ])
+    renderStreamsPage()
+    await screen.findByText('Studio B')
+
+    const rows = screen.getAllByRole('row').slice(1) // drop the header row
+    expect(within(rows[0]).getByText('Studio B')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('Studio A')).toBeInTheDocument()
+  })
+
+  it('shows a filled star and "Unpin" label for an already-favorited stream, and unpins on click', async () => {
+    getFavorites.mockResolvedValue(['Studio A'])
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', name: 'Studio A' })])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    const star = screen.getByRole('button', { name: 'Unpin Studio A' })
+    expect(star).toHaveAttribute('aria-pressed', 'true')
+
+    await userEvent.click(star)
+
+    expect(removeFavorite).toHaveBeenCalled()
+    expect(removeFavorite.mock.calls[0][0]).toBe('Studio A')
+  })
+
+  it('clicking the star does not also expand/collapse the row', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', name: 'Studio A' })])
+    renderStreamsPage()
+    await screen.findByText('Studio A')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Pin Studio A' }))
+
+    expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument()
   })
 })
 

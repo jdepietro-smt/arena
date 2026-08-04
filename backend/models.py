@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Annotated, Any, List, Optional
 
 from pydantic import BaseModel, StringConstraints
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Column, Field, JSON, SQLModel
 
 # A basic x@y.z shape check — deliberately NOT pydantic's EmailStr, which
@@ -231,6 +232,24 @@ class AuditLogEntry(SQLModel, table=True):
     target: Optional[str] = Field(default=None)  # human-readable identifier of what was acted on
     detail: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class FavoriteStream(SQLModel, table=True):
+    """
+    A user's pinned streams — quick access when managing many at once.
+    Per-user (not global) since what one operator cares about isn't
+    necessarily what another does. New table rather than a JSON column on
+    User: avoids the create_all()-never-alters-a-table trap that
+    User.last_login already needed a manual migration for.
+    """
+
+    __tablename__ = "favorite_streams"
+    __table_args__ = (UniqueConstraint("user_id", "stream_path", name="uq_favorite_user_stream"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    stream_path: str = Field(index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ManagedPath(SQLModel, table=True):

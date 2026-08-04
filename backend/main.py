@@ -23,7 +23,7 @@ from .services.rate_limiter import check_and_record
 from .routers import (
     streams, routes, recordings, stats, users, hls_proxy, whep_proxy,
     multiview, external_sources, alerts, redundancy, settings as settings_router,
-    events, assistant, audit,
+    events, assistant, audit, favorites,
 )
 from .auth import router as auth_router
 
@@ -171,6 +171,7 @@ app.include_router(settings_router.router, prefix="/api/settings", tags=["settin
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(assistant.router, prefix="/api/assistant", tags=["assistant"])
 app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
+app.include_router(favorites.router, prefix="/api/favorites", tags=["favorites"])
 
 
 @app.get("/api/health", tags=["health"])

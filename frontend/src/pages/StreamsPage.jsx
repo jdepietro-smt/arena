@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, ChevronRight, Copy, Trash2, PackageOpen, Radio, X } from 'lucide-react'
+import { Search, Plus, ChevronRight, Copy, Trash2, PackageOpen, Radio, X, Star } from 'lucide-react'
 import {
   getStreams, getPresets, savePreset, deletePreset,
   startRecording, stopRecording, getPreviewUrls,
+  getFavorites, addFavorite, removeFavorite,
 } from '../api/client'
 import { startWhep } from '../utils/whep'
 import Card from '../components/ui/Card'
@@ -234,6 +235,7 @@ function BulkActionsBar({ selectedStreams, onClear }) {
 function LiveStreamsTab({ search }) {
   const [expandedId, setExpandedId] = useState(null)
   const [selected, setSelected] = useState(new Set())
+  const qc = useQueryClient()
 
   const { data: streams = [], isLoading, isError } = useQuery({
     queryKey: ['streams'],
@@ -241,7 +243,19 @@ function LiveStreamsTab({ search }) {
     refetchInterval: 3000,
   })
 
-  const filtered = streams.filter(s => {
+  const { data: favorites = [] } = useQuery({
+    queryKey: ['favorites'],
+    queryFn: getFavorites,
+  })
+  const favoriteSet = new Set(favorites)
+
+  const favoriteMut = useMutation({
+    mutationFn: ({ path, isFavorite }) => (isFavorite ? removeFavorite(path) : addFavorite(path)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['favorites'] }),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update favorite')),
+  })
+
+  const matched = streams.filter(s => {
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -249,6 +263,13 @@ function LiveStreamsTab({ search }) {
       (s.publisher_id || '').toLowerCase().includes(q)
     )
   })
+  // Favorited streams surface first — the whole point of pinning something
+  // when managing many streams at once. Array.filter preserves relative
+  // order within each group, so this is a stable sort, not a reshuffle.
+  const filtered = [
+    ...matched.filter(s => favoriteSet.has(s.path || s.name)),
+    ...matched.filter(s => !favoriteSet.has(s.path || s.name)),
+  ]
 
   function toggleOne(id) {
     setSelected(prev => {
@@ -346,6 +367,19 @@ function LiveStreamsTab({ search }) {
                       {/* Name */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const path = stream.path || stream.name
+                              favoriteMut.mutate({ path, isFavorite: favoriteSet.has(path) })
+                            }}
+                            disabled={favoriteMut.isPending}
+                            className="shrink-0 text-gray-500 hover:text-amber-400 focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2 rounded"
+                            aria-label={favoriteSet.has(stream.path || stream.name) ? `Unpin ${stream.name || stream.publisher_id}` : `Pin ${stream.name || stream.publisher_id}`}
+                            aria-pressed={favoriteSet.has(stream.path || stream.name)}
+                          >
+                            <Star size={14} fill={favoriteSet.has(stream.path || stream.name) ? 'currentColor' : 'none'} className={favoriteSet.has(stream.path || stream.name) ? 'text-amber-400' : ''} />
+                          </button>
                           <ChevronRight size={15} className={`text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                           <span className="font-medium text-white truncate max-w-[160px]" title={stream.name || stream.publisher_id}>
                             {stream.name || stream.publisher_id}
