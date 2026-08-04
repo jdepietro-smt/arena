@@ -28,6 +28,7 @@ const ACTION_LABEL = {
   'route.delete': 'Deleted route',
   'alert_rule.create': 'Created alert rule',
   'alert_rule.delete': 'Deleted alert rule',
+  'webhook.test': 'Sent test webhook alert',
 }
 
 function formatAuditTimestamp(iso) {
@@ -119,6 +120,43 @@ function AddUserModal({ onClose, onSubmit, loading }) {
 
 // --- Tabs ---
 
+function AlertWebhookCard({ configured }) {
+  const [result, setResult] = useState(null) // { ok, message } | null
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/settings/test-webhook'),
+    onSuccess: () => setResult({ ok: true, message: 'Test alert sent successfully.' }),
+    onError: (err) => setResult({ ok: false, message: getErrorMessage(err, 'Test alert failed.') }),
+  })
+
+  return (
+    <Card className="p-4">
+      <h3 className="text-white text-sm font-semibold mb-1">Alert webhook</h3>
+      <p className="text-gray-500 text-xs mb-4">Where stream-down and threshold-breach alerts get posted</p>
+      <FieldRow
+        label="Status"
+        value={configured ? 'Configured' : 'Not configured'}
+        muted={!configured}
+      />
+      <div className="flex items-center gap-3 mt-3">
+        <Button
+          variant="ghost" size="sm"
+          disabled={!configured || mutation.isPending}
+          onClick={() => { setResult(null); mutation.mutate() }}
+        >
+          {mutation.isPending ? 'Sending…' : 'Send test alert'}
+        </Button>
+        {result && (
+          <span className={`text-xs ${result.ok ? 'text-emerald-400' : 'text-red-400'}`}>{result.message}</span>
+        )}
+      </div>
+      {!configured && (
+        <p className="text-gray-500 text-xs mt-2">Set ALERT_WEBHOOK_URL in the server's .env to enable alert delivery.</p>
+      )}
+    </Card>
+  )
+}
+
 function ServerTab() {
   const { data: config } = useQuery({
     queryKey: ['server-config'],
@@ -135,6 +173,7 @@ function ServerTab() {
         <FieldRow label="SRT listen port" value={config?.srt_port} />
         <FieldRow label="HLS base URL" value={config?.hls_base_url} />
       </Card>
+      <AlertWebhookCard configured={!!config?.webhook_configured} />
       <Card className="p-4">
         <h3 className="text-white text-sm font-semibold mb-1">TURN server</h3>
         <p className="text-gray-500 text-xs mb-4">WebRTC relay configuration</p>

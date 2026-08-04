@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import sqlite3
 
+import httpx
+
 from backend.models import UserRole
+from backend.routers import settings as settings_router
 from backend.services import db_backup
 
 
@@ -142,3 +145,80 @@ def test_admin_trigger_backup_creates_real_file(client, auth_headers, monkeypatc
     body = resp.json()
     assert body["ok"] is True
     assert (tmp_path / "backups").exists()
+
+
+def test_server_settings_reports_whether_a_webhook_is_configured(client, auth_headers, monkeypatch):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+    monkeypatch.setattr(settings_router.settings, "ALERT_WEBHOOK_URL", "")
+    assert client.get("/api/settings/server", headers=auth).json()["webhook_configured"] is False
+
+    monkeypatch.setattr(settings_router.settings, "ALERT_WEBHOOK_URL", "https://hooks.example.com/x")
+    assert client.get("/api/settings/server", headers=auth).json()["webhook_configured"] is True
+
+
+def test_test_webhook_requires_admin(client, auth_headers):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+    resp = client.post("/api/settings/test-webhook", headers=auth)
+
+    assert resp.status_code == 403
+
+
+def test_test_webhook_400s_when_unconfigured(client, auth_headers, monkeypatch):
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+    monkeypatch.setattr(settings_router.settings, "ALERT_WEBHOOK_URL", "")
+
+    resp = client.post("/api/settings/test-webhook", headers=auth)
+
+    assert resp.status_code == 400
+    assert "not configured" in resp.json()["detail"]
+
+
+def test_test_webhook_success_writes_an_audit_entry(client, auth_headers, monkeypatch):
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+    monkeypatch.setattr(settings_router.settings, "ALERT_WEBHOOK_URL", "https://hooks.example.com/x")
+
+    async def _fake_post(self, url, json=None):
+        assert url == "https://hooks.example.com/x"
+        assert "Test alert" in json["text"]
+        return httpx.Response(200, request=httpx.Request("POST", url))
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+
+    resp = client.post("/api/settings/test-webhook", headers=auth)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True, "status_code": 200}
+
+    log = client.get("/api/audit", headers=auth).json()
+    entry = next(e for e in log if e["action"] == "webhook.test")
+    assert entry["username"] == "admin1"
+    assert "200" in entry["detail"]
+
+
+def test_test_webhook_surfaces_a_non_2xx_response_as_502(client, auth_headers, monkeypatch):
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+    monkeypatch.setattr(settings_router.settings, "ALERT_WEBHOOK_URL", "https://hooks.example.com/x")
+
+    async def _fake_post(self, url, json=None):
+        return httpx.Response(404, request=httpx.Request("POST", url))
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+
+    resp = client.post("/api/settings/test-webhook", headers=auth)
+
+    assert resp.status_code == 502
+    assert "404" in resp.json()["detail"]
+
+
+def test_test_webhook_surfaces_a_network_failure_as_502(client, auth_headers, monkeypatch):
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+    monkeypatch.setattr(settings_router.settings, "ALERT_WEBHOOK_URL", "https://hooks.example.com/x")
+
+    async def _fake_post(self, url, json=None):
+        raise httpx.ConnectError("connection refused")
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+
+    resp = client.post("/api/settings/test-webhook", headers=auth)
+
+    assert resp.status_code == 502
+    assert "connection refused" in resp.json()["detail"]

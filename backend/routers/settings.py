@@ -15,7 +15,8 @@ import logging
 import subprocess
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -23,6 +24,7 @@ from ..auth import get_current_active_user, require_admin
 from ..config import settings
 from ..database import get_session
 from ..models import User
+from ..services.audit import log_audit
 from ..services.db_backup import get_db_backup, run_backup_once
 from ..services.rate_limiter import rate_limit
 from ..services.recording_config import get_recording_config
@@ -38,6 +40,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # for this app's DB size, but there's no reason for it to run more than
 # a couple of times a minute even under a scripted/automated trigger.
 _backup_rate_limit = rate_limit(5, 60, scope="db-backup")
+_test_webhook_rate_limit = rate_limit(5, 60, scope="test-webhook")
 
 
 class RecordingSettingsUpdate(BaseModel):
@@ -83,6 +86,7 @@ async def get_server_settings(_user: User = Depends(get_current_active_user)) ->
         "turn_port": None,
         "turn_username": None,
         "turn_enabled": False,
+        "webhook_configured": bool(settings.ALERT_WEBHOOK_URL),
     }
 
 
@@ -131,6 +135,47 @@ async def trigger_backup(
     if path is None:
         return {"ok": False, "reason": "DATABASE_URL is not sqlite, or the DB file doesn't exist yet"}
     return {"ok": True, "path": str(path)}
+
+
+@router.post("/test-webhook", summary="Send a test alert to ALERT_WEBHOOK_URL (admin only)")
+async def test_webhook(
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+    _rl: None = Depends(_test_webhook_rate_limit),
+) -> dict:
+    """
+    Fires a real POST at the configured alert webhook with an obviously-a-
+    test payload, so an admin finds out now whether it's misconfigured —
+    not during a real incident when alerting.py's own _notify() swallows
+    the failure and just logs it (correct there: a webhook outage must
+    never crash the alert loop, but that same swallow-and-log behavior is
+    exactly why nobody would otherwise notice a broken webhook until an
+    alert that should have fired silently didn't).
+    """
+    if not settings.ALERT_WEBHOOK_URL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ALERT_WEBHOOK_URL is not configured.",
+        )
+
+    payload = {"text": f":test_tube: Test alert from ArenaHub, triggered by {admin.username}."}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(settings.ALERT_WEBHOOK_URL, json=payload)
+    except httpx.RequestError as exc:
+        log_audit(session, admin.username, "webhook.test", detail=f"failed: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not reach the webhook URL: {exc}",
+        )
+
+    log_audit(session, admin.username, "webhook.test", detail=f"HTTP {resp.status_code}")
+    if resp.status_code >= 400:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Webhook responded with HTTP {resp.status_code}",
+        )
+    return {"ok": True, "status_code": resp.status_code}
 
 
 @router.put("/recording", summary="Update recording storage/retention settings")

@@ -14,7 +14,7 @@ vi.mock('../../api/client', () => ({
   createUser: vi.fn(),
   deleteUser: vi.fn(),
   getAuditLog: vi.fn(),
-  default: { get: vi.fn(), put: vi.fn() },
+  default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
 }))
 
 import { getUsers, createUser, deleteUser, getAuditLog } from '../../api/client'
@@ -40,6 +40,7 @@ beforeEach(() => {
   getAuditLog.mockReset().mockResolvedValue([])
   api.get.mockReset().mockResolvedValue({ data: {} })
   api.put.mockReset().mockResolvedValue({ data: {} })
+  api.post.mockReset()
   act(() => {
     useToastStore.setState({ toasts: [] })
     usePendingDeleteStore.setState({ hidden: new Set() })
@@ -50,6 +51,37 @@ describe('SettingsPage', () => {
   it('defaults to the Server tab', async () => {
     renderSettingsPage()
     expect(screen.getByText('Server configuration')).toBeInTheDocument()
+  })
+
+  it('disables "Send test alert" and shows "Not configured" when no webhook is set', async () => {
+    api.get.mockResolvedValue({ data: { webhook_configured: false } })
+    renderSettingsPage()
+
+    expect(await screen.findByText('Not configured')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send test alert' })).toBeDisabled()
+  })
+
+  it('sends a test alert and shows a success message', async () => {
+    api.get.mockResolvedValue({ data: { webhook_configured: true } })
+    api.post.mockResolvedValue({ data: { ok: true, status_code: 200 } })
+    renderSettingsPage()
+    await screen.findByText('Configured')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send test alert' }))
+
+    expect(api.post).toHaveBeenCalledWith('/settings/test-webhook')
+    expect(await screen.findByText('Test alert sent successfully.')).toBeInTheDocument()
+  })
+
+  it('shows a readable error message when the test alert fails', async () => {
+    api.get.mockResolvedValue({ data: { webhook_configured: true } })
+    api.post.mockRejectedValue({ response: { data: { detail: 'Webhook responded with HTTP 404' } } })
+    renderSettingsPage()
+    await screen.findByText('Configured')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send test alert' }))
+
+    expect(await screen.findByText('Webhook responded with HTTP 404')).toBeInTheDocument()
   })
 
   it('shows the empty state when there are no users', async () => {
