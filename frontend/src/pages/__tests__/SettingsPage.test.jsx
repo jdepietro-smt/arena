@@ -13,10 +13,11 @@ vi.mock('../../api/client', () => ({
   getUsers: vi.fn(),
   createUser: vi.fn(),
   deleteUser: vi.fn(),
+  getAuditLog: vi.fn(),
   default: { get: vi.fn(), put: vi.fn() },
 }))
 
-import { getUsers, createUser, deleteUser } from '../../api/client'
+import { getUsers, createUser, deleteUser, getAuditLog } from '../../api/client'
 import api from '../../api/client'
 
 function renderSettingsPage() {
@@ -33,6 +34,7 @@ beforeEach(() => {
   getUsers.mockReset().mockResolvedValue([])
   createUser.mockReset()
   deleteUser.mockReset()
+  getAuditLog.mockReset().mockResolvedValue([])
   api.get.mockReset().mockResolvedValue({ data: {} })
   api.put.mockReset().mockResolvedValue({ data: {} })
   act(() => {
@@ -207,5 +209,32 @@ describe('SettingsPage', () => {
       })
     })
     expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
+
+  it('shows the empty state on the Audit Log tab when there are no entries', async () => {
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Audit Log' }))
+
+    expect(await screen.findByText('No audit entries yet')).toBeInTheDocument()
+  })
+
+  it('lists audit entries with a human-readable action label', async () => {
+    getAuditLog.mockResolvedValue([
+      { id: 1, username: 'admin1', action: 'user.create', target: 'newop', detail: 'role=operator', created_at: '2026-01-15T10:30:00Z' },
+    ])
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Audit Log' }))
+
+    expect(await screen.findByText('Created user')).toBeInTheDocument()
+    expect(screen.getByText('admin1')).toBeInTheDocument()
+    expect(screen.getByText('newop')).toBeInTheDocument()
+  })
+
+  it('shows a permission message instead of a generic error on 403', async () => {
+    getAuditLog.mockRejectedValue({ response: { status: 403 } })
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Audit Log' }))
+
+    expect(await screen.findByText('Admin access required to view the audit log.')).toBeInTheDocument()
   })
 })

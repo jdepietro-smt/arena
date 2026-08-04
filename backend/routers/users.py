@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 from ..auth import get_current_active_user, get_password_hash, require_admin, validate_password_strength
 from ..database import get_session
 from ..models import User, UserCreate, UserRead, UserRole
+from ..services.audit import log_audit
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ async def list_users(
 async def create_user(
     user_in: UserCreate,
     session: Session = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ) -> UserRead:
     """
     Create a new user account.
@@ -152,6 +153,8 @@ async def create_user(
     session.commit()
     session.refresh(new_user)
     logger.info("Admin created user '%s' with role %s", new_user.username, new_user.role)
+    log_audit(session, admin.username, "user.create", target=new_user.username, detail=f"role={new_user.role.value}")
+    session.refresh(new_user)  # log_audit's commit expires new_user's attributes
     return UserRead.model_validate(new_user)
 
 
@@ -280,11 +283,13 @@ async def delete_user(
                 detail="Cannot delete the only remaining admin account",
             )
 
+    deleted_username = user.username
     logger.info(
         "Admin '%s' deleted user '%s' (id=%d)",
         current_admin.username,
-        user.username,
+        deleted_username,
         user.id,
     )
     session.delete(user)
     session.commit()
+    log_audit(session, current_admin.username, "user.delete", target=deleted_username)

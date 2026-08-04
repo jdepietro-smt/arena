@@ -21,6 +21,7 @@ from ..auth import get_current_active_user, require_admin
 from ..database import get_session
 from ..models import AlertAction, AlertRule, CompareOperator, MetricType, User
 from ..services.alerting import get_alert_manager
+from ..services.audit import log_audit
 
 router = APIRouter(tags=["alerts"])
 
@@ -45,12 +46,17 @@ async def list_rules(
 async def create_rule(
     body: AlertRuleCreate,
     session: Session = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ) -> AlertRule:
     rule = AlertRule(**body.model_dump())
     session.add(rule)
     session.commit()
     session.refresh(rule)
+    log_audit(
+        session, admin.username, "alert_rule.create", target=rule.stream_path,
+        detail=f"{rule.metric.value} {rule.operator.value} {rule.threshold}",
+    )
+    session.refresh(rule)  # log_audit's commit expires rule's attributes
     return rule
 
 
@@ -74,13 +80,15 @@ async def toggle_rule(
 async def delete_rule(
     rule_id: int,
     session: Session = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ) -> dict:
     rule = session.get(AlertRule, rule_id)
     if rule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Alert rule {rule_id} not found")
+    target = rule.stream_path
     session.delete(rule)
     session.commit()
+    log_audit(session, admin.username, "alert_rule.delete", target=target)
     return {"deleted": rule_id}
 
 

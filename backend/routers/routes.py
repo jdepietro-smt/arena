@@ -20,6 +20,7 @@ from sqlmodel import Session, select
 from ..auth import get_current_active_user, require_admin
 from ..database import get_session
 from ..models import RouteCreate, RouteRead, StreamRoute, User
+from ..services.audit import log_audit
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ async def list_routes(
 async def create_route(
     route_in: RouteCreate,
     session: Session = Depends(get_session),
-    _user: User = Depends(get_current_active_user),
+    user: User = Depends(get_current_active_user),
 ) -> RouteRead:
     """
     Persist a new stream route.  If ``is_active`` is True the RouteManager
@@ -126,6 +127,8 @@ async def create_route(
                 logger.error("Failed to activate route '%s' on create: %s", route.name, exc)
                 # Route is saved but inactive — don't fail the creation.
 
+    log_audit(session, user.username, "route.create", target=route.name, detail=f"source={route.source_path}")
+    session.refresh(route)  # log_audit's commit expires route's attributes
     return RouteRead.model_validate(route)
 
 
@@ -245,7 +248,7 @@ async def deactivate_route(
 async def delete_route(
     route_id: int,
     session: Session = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ) -> None:
     """
     Stop the relay (if running) then permanently delete the route.
@@ -263,5 +266,7 @@ async def delete_route(
                     "Could not cleanly stop route %d before delete: %s", route_id, exc
                 )
 
+    deleted_name = route.name
     session.delete(route)
     session.commit()
+    log_audit(session, admin.username, "route.delete", target=deleted_name)

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings as SettingsIcon, Radio } from 'lucide-react'
-import { getUsers, createUser, deleteUser } from '../api/client'
+import { getUsers, createUser, deleteUser, getAuditLog } from '../api/client'
 import api from '../api/client'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
@@ -16,8 +16,25 @@ const TABS = [
   { value: 'server', label: 'Server' },
   { value: 'users', label: 'Users' },
   { value: 'recording', label: 'Recording' },
+  { value: 'audit', label: 'Audit Log' },
   { value: 'about', label: 'About' },
 ]
+
+const ACTION_LABEL = {
+  'user.create': 'Created user',
+  'user.delete': 'Deleted user',
+  'route.create': 'Created route',
+  'route.delete': 'Deleted route',
+  'alert_rule.create': 'Created alert rule',
+  'alert_rule.delete': 'Deleted alert rule',
+}
+
+function formatAuditTimestamp(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
 
 const ROLES = ['admin', 'operator', 'viewer']
 
@@ -316,6 +333,59 @@ function RecordingTab() {
   )
 }
 
+function AuditLogTab() {
+  const { data: entries = [], isLoading, isError, error } = useQuery({
+    queryKey: ['audit-log'],
+    queryFn: () => getAuditLog(200),
+    refetchInterval: 15000,
+  })
+
+  const forbidden = error?.response?.status === 403
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="px-4 py-3 border-b border-surface-600">
+        <h3 className="text-white text-sm font-semibold">Audit Log</h3>
+        <p className="text-gray-500 text-xs mt-0.5">Who created or deleted what — users, routes, and alert rules</p>
+      </div>
+      {isLoading ? (
+        <div className="p-6 text-center text-sm text-gray-500">Loading…</div>
+      ) : isError ? (
+        <div className="p-6 text-center text-sm text-red-400">
+          {forbidden ? 'Admin access required to view the audit log.' : 'Could not load the audit log.'}
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="p-10 text-center text-gray-400 text-sm">No audit entries yet</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-surface-600 bg-surface-750">
+                {['When', 'Who', 'Action', 'Target', 'Detail'].map(c => (
+                  <th key={c} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    {c}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-700">
+              {entries.map(entry => (
+                <tr key={entry.id}>
+                  <td className="px-4 py-2.5 text-xs text-gray-500 font-mono whitespace-nowrap">{formatAuditTimestamp(entry.created_at)}</td>
+                  <td className="px-4 py-2.5 text-gray-200 font-medium whitespace-nowrap">{entry.username}</td>
+                  <td className="px-4 py-2.5 text-gray-300 whitespace-nowrap">{ACTION_LABEL[entry.action] || entry.action}</td>
+                  <td className="px-4 py-2.5 text-gray-300 truncate max-w-[220px]">{entry.target || '—'}</td>
+                  <td className="px-4 py-2.5 text-gray-500 text-xs truncate max-w-[260px]">{entry.detail || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  )
+}
+
 function AboutTab() {
   const { data: info } = useQuery({
     queryKey: ['about'],
@@ -395,6 +465,7 @@ export default function SettingsPage() {
         {activeTab === 'server' && <ServerTab />}
         {activeTab === 'users' && <UsersTab />}
         {activeTab === 'recording' && <RecordingTab />}
+        {activeTab === 'audit' && <AuditLogTab />}
         {activeTab === 'about' && <AboutTab />}
       </div>
     </div>

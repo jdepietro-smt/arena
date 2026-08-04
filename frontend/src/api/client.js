@@ -101,6 +101,9 @@ export const login = (username, password) => {
 }
 export const getMe = () => api.get('/auth/me').then(r => r.data)
 
+// --- Audit log ---
+export const getAuditLog = (limit = 100) => api.get('/audit', { params: { limit } }).then(r => r.data)
+
 // --- Ops assistant ---
 export const queryAssistant = (question) => api.post('/assistant/query', { question }).then(r => r.data)
 

@@ -204,6 +204,30 @@ class Event(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
+class AuditLogEntry(SQLModel, table=True):
+    """
+    A row per admin-facing mutation (user/route/alert-rule/gateway create
+    or delete) — who did it and to what, for accountability on a
+    multi-operator team. Separate from Event: Event is system-observed
+    state transitions (a stream went down); this is human-initiated
+    actions, which is a different question ("who deleted this route?")
+    that Event was never meant to answer.
+
+    Written best-effort from the mutating endpoint itself, wrapped in
+    try/except by log_audit() — a logging failure must never block the
+    action it's describing.
+    """
+
+    __tablename__ = "audit_log"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True)
+    action: str = Field(index=True)  # e.g. "user.create", "route.delete"
+    target: Optional[str] = Field(default=None)  # human-readable identifier of what was acted on
+    detail: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class ManagedPath(SQLModel, table=True):
     """
     A mediamtx path this app created and is responsible for tearing down.
