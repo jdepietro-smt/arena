@@ -47,6 +47,27 @@ def get_session() -> Generator[Session, None, None]:
 # ---------------------------------------------------------------------------
 
 
+def _ensure_users_last_login_column() -> None:
+    """
+    create_all() only creates tables that don't exist yet — it never alters
+    an existing table's columns, so a `users` table from before this field
+    was added would otherwise make every query touching User.last_login
+    fail with "no such column" on an already-deployed DB. Idempotent: only
+    ALTERs when the column is actually missing.
+
+    SQLite-specific (PRAGMA table_info) — fine here since this app has no
+    other supported database backend.
+    """
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    with engine.connect() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
+        if "last_login" not in columns:
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN last_login TIMESTAMP")
+            conn.commit()
+            logger.info("Added users.last_login column to existing database.")
+
+
 def create_db_and_tables() -> None:
     """Create all tables defined by SQLModel metadata.
 
@@ -57,6 +78,7 @@ def create_db_and_tables() -> None:
     from . import models  # noqa: F401 — side-effect import
 
     SQLModel.metadata.create_all(engine)
+    _ensure_users_last_login_column()
     logger.info("Database tables created (or already exist).")
 
 

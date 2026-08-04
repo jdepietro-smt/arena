@@ -88,6 +88,11 @@ class User(SQLModel, table=True):
     role: UserRole = Field(default=UserRole.viewer)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Nullable — never logged in yet, or logged in before this column
+    # existed on an already-deployed DB (see database.py's
+    # _ensure_users_last_login_column, since create_all() never alters an
+    # existing table to add a column).
+    last_login: Optional[datetime] = Field(default=None)
 
 
 class StreamRoute(SQLModel, table=True):
@@ -266,6 +271,7 @@ class UserRead(BaseModel):
     role: UserRole
     is_active: bool
     created_at: datetime
+    last_login: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

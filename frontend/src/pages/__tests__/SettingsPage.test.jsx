@@ -105,6 +105,19 @@ describe('SettingsPage', () => {
     expect(screen.getByText('Inactive')).toBeInTheDocument()
   })
 
+  it('shows "Never logged in" for a user with no last_login, and a timestamp for one who has', async () => {
+    getUsers.mockResolvedValue([
+      { id: 1, username: 'alice', email: 'alice@example.com', role: 'admin', active: true, last_login: '2026-01-15T10:30:00Z' },
+      { id: 2, username: 'bob', email: 'bob@example.com', role: 'viewer', active: true, last_login: null },
+    ])
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
+
+    await screen.findByText('alice')
+    expect(screen.getByText('Never logged in')).toBeInTheDocument()
+    expect(screen.getByText(/Last login/)).toBeInTheDocument()
+  })
+
   it('creates a user through the Add user modal and refreshes the list', async () => {
     createUser.mockResolvedValue({ id: 3, username: 'newop', role: 'operator' })
     renderSettingsPage()

@@ -266,6 +266,9 @@ function UsersTab() {
                 <div className="min-w-0">
                   <div className="text-sm text-gray-100 font-medium truncate">{user.username}</div>
                   <div className="text-xs text-gray-500 truncate">{user.email || 'No email'}</div>
+                  <div className="text-[11px] text-gray-500 truncate">
+                    {user.last_login ? `Last login ${formatAuditTimestamp(user.last_login)}` : 'Never logged in'}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">

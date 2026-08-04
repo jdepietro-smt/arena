@@ -196,6 +196,9 @@ async def login_for_access_token(
             detail="User account is disabled",
         )
     login_limiter.record_success(client_ip)
+    user.last_login = datetime.utcnow()
+    session.add(user)
+    session.commit()
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role.value},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),

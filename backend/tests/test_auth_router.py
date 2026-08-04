@@ -23,6 +23,29 @@ def test_login_with_correct_credentials_returns_token(client, make_user):
     assert body["token_type"] == "bearer"
 
 
+def test_successful_login_records_last_login(client, make_user, auth_headers):
+    make_user(username="alice", password="Password123!", role=UserRole.viewer)
+    admin_auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+    before = client.get("/api/users", headers=admin_auth).json()
+    assert next(u for u in before if u["username"] == "alice")["last_login"] is None
+
+    client.post("/api/auth/token", data={"username": "alice", "password": "Password123!"})
+
+    after = client.get("/api/users", headers=admin_auth).json()
+    assert next(u for u in after if u["username"] == "alice")["last_login"] is not None
+
+
+def test_failed_login_does_not_record_last_login(client, make_user, auth_headers):
+    make_user(username="alice", password="Password123!", role=UserRole.viewer)
+    admin_auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+    client.post("/api/auth/token", data={"username": "alice", "password": "wrong-password"})
+
+    users = client.get("/api/users", headers=admin_auth).json()
+    assert next(u for u in users if u["username"] == "alice")["last_login"] is None
+
+
 def test_login_with_wrong_password_is_401(client, make_user):
     make_user(username="alice", password="Password123!", role=UserRole.viewer)
 
