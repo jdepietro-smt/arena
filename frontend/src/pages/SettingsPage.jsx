@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings as SettingsIcon, Radio, Download } from 'lucide-react'
-import { getUsers, createUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../api/client'
+import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../api/client'
+import { useAuthStore } from '../store/auth'
 import api from '../api/client'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
@@ -24,12 +25,14 @@ const TABS = [
 
 const ACTION_LABEL = {
   'user.create': 'Created user',
+  'user.update': 'Updated user',
   'user.delete': 'Deleted user',
   'route.create': 'Created route',
   'route.delete': 'Deleted route',
   'alert_rule.create': 'Created alert rule',
   'alert_rule.delete': 'Deleted alert rule',
   'webhook.test': 'Sent test webhook alert',
+  'login_lockout.clear': 'Cleared login lockout',
 }
 
 function formatAuditTimestamp(iso) {
@@ -111,6 +114,76 @@ function AddUserModal({ onClose, onSubmit, loading }) {
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button type="submit" variant="primary" disabled={loading}>
               {loading ? 'Creating…' : 'Create user'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  )
+}
+
+function EditUserModal({ user, onClose, onSubmit, loading, isSelf }) {
+  const [role, setRole] = useState(user.role)
+  const [isActive, setIsActive] = useState(user.is_active !== false)
+  const [password, setPassword] = useState('')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const body = { role, is_active: isActive }
+    if (password) body.password = password
+    onSubmit(body)
+  }
+
+  return (
+    <Modal open onClose={onClose} maxWidth="max-w-sm">
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-white font-semibold text-base">Edit {user.username}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">Role</label>
+            <select
+              className={inputClass}
+              value={role}
+              onChange={e => setRole(e.target.value)}
+              disabled={isSelf}
+            >
+              {ROLES.map(r => <option key={r}>{r}</option>)}
+            </select>
+            {isSelf && <p className="text-[11px] text-gray-500">You can't change your own role.</p>}
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-gray-400">Active</label>
+            <button
+              type="button"
+              disabled={isSelf}
+              onClick={() => setIsActive(v => !v)}
+              className={`relative w-10 h-5 rounded-full transition-colors disabled:opacity-40 ${isActive ? 'bg-brand-500' : 'bg-surface-600'}`}
+              aria-pressed={isActive}
+              aria-label="Active"
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${isActive ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+          {isSelf && <p className="text-[11px] text-gray-500 -mt-2">You can't deactivate your own account.</p>}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">New password (optional)</label>
+            <input
+              type="password"
+              className={inputClass}
+              placeholder="Leave blank to keep current password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              minLength={8}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="flex gap-2 justify-end mt-1">
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={loading}>
+              {loading ? 'Saving…' : 'Save changes'}
             </Button>
           </div>
         </form>
@@ -247,7 +320,9 @@ function ServerTab() {
 function UsersTab() {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
   const pendingDeleteIds = usePendingDeleteIds()
+  const currentUsername = useAuthStore(s => s.user?.username)
 
   const { data: allUsers = [], isLoading, isError } = useQuery({
     queryKey: ['users'],
@@ -263,6 +338,16 @@ function UsersTab() {
       toast.success('User created')
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Failed to create user')),
+  })
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }) => updateUser(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      setEditingUser(null)
+      toast.success('User updated')
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update user')),
   })
 
   function handleDelete(user) {
@@ -290,6 +375,15 @@ function UsersTab() {
           loading={createMut.isPending}
           onClose={() => setShowAdd(false)}
           onSubmit={(form) => createMut.mutate(form)}
+        />
+      )}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          isSelf={editingUser.username === currentUsername}
+          loading={updateMut.isPending}
+          onClose={() => setEditingUser(null)}
+          onSubmit={(body) => updateMut.mutate({ id: editingUser.id, body })}
         />
       )}
       <Card className="overflow-hidden">
@@ -331,9 +425,15 @@ function UsersTab() {
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <Badge tone={roleTone(user.role)}>{user.role}</Badge>
-                <Badge tone={user.active !== false ? 'good' : 'muted'}>
-                  {user.active !== false ? 'Active' : 'Inactive'}
+                <Badge tone={user.is_active !== false ? 'good' : 'muted'}>
+                  {user.is_active !== false ? 'Active' : 'Inactive'}
                 </Badge>
+                <button
+                  onClick={() => setEditingUser(user)}
+                  className="text-xs text-gray-400 hover:text-white border border-surface-500 hover:border-surface-400 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  Edit
+                </button>
                 <button
                   onClick={() => handleDelete(user)}
                   className="text-xs text-red-400/60 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"

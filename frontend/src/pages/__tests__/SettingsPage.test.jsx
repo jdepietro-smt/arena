@@ -7,11 +7,13 @@ import SettingsPage from '../SettingsPage'
 import ToastStack from '../../components/ui/Toast'
 import { useToastStore } from '../../store/toast'
 import { usePendingDeleteStore } from '../../store/pendingDelete'
+import { useAuthStore } from '../../store/auth'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
   getUsers: vi.fn(),
   createUser: vi.fn(),
+  updateUser: vi.fn(),
   deleteUser: vi.fn(),
   getAuditLog: vi.fn(),
   getLoginAttempts: vi.fn(),
@@ -19,7 +21,7 @@ vi.mock('../../api/client', () => ({
   default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
 }))
 
-import { getUsers, createUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../../api/client'
+import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../../api/client'
 import api from '../../api/client'
 
 vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
@@ -38,6 +40,7 @@ function renderSettingsPage() {
 beforeEach(() => {
   getUsers.mockReset().mockResolvedValue([])
   createUser.mockReset()
+  updateUser.mockReset()
   deleteUser.mockReset()
   getAuditLog.mockReset().mockResolvedValue([])
   getLoginAttempts.mockReset().mockResolvedValue([])
@@ -48,6 +51,7 @@ beforeEach(() => {
   act(() => {
     useToastStore.setState({ toasts: [] })
     usePendingDeleteStore.setState({ hidden: new Set() })
+    useAuthStore.setState({ user: null, token: null })
   })
 })
 
@@ -133,8 +137,8 @@ describe('SettingsPage', () => {
 
   it('lists users returned by the API with role and status badges', async () => {
     getUsers.mockResolvedValue([
-      { id: 1, username: 'alice', email: 'alice@example.com', role: 'admin', active: true },
-      { id: 2, username: 'bob', email: null, role: 'viewer', active: false },
+      { id: 1, username: 'alice', email: 'alice@example.com', role: 'admin', is_active: true },
+      { id: 2, username: 'bob', email: null, role: 'viewer', is_active: false },
     ])
     renderSettingsPage()
     await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
@@ -147,8 +151,8 @@ describe('SettingsPage', () => {
 
   it('shows "Never logged in" for a user with no last_login, and a timestamp for one who has', async () => {
     getUsers.mockResolvedValue([
-      { id: 1, username: 'alice', email: 'alice@example.com', role: 'admin', active: true, last_login: '2026-01-15T10:30:00Z' },
-      { id: 2, username: 'bob', email: 'bob@example.com', role: 'viewer', active: true, last_login: null },
+      { id: 1, username: 'alice', email: 'alice@example.com', role: 'admin', is_active: true, last_login: '2026-01-15T10:30:00Z' },
+      { id: 2, username: 'bob', email: 'bob@example.com', role: 'viewer', is_active: true, last_login: null },
     ])
     renderSettingsPage()
     await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
@@ -179,6 +183,62 @@ describe('SettingsPage', () => {
     await waitFor(() => {
       expect(screen.queryByText('Add user')).not.toBeInTheDocument()
     })
+  })
+
+  it('shows "Inactive" for a deactivated user (regression: badge used to read the nonexistent "active" field)', async () => {
+    getUsers.mockResolvedValue([
+      { id: 1, username: 'alice', email: 'alice@example.com', role: 'admin', is_active: false },
+    ])
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
+
+    expect(await screen.findByText('Inactive')).toBeInTheDocument()
+  })
+
+  it('edits a user\'s role and active status through the Edit modal', async () => {
+    getUsers.mockResolvedValue([
+      { id: 2, username: 'op1', email: 'op1@example.com', role: 'operator', is_active: true },
+    ])
+    updateUser.mockResolvedValue({ id: 2, username: 'op1', role: 'viewer', is_active: false })
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    expect(screen.getByText('Edit op1')).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByDisplayValue('operator'), 'viewer')
+    await userEvent.click(screen.getByRole('button', { name: 'Active' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalled())
+    expect(updateUser.mock.calls[0]).toEqual([2, { role: 'viewer', is_active: false }])
+    expect(await screen.findByText('User updated')).toBeInTheDocument()
+  })
+
+  it('only sends a password field when one is actually entered', async () => {
+    getUsers.mockResolvedValue([
+      { id: 2, username: 'op1', email: 'op1@example.com', role: 'operator', is_active: true },
+    ])
+    updateUser.mockResolvedValue({})
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalled())
+    expect(updateUser.mock.calls[0][1]).not.toHaveProperty('password')
+  })
+
+  it('disables role and active controls when editing your own account', async () => {
+    act(() => useAuthStore.setState({ user: { username: 'admin1' } }))
+    getUsers.mockResolvedValue([
+      { id: 1, username: 'admin1', email: 'admin1@example.com', role: 'admin', is_active: true },
+    ])
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Users' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    expect(screen.getByDisplayValue('admin')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Active' })).toBeDisabled()
   })
 
   it('shows a readable error toast (and does not crash) on a 422 validation error', async () => {
@@ -213,7 +273,7 @@ describe('SettingsPage', () => {
   it('hides the user immediately on remove and only calls the API after the undo grace period', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const user = userEvent.setup({ delay: null })
-    getUsers.mockResolvedValue([{ id: 1, username: 'alice', email: null, role: 'viewer', active: true }])
+    getUsers.mockResolvedValue([{ id: 1, username: 'alice', email: null, role: 'viewer', is_active: true }])
     deleteUser.mockResolvedValue({})
     renderSettingsPage()
     await user.click(screen.getByRole('tab', { name: 'Users' }))
@@ -233,7 +293,7 @@ describe('SettingsPage', () => {
   it('undoing a user removal restores it and never calls the API', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const user = userEvent.setup({ delay: null })
-    getUsers.mockResolvedValue([{ id: 1, username: 'alice', email: null, role: 'viewer', active: true }])
+    getUsers.mockResolvedValue([{ id: 1, username: 'alice', email: null, role: 'viewer', is_active: true }])
     deleteUser.mockResolvedValue({})
     renderSettingsPage()
     await user.click(screen.getByRole('tab', { name: 'Users' }))

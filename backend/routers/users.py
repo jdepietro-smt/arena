@@ -249,6 +249,9 @@ async def update_user(
         user.username,
         user.id,
     )
+    changed = [f for f in ("role", "is_active", "email", "password") if getattr(update_in, f) is not None]
+    log_audit(session, current_admin.username, "user.update", target=user.username, detail=f"fields={','.join(changed)}")
+    session.refresh(user)  # log_audit's commit expires user's attributes
     return UserRead.model_validate(user)
 
 

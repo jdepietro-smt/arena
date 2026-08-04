@@ -102,6 +102,20 @@ def test_admin_can_update_another_users_role(client, auth_headers, make_user):
     assert resp.json()["role"] == "operator"
 
 
+def test_updating_a_user_writes_an_audit_entry(client, auth_headers, make_user):
+    headers, _ = auth_headers(UserRole.admin, username="admin1")
+    target = make_user(username="viewer1", role=UserRole.viewer)
+
+    client.put(f"/api/users/{target.id}", headers=headers, json={"role": "operator", "is_active": False})
+
+    log = client.get("/api/audit", headers=headers).json()
+    entry = next(e for e in log if e["action"] == "user.update")
+    assert entry["username"] == "admin1"
+    assert entry["target"] == "viewer1"
+    assert "role" in entry["detail"]
+    assert "is_active" in entry["detail"]
+
+
 def test_admin_cannot_demote_own_account(client, auth_headers):
     headers, admin = auth_headers(UserRole.admin, username="admin1")
 
