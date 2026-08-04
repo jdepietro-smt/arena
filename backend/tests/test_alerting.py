@@ -131,6 +131,36 @@ class TestConnectivity:
 
         assert notified == []
 
+    async def test_records_an_uptime_sample_each_tick(self, monkeypatch):
+        from backend.services.uptime import get_uptime_history
+
+        manager = AlertManager()
+        monkeypatch.setattr(manager, "_notify", _record([]))
+
+        monkeypatch.setattr(alerting_module, "get_client", lambda: FakeMediaMTXClient([_ready("Golf_Channel")]))
+        await manager._check_connectivity()
+        monkeypatch.setattr(alerting_module, "get_client", lambda: FakeMediaMTXClient([]))
+        await manager._check_connectivity()
+
+        with Session(engine) as session:
+            history = get_uptime_history(session, "Golf_Channel", days=30)
+
+        assert len(history) == 1
+        assert history[0]["total_samples"] == 2
+        assert history[0]["uptime_pct"] == 50.0
+
+    async def test_composite_paths_do_not_get_uptime_samples(self, monkeypatch):
+        from backend.services.uptime import get_uptime_history
+
+        manager = AlertManager()
+        monkeypatch.setattr(manager, "_notify", _record([]))
+        monkeypatch.setattr(alerting_module, "get_client", lambda: FakeMediaMTXClient([_ready("mv_abc123")]))
+
+        await manager._check_connectivity()
+
+        with Session(engine) as session:
+            assert get_uptime_history(session, "mv_abc123", days=30) == []
+
 
 class TestRuleEvaluation:
     async def test_breach_then_recovery_notifies_twice(self, monkeypatch):

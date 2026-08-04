@@ -82,6 +82,7 @@ export const forceRemovePath = (name) => api.post(`/sources/debug/force-remove-p
 export const getStats        = (p) => api.get(`/stats/${p}`).then(r => r.data)
 export const getStatsHistory = (p, s) => api.get(`/stats/${p}/history`, { params: { seconds: s } }).then(r => r.data)
 export const getStatsSummary = () => api.get('/stats/summary').then(r => r.data)
+export const getStreamUptimeHistory = (p, days = 30) => api.get(`/stats/${p}/uptime`, { params: { days } }).then(r => r.data)
 
 // --- Events ---
 export const getEvents = (limit) => api.get('/events', { params: { limit } }).then(r => r.data)

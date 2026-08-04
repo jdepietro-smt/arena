@@ -37,6 +37,7 @@ from ..models import AlertAction, AlertRule, CompareOperator, EventType
 from .events import log_event
 from .mediamtx import get_client
 from .srt_stats import get_collector
+from .uptime import record_sample
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,10 @@ class AlertManager:
         # Only track paths we've actually seen before — a stream that has
         # never come up isn't "down", it just doesn't exist yet.
         tracked = set(self._down_streak) | self._currently_down | ready_names
+        if tracked:
+            with Session(engine) as session:
+                for name in tracked:
+                    record_sample(session, name, name in ready_names)
         for name in tracked:
             if name in ready_names:
                 self._down_streak[name] = 0

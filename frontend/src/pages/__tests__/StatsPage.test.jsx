@@ -8,9 +8,10 @@ import { createTestQueryClient } from '../../test/testQueryClient'
 vi.mock('../../api/client', () => ({
   getStreams: vi.fn(),
   getStatsHistory: vi.fn(),
+  getStreamUptimeHistory: vi.fn(),
 }))
 
-import { getStreams, getStatsHistory } from '../../api/client'
+import { getStreams, getStatsHistory, getStreamUptimeHistory } from '../../api/client'
 
 function renderStatsPage(initialPath = '/stats') {
   const queryClient = createTestQueryClient()
@@ -26,6 +27,7 @@ function renderStatsPage(initialPath = '/stats') {
 beforeEach(() => {
   getStreams.mockReset().mockResolvedValue([])
   getStatsHistory.mockReset().mockResolvedValue([])
+  getStreamUptimeHistory.mockReset().mockResolvedValue([])
 })
 
 describe('StatsPage', () => {
@@ -66,5 +68,24 @@ describe('StatsPage', () => {
     await waitFor(() => expect(getStatsHistory).toHaveBeenCalledWith('cam2', 60))
     expect(screen.getByRole('combobox').value).toBe('cam2')
     expect(getStatsHistory).not.toHaveBeenCalledWith('cam1', 60)
+  })
+
+  it('does not fetch or render an uptime heatmap when no stream is selected', async () => {
+    renderStatsPage()
+    await screen.findByText('No stream selected')
+
+    expect(getStreamUptimeHistory).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Uptime — last 30 days/)).not.toBeInTheDocument()
+  })
+
+  it('renders the uptime heatmap with 30 day cells once a stream is selected', async () => {
+    getStreams.mockResolvedValue([{ path: 'cam1', name: 'Camera 1' }])
+    getStreamUptimeHistory.mockResolvedValue([
+      { date: '2026-01-01', uptime_pct: 100, total_samples: 8640 },
+    ])
+    renderStatsPage()
+
+    await screen.findByText('Uptime — last 30 days')
+    await waitFor(() => expect(getStreamUptimeHistory).toHaveBeenCalledWith('cam1', 30))
   })
 })

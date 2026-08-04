@@ -252,6 +252,33 @@ class FavoriteStream(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class StreamUptimeDaily(SQLModel, table=True):
+    """
+    Per-day, per-stream uptime sample counts, fed by AlertManager's existing
+    10s connectivity poll (alerting.py's _check_connectivity) — every tick
+    that already checks whether a path is ready also counts as one uptime
+    sample, so this adds no new polling of its own.
+
+    The Event table (events.py) is a 500-row ring buffer sized for a
+    dashboard sidebar, not a historical record — it can churn through its
+    entire retention in hours on a busy deployment. This table is the
+    durable one: percentages here only ever accumulate, never get pruned.
+
+    up_samples / total_samples rather than a raw percentage: storing counts
+    lets a day's percentage be corrected/recomputed if needed, and makes
+    "how many samples is this based on" inspectable rather than opaque.
+    """
+
+    __tablename__ = "stream_uptime_daily"
+    __table_args__ = (UniqueConstraint("date", "stream_path", name="uq_uptime_date_stream"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    date: str = Field(index=True)  # "YYYY-MM-DD", UTC
+    stream_path: str = Field(index=True)
+    up_samples: int = Field(default=0)
+    total_samples: int = Field(default=0)
+
+
 class ManagedPath(SQLModel, table=True):
     """
     A mediamtx path this app created and is responsible for tearing down.

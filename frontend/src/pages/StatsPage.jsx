@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart3 } from 'lucide-react'
-import { getStreams, getStatsHistory } from '../api/client'
+import { getStreams, getStatsHistory, getStreamUptimeHistory } from '../api/client'
 import Card from '../components/ui/Card'
 import TimeSeriesChart from '../components/charts/TimeSeriesChart'
 import BarChartMini from '../components/charts/BarChartMini'
@@ -24,6 +24,72 @@ function TrendArrow({ current, previous }) {
     <span className={`text-xs font-medium ${up ? 'text-emerald-400' : 'text-red-400'}`}>
       {up ? '▲' : '▼'}
     </span>
+  )
+}
+
+function uptimeTone(pct) {
+  if (pct == null) return { bg: 'bg-surface-700', label: 'No data' }
+  if (pct >= 99.9) return { bg: 'bg-emerald-500', label: 'Healthy (≥99.9%)' }
+  if (pct >= 95) return { bg: 'bg-amber-500', label: 'Degraded (95–99.9%)' }
+  return { bg: 'bg-red-500', label: 'Down (<95%)' }
+}
+
+function UptimeHeatmap({ streamPath }) {
+  const { data: history = [], isLoading } = useQuery({
+    queryKey: ['stream-uptime', streamPath],
+    queryFn: () => getStreamUptimeHistory(streamPath, 30),
+    enabled: !!streamPath,
+  })
+
+  if (!streamPath) return null
+
+  const byDate = new Map(history.map(h => [h.date, h]))
+  const days = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date()
+    d.setUTCDate(d.getUTCDate() - (29 - i))
+    return d.toISOString().slice(0, 10)
+  })
+
+  return (
+    <Card className="p-4 mb-4">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-white text-sm font-semibold">Uptime — last 30 days</h2>
+        <div className="flex items-center gap-3 text-[11px] text-gray-500">
+          {['Healthy (≥99.9%)', 'Degraded (95–99.9%)', 'Down (<95%)', 'No data'].map(label => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-sm ${
+                label.startsWith('Healthy') ? 'bg-emerald-500'
+                  : label.startsWith('Degraded') ? 'bg-amber-500'
+                  : label.startsWith('Down') ? 'bg-red-500'
+                  : 'bg-surface-700'
+              }`} />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <p className="text-gray-500 text-xs mb-3">Only tracks days since this feature shipped — no historical backfill</p>
+      {isLoading ? (
+        <p className="text-gray-500 text-xs">Loading…</p>
+      ) : (
+        <div className="flex gap-1">
+          {days.map(date => {
+            const day = byDate.get(date)
+            const tone = uptimeTone(day?.uptime_pct)
+            const title = day
+              ? `${date}: ${day.uptime_pct}% uptime (${day.total_samples} samples)`
+              : `${date}: no data`
+            return (
+              <div
+                key={date}
+                title={title}
+                className={`flex-1 h-6 rounded-sm ${tone.bg}`}
+              />
+            )
+          })}
+        </div>
+      )}
+    </Card>
   )
 }
 
@@ -186,6 +252,8 @@ export default function StatsPage() {
           unit="%"
         />
       </Card>
+
+      <UptimeHeatmap streamPath={selectedStream} />
 
       {/* Bottom row: Connection details + Events */}
       <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-4">

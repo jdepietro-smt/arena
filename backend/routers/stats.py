@@ -162,6 +162,24 @@ async def stream_stats_history(
     return get_collector().get_history(path_name, seconds=seconds)
 
 
+@router.get("/{path_name}/uptime", summary="Daily uptime percentage history for a stream")
+async def stream_uptime_history(
+    path_name: str,
+    days: int = Query(default=30, ge=1, le=365, description="How many days of history to return"),
+    session: Session = Depends(get_session),
+    _user: User = Depends(get_current_active_user),
+) -> list[dict[str, Any]]:
+    """
+    Return per-day uptime percentage for a stream, oldest first — backs a
+    calendar-style heatmap. Sourced from StreamUptimeDaily (services/
+    uptime.py), which only starts accumulating from whenever this feature
+    shipped — there's no way to backfill uptime for time before that.
+    """
+    from ..services.uptime import get_uptime_history  # local import avoids a cycle at module load
+
+    return get_uptime_history(session, path_name, days=days)
+
+
 # ---------------------------------------------------------------------------
 # WebSocket — live push
 # ---------------------------------------------------------------------------

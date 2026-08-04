@@ -134,6 +134,22 @@ def _clean_recordings():
 
 
 @pytest.fixture(autouse=True)
+def _clean_stream_uptime():
+    """Uptime-tracking tests write StreamUptimeDaily rows; keep them from
+    leaking into unrelated tests that query uptime history."""
+    from sqlmodel import Session, select
+
+    from backend.database import engine
+    from backend.models import StreamUptimeDaily
+
+    yield
+    with Session(engine) as session:
+        for row in session.exec(select(StreamUptimeDaily)).all():
+            session.delete(row)
+        session.commit()
+
+
+@pytest.fixture(autouse=True)
 def _clean_stream_routes():
     """Route-router tests create StreamRoute rows; keep them from leaking
     into unrelated tests that list/count routes."""

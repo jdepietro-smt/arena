@@ -133,6 +133,52 @@ def test_history_rejects_seconds_over_3600(client, auth_headers):
     assert resp.status_code == 422
 
 
+def test_uptime_requires_auth(client):
+    resp = client.get("/api/stats/cam1/uptime")
+    assert resp.status_code == 401
+
+
+def test_uptime_returns_empty_list_with_no_recorded_samples(client, auth_headers):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+    resp = client.get("/api/stats/cam1/uptime", headers=auth)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_uptime_returns_recorded_daily_percentages(client, auth_headers, db_session):
+    from backend.models import StreamUptimeDaily
+
+    db_session.add(StreamUptimeDaily(date="2026-01-01", stream_path="cam1", up_samples=9, total_samples=10))
+    db_session.add(StreamUptimeDaily(date="2026-01-02", stream_path="cam1", up_samples=5, total_samples=10))
+    db_session.add(StreamUptimeDaily(date="2026-01-01", stream_path="cam2", up_samples=1, total_samples=10))
+    db_session.commit()
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+    resp = client.get("/api/stats/cam1/uptime", headers=auth)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [d["date"] for d in body] == ["2026-01-01", "2026-01-02"]
+    assert body[0]["uptime_pct"] == 90.0
+    assert body[1]["uptime_pct"] == 50.0
+
+
+def test_uptime_respects_days_param(client, auth_headers, db_session):
+    from backend.models import StreamUptimeDaily
+
+    for day in range(1, 6):
+        db_session.add(StreamUptimeDaily(date=f"2026-01-{day:02d}", stream_path="cam1", up_samples=10, total_samples=10))
+    db_session.commit()
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+    resp = client.get("/api/stats/cam1/uptime", params={"days": 2}, headers=auth)
+
+    assert resp.status_code == 200
+    assert [d["date"] for d in resp.json()] == ["2026-01-04", "2026-01-05"]
+
+
 def test_websocket_rejects_missing_token(client, fake_client):
     from starlette.websockets import WebSocketDisconnect
 
