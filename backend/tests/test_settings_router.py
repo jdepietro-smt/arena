@@ -140,12 +140,39 @@ def test_admin_trigger_backup_creates_real_file(client, auth_headers, monkeypatc
     sqlite3.connect(str(db_path)).close()
     monkeypatch.setattr(db_backup.settings, "DATABASE_URL", f"sqlite:///{db_path}")
 
-    resp = client.post("/api/settings/backup", headers=auth)
+    try:
+        resp = client.post("/api/settings/backup", headers=auth)
 
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["ok"] is True
-    assert (tmp_path / "backups").exists()
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ok"] is True
+        assert (tmp_path / "backups").exists()
+    finally:
+        db_backup.get_db_backup()._last_backup = None  # module-level singleton — don't leak into other tests
+
+
+def test_admin_trigger_backup_updates_status(client, auth_headers, monkeypatch, tmp_path):
+    """The manual trigger must update /backup/status too, not just the
+    daily automatic tick — otherwise the Settings UI's "Last backup" field
+    never reflects a backup an admin just took on demand."""
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+    db_path = tmp_path / "arena.db"
+    sqlite3.connect(str(db_path)).close()
+    monkeypatch.setattr(db_backup.settings, "DATABASE_URL", f"sqlite:///{db_path}")
+
+    backup_mgr = db_backup.get_db_backup()
+    backup_mgr._last_backup = None  # isolate from any earlier test in this module
+    try:
+        assert client.get("/api/settings/backup/status", headers=auth).json()["last_backup"] is None
+
+        resp = client.post("/api/settings/backup", headers=auth)
+        assert resp.status_code == 200
+        expected_path = resp.json()["path"]
+
+        status = client.get("/api/settings/backup/status", headers=auth).json()
+        assert status["last_backup"] == expected_path
+    finally:
+        backup_mgr._last_backup = None  # module-level singleton — don't leak into other tests
 
 
 def test_server_settings_reports_whether_a_webhook_is_configured(client, auth_headers, monkeypatch):

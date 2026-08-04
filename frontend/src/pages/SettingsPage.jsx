@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings as SettingsIcon, Radio, Download } from 'lucide-react'
-import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../api/client'
+import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout, getBackupStatus, triggerBackup } from '../api/client'
 import { useAuthStore } from '../store/auth'
 import api from '../api/client'
 import Card from '../components/ui/Card'
@@ -287,6 +287,56 @@ function LoginAttemptsCard() {
   )
 }
 
+function DatabaseBackupCard() {
+  const qc = useQueryClient()
+  const isAdmin = useAuthStore(s => s.user?.role) === 'admin'
+  const [result, setResult] = useState(null) // { ok, message } | null
+
+  const { data: status } = useQuery({
+    queryKey: ['backup-status'],
+    queryFn: getBackupStatus,
+    refetchInterval: 30000,
+  })
+
+  const mutation = useMutation({
+    mutationFn: triggerBackup,
+    onSuccess: (data) => {
+      if (data.ok) {
+        setResult({ ok: true, message: `Backup written to ${data.path}` })
+        qc.invalidateQueries({ queryKey: ['backup-status'] })
+      } else {
+        setResult({ ok: false, message: data.reason || 'Backup did not run.' })
+      }
+    },
+    onError: (err) => setResult({ ok: false, message: getErrorMessage(err, 'Backup failed.') }),
+  })
+
+  return (
+    <Card className="p-4">
+      <h3 className="text-white text-sm font-semibold mb-1">Database backups</h3>
+      <p className="text-gray-500 text-xs mb-4">Daily automatic backup of the app database (users, routes, alert rules, recording index) — last 7 kept</p>
+      <FieldRow label="Last backup file" value={status?.last_backup || 'None yet'} muted={!status?.last_backup} />
+      {isAdmin && (
+        <div className="flex items-center gap-3 mt-3">
+          <Button
+            variant="ghost" size="sm"
+            disabled={mutation.isPending}
+            onClick={() => { setResult(null); mutation.mutate() }}
+          >
+            {mutation.isPending ? 'Backing up…' : 'Back up now'}
+          </Button>
+          {result && (
+            <span className={`text-xs ${result.ok ? 'text-emerald-400' : 'text-red-400'}`}>{result.message}</span>
+          )}
+        </div>
+      )}
+      {!status?.last_backup && (
+        <p className="text-gray-500 text-xs mt-2">No automatic backup has run yet — the first one lands within 24 hours, or trigger one now.</p>
+      )}
+    </Card>
+  )
+}
+
 function ServerTab() {
   const { data: config } = useQuery({
     queryKey: ['server-config'],
@@ -304,6 +354,7 @@ function ServerTab() {
         <FieldRow label="HLS base URL" value={config?.hls_base_url} />
       </Card>
       <AlertWebhookCard configured={!!config?.webhook_configured} />
+      <DatabaseBackupCard />
       <LoginAttemptsCard />
       <Card className="p-4">
         <h3 className="text-white text-sm font-semibold mb-1">TURN server</h3>

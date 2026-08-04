@@ -8,7 +8,10 @@ import { login } from '../../api/client'
 
 vi.mock('../../api/client', () => ({
   login: vi.fn(),
+  getMe: vi.fn(),
 }))
+
+import { getMe } from '../../api/client'
 
 function renderLoginPage() {
   return render(
@@ -21,6 +24,7 @@ function renderLoginPage() {
 beforeEach(() => {
   useAuthStore.setState({ token: null, user: null })
   login.mockReset()
+  getMe.mockReset().mockResolvedValue({ username: 'admin', role: 'admin', email: 'admin@example.com' })
 })
 
 describe('LoginPage', () => {
@@ -46,9 +50,25 @@ describe('LoginPage', () => {
 
     await waitFor(() => {
       expect(useAuthStore.getState().token).toBe('fake-jwt')
-      expect(useAuthStore.getState().user).toEqual({ username: 'admin', role: 'admin' })
+      // /auth/me is fetched right after login and overwrites the token
+      // response's bare user with the full profile (adds email here).
+      expect(useAuthStore.getState().user).toEqual({ username: 'admin', role: 'admin', email: 'admin@example.com' })
     })
     expect(login).toHaveBeenCalledWith('admin', 'admin123')
+    expect(getMe).toHaveBeenCalled()
+  })
+
+  it('keeps the token-response user if /auth/me fails, rather than failing the login', async () => {
+    login.mockResolvedValue({ access_token: 'fake-jwt', user: { username: 'admin', role: 'admin' } })
+    getMe.mockRejectedValue(new Error('network error'))
+    renderLoginPage()
+
+    await userEvent.type(screen.getByPlaceholderText('your-username'), 'admin')
+    await userEvent.type(screen.getByPlaceholderText('••••••••'), 'admin123')
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    await waitFor(() => expect(useAuthStore.getState().token).toBe('fake-jwt'))
+    expect(useAuthStore.getState().user).toEqual({ username: 'admin', role: 'admin' })
   })
 
   it('shows "Invalid username or password" on a 401, not a generic error', async () => {

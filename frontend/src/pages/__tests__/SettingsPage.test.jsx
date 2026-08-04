@@ -18,10 +18,12 @@ vi.mock('../../api/client', () => ({
   getAuditLog: vi.fn(),
   getLoginAttempts: vi.fn(),
   clearLoginLockout: vi.fn(),
+  getBackupStatus: vi.fn(),
+  triggerBackup: vi.fn(),
   default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
 }))
 
-import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../../api/client'
+import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout, getBackupStatus, triggerBackup } from '../../api/client'
 import api from '../../api/client'
 
 vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
@@ -45,6 +47,8 @@ beforeEach(() => {
   getAuditLog.mockReset().mockResolvedValue([])
   getLoginAttempts.mockReset().mockResolvedValue([])
   clearLoginLockout.mockReset()
+  getBackupStatus.mockReset().mockResolvedValue({ last_backup: null })
+  triggerBackup.mockReset()
   api.get.mockReset().mockResolvedValue({ data: {} })
   api.put.mockReset().mockResolvedValue({ data: {} })
   api.post.mockReset()
@@ -90,6 +94,37 @@ describe('SettingsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send test alert' }))
 
     expect(await screen.findByText('Webhook responded with HTTP 404')).toBeInTheDocument()
+  })
+
+  it('shows "None yet" for last backup and hides the trigger button for a non-admin', async () => {
+    renderSettingsPage()
+
+    expect(await screen.findByText('None yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Back up now' })).not.toBeInTheDocument()
+  })
+
+  it('shows the last backup path and a working trigger button for an admin', async () => {
+    getBackupStatus.mockResolvedValue({ last_backup: '/data/backups/arena-20260101-000000.db' })
+    triggerBackup.mockResolvedValue({ ok: true, path: '/data/backups/arena-20260101-120000.db' })
+    act(() => { useAuthStore.setState({ user: { username: 'admin1', role: 'admin' } }) })
+    renderSettingsPage()
+    await screen.findByText('/data/backups/arena-20260101-000000.db')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back up now' }))
+
+    expect(triggerBackup).toHaveBeenCalled()
+    expect(await screen.findByText(/Backup written to \/data\/backups\/arena-20260101-120000\.db/)).toBeInTheDocument()
+  })
+
+  it('shows a readable error when triggering a backup fails', async () => {
+    triggerBackup.mockRejectedValue({ response: { data: { detail: 'Backup failed: disk full' } } })
+    act(() => { useAuthStore.setState({ user: { username: 'admin1', role: 'admin' } }) })
+    renderSettingsPage()
+    await screen.findByText('None yet')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back up now' }))
+
+    expect(await screen.findByText('Backup failed: disk full')).toBeInTheDocument()
   })
 
   it('shows nothing for login attempts when there is no tracked activity', async () => {

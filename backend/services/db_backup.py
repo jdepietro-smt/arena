@@ -107,6 +107,11 @@ class DatabaseBackup:
     def status(self) -> dict:
         return {"last_backup": self._last_backup}
 
+    def record(self, path: Path) -> None:
+        """Note a backup taken outside the daily loop (e.g. a manual
+        admin-triggered one) so /backup/status reflects it too."""
+        self._last_backup = str(path)
+
     async def _loop(self) -> None:
         while True:
             await asyncio.sleep(_TICK_INTERVAL_S)

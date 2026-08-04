@@ -1,7 +1,7 @@
 import { useState, useId, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, AlertCircle, Loader2 } from 'lucide-react'
-import { login } from '../api/client'
+import { login, getMe } from '../api/client'
 import { useAuthStore } from '../store/auth'
 
 function LogoMark({ size = 48 }) {
@@ -73,8 +73,16 @@ export default function LoginPage() {
     try {
       const data = await login(username.trim(), password)
       const tok = data.access_token
-      const user = data.user ?? { username: username.trim() }
-      setAuth(tok, user)
+      setAuth(tok, data.user ?? { username: username.trim() })
+      // /auth/token only returns the JWT, not a profile — fetch /auth/me
+      // (now that the token's in the store, the client's interceptor can
+      // attach it) so user.role is actually populated for role-gated UI.
+      try {
+        const me = await getMe()
+        setAuth(tok, me)
+      } catch {
+        // Non-fatal — role-gated UI just stays hidden, same as before this fetch existed.
+      }
       navigate('/dashboard', { replace: true })
     } catch (err) {
       const detail = err?.response?.data?.detail

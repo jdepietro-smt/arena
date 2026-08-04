@@ -108,6 +108,10 @@ export const getFavorites = () => api.get('/favorites').then(r => r.data)
 export const addFavorite = (streamPath) => api.post('/favorites', { stream_path: streamPath }).then(r => r.data)
 export const removeFavorite = (streamPath) => api.delete(`/favorites/${encodeURIComponent(streamPath)}`)
 
+// --- Database backups ---
+export const getBackupStatus = () => api.get('/settings/backup/status').then(r => r.data)
+export const triggerBackup = () => api.post('/settings/backup').then(r => r.data)
+
 // --- Login attempts ---
 export const getLoginAttempts = () => api.get('/settings/login-attempts').then(r => r.data)
 export const clearLoginLockout = (ip) => api.post(`/settings/login-attempts/${encodeURIComponent(ip)}/clear`).then(r => r.data)

@@ -178,11 +178,25 @@ function UserDropdown({ user, onLogout }) {
 // ── Layout ────────────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const { user, logout } = useAuthStore()
+  const { user, logout, setAuth, token } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
   const apiOnline = useApiHealth()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  // Sessions started before /auth/me was fetched on login only have
+  // {username} in the store — no role, breaking role-gated UI (the role
+  // badge below, admin-only buttons elsewhere). Self-heal once per session
+  // via a dynamic import so this doesn't drag api/client.js (and every
+  // endpoint it exports) into Layout's own eagerly-loaded bundle.
+  useEffect(() => {
+    if (!token || user?.role) return
+    let cancelled = false
+    import('../../api/client').then(({ getMe }) => getMe()).then(me => {
+      if (!cancelled) setAuth(token, me)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [token, user, setAuth])
 
   const pageTitle = Object.entries(PAGE_TITLES).find(([p]) =>
     location.pathname.startsWith(p)

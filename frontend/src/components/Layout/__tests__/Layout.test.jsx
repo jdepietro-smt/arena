@@ -6,9 +6,16 @@ import Layout from '../index'
 import { useAuthStore } from '../../../store/auth'
 import { createTestQueryClient } from '../../../test/testQueryClient'
 
+vi.mock('../../../api/client', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getMe: vi.fn(),
+}))
+import { getMe } from '../../../api/client'
+
 beforeEach(() => {
   useAuthStore.setState({ token: 'fake-token', user: { username: 'admin', role: 'admin' } })
   global.fetch = vi.fn().mockResolvedValue({ ok: true })
+  getMe.mockReset().mockResolvedValue({ username: 'admin', role: 'admin' })
 })
 
 function renderLayout() {
@@ -50,5 +57,21 @@ describe('Layout', () => {
   it('labels the sidebar nav for assistive tech', () => {
     renderLayout()
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument()
+  })
+
+  it('self-heals a session missing its role by fetching /auth/me', async () => {
+    useAuthStore.setState({ token: 'fake-token', user: { username: 'admin' } })
+    getMe.mockResolvedValue({ username: 'admin', role: 'admin', email: 'admin@example.com' })
+    renderLayout()
+
+    await vi.waitFor(() => {
+      expect(getMe).toHaveBeenCalled()
+      expect(useAuthStore.getState().user).toEqual({ username: 'admin', role: 'admin', email: 'admin@example.com' })
+    })
+  })
+
+  it('does not re-fetch /auth/me when the session already has a role', () => {
+    renderLayout()
+    expect(getMe).not.toHaveBeenCalled()
   })
 })

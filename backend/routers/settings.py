@@ -135,6 +135,7 @@ async def trigger_backup(
     path = await asyncio.to_thread(run_backup_once)
     if path is None:
         return {"ok": False, "reason": "DATABASE_URL is not sqlite, or the DB file doesn't exist yet"}
+    get_db_backup().record(path)
     return {"ok": True, "path": str(path)}
 
 
