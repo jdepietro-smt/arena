@@ -159,6 +159,29 @@ async def start_recording(session: Session, stream_path: str) -> Recording:
     return recording
 
 
+async def _generate_thumbnail(video_path: Path) -> None:
+    """Best-effort: grab a single frame at 1s in as a JPEG next to the
+    recording (same stem, per _thumbnail_path()'s lookup convention in
+    routers/recordings.py). Never raises — a missing thumbnail is a worse
+    UI, not a worse recording."""
+    thumb_path = video_path.with_suffix(".jpg")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y", "-ss", "00:00:01", "-i", str(video_path),
+            "-vframes", "1", str(thumb_path),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logger.warning(
+                "Thumbnail generation failed for %s: %s",
+                video_path, (stderr or b"").decode("utf-8", errors="replace")[-500:],
+            )
+    except (FileNotFoundError, OSError) as exc:
+        logger.warning("Thumbnail generation failed for %s: %s", video_path, exc)
+
+
 async def stop_recording(session: Session, recording_id: int) -> Recording:
     async with _lock:
         proc = _processes.pop(recording_id, None)
@@ -182,6 +205,9 @@ async def stop_recording(session: Session, recording_id: int) -> Recording:
 
     duration = time.monotonic() - start_mono if start_mono else 0.0
     size = output_path.stat().st_size if output_path and output_path.exists() else 0
+
+    if output_path is not None and output_path.exists():
+        await _generate_thumbnail(output_path)
 
     recording = session.get(Recording, recording_id)
     if recording is None:

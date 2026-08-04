@@ -14,6 +14,7 @@ vi.mock('../../api/client', () => ({
   deleteRecording: vi.fn(),
   fetchRecordingBlobUrl: vi.fn(),
   getRecordingStreamUrl: vi.fn(() => '/api/recordings/1/stream'),
+  getRecordingThumbnailUrl: vi.fn(() => '/api/recordings/1/thumbnail'),
   default: { get: vi.fn() },
 }))
 
@@ -62,6 +63,29 @@ describe('RecordingsPage', () => {
     getRecordings.mockResolvedValue([recording({ filename: 'studio-a.mp4' })])
     renderRecordingsPage()
     expect(await screen.findByText('studio-a.mp4')).toBeInTheDocument()
+  })
+
+  it('renders a thumbnail image for completed recordings but not for active ones', async () => {
+    getRecordings.mockResolvedValue([
+      recording({ id: 1, filename: 'studio-a.mp4', status: 'complete' }),
+      recording({ id: 2, filename: 'studio-b.mp4', status: 'recording', duration_seconds: null }),
+    ])
+    renderRecordingsPage()
+    await screen.findByText('studio-a.mp4')
+
+    const images = screen.getAllByRole('img')
+    expect(images).toHaveLength(1)
+    expect(images[0]).toHaveAttribute('src', '/api/recordings/1/thumbnail')
+  })
+
+  it('falls back to a placeholder icon when the thumbnail fails to load', async () => {
+    getRecordings.mockResolvedValue([recording({ filename: 'studio-a.mp4' })])
+    renderRecordingsPage()
+    const img = await screen.findByRole('img')
+
+    act(() => { img.dispatchEvent(new Event('error')) })
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
   it('shows a connection-error message instead of the empty state when the query fails', async () => {

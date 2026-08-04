@@ -202,3 +202,17 @@ def test_thumbnail_present(client, auth_headers, recordings_dir):
 
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/jpeg"
+
+
+def test_thumbnail_via_token_query_param(client, auth_headers, recordings_dir):
+    """<img> elements can't send an Authorization header either — same
+    get_current_user_flexible query-token support as /stream."""
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+    token = auth["Authorization"].split(" ", 1)[1]
+    rec = _make_recording(filename="thumb-via-token.mp4")
+    (recordings_dir / "thumb-via-token.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+
+    resp = client.get(f"/api/recordings/{rec.id}/thumbnail", params={"token": token})
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/jpeg"

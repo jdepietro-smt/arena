@@ -49,6 +49,8 @@ export const deleteRecording = (id) => api.delete(`/recordings/${id}`)
 // the whole thing up front, so playback starts immediately and seeking works.
 export const getRecordingStreamUrl = (id) =>
   `/api/recordings/${id}/stream?token=${encodeURIComponent(useAuthStore.getState().token)}`
+export const getRecordingThumbnailUrl = (id) =>
+  `/api/recordings/${id}/thumbnail?token=${encodeURIComponent(useAuthStore.getState().token)}`
 export const fetchRecordingBlobUrl = (id, { inline = false } = {}) =>
   api.get(`/recordings/${id}/${inline ? 'stream' : 'download'}`, { responseType: 'blob' })
     .then(r => URL.createObjectURL(r.data))

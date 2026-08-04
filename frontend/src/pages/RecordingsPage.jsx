@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CirclePlay, Search, X, Download } from 'lucide-react'
-import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl } from '../api/client'
+import { CirclePlay, Search, X, Download, Film } from 'lucide-react'
+import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl, getRecordingThumbnailUrl } from '../api/client'
 import api from '../api/client'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
@@ -109,6 +109,35 @@ function StatusBadge({ status }) {
   return <Badge tone="good">Complete</Badge>
 }
 
+function RecordingThumbnail({ rec, onClick }) {
+  const [failed, setFailed] = useState(false)
+
+  if (failed) {
+    return (
+      <div className="w-full aspect-video rounded-lg bg-surface-700 border border-surface-600 flex items-center justify-center">
+        <Film size={22} className="text-gray-500" />
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full aspect-video rounded-lg overflow-hidden border border-surface-600 bg-surface-700 group relative"
+    >
+      <img
+        src={getRecordingThumbnailUrl(rec.id)}
+        alt="Recording thumbnail"
+        className="w-full h-full object-cover"
+        onError={() => setFailed(true)}
+      />
+      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+        <CirclePlay size={28} className="text-white/0 group-hover:text-white/90 transition-colors" />
+      </span>
+    </button>
+  )
+}
+
 function RecordingCard({ rec, onDelete, onPreview }) {
   const [downloading, setDownloading] = useState(false)
 
@@ -132,6 +161,9 @@ function RecordingCard({ rec, onDelete, onPreview }) {
 
   return (
     <Card hover className="p-4 flex flex-col gap-3">
+      {rec.status !== 'recording' && (
+        <RecordingThumbnail rec={rec} onClick={() => onPreview(rec)} />
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-gray-100 text-sm font-medium truncate">{rec.filename || rec.name}</div>

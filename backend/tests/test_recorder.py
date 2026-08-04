@@ -151,3 +151,78 @@ class TestRefCounting:
 
             assert fake_hls_generator.unwant_calls == ["Golf_Channel"]
             assert "Golf_Channel" not in recorder._path_refcounts
+
+
+class InstantProc:
+    """A subprocess double whose communicate()/wait() resolve immediately —
+    for the thumbnail ffmpeg call, which stop_recording awaits synchronously
+    (unlike the recording process, it isn't terminate()'d first)."""
+
+    def __init__(self, returncode: int = 0) -> None:
+        self.returncode = returncode
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        return b"", b""
+
+    async def wait(self) -> int:
+        return self.returncode
+
+    def terminate(self) -> None:
+        pass
+
+
+class TestThumbnailGeneration:
+    async def test_generates_thumbnail_when_output_file_exists(
+        self, fake_hls_generator: FakeHlsGenerator, monkeypatch
+    ):
+        calls: list[tuple] = []
+
+        async def fake_ffmpeg(*args, **kwargs):
+            calls.append(args)
+            return InstantProc(returncode=0)
+
+        with Session(engine) as session:
+            rec = await recorder.start_recording(session, "Golf_Channel")
+            output_path = recorder._output_paths[rec.id]
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"fake mp4 bytes")
+
+            monkeypatch.setattr(recorder.asyncio, "create_subprocess_exec", fake_ffmpeg)
+            await recorder.stop_recording(session, rec.id)
+
+        thumbnail_calls = [c for c in calls if c[0] == "ffmpeg"]
+        assert len(thumbnail_calls) == 1
+        assert str(output_path.with_suffix(".jpg")) in thumbnail_calls[0]
+
+    async def test_skips_thumbnail_when_output_file_missing(
+        self, fake_hls_generator: FakeHlsGenerator, monkeypatch
+    ):
+        calls: list[tuple] = []
+
+        async def fake_ffmpeg(*args, **kwargs):
+            calls.append(args)
+            return InstantProc(returncode=0)
+
+        with Session(engine) as session:
+            rec = await recorder.start_recording(session, "Golf_Channel")
+            # No file written at output_path this time.
+            monkeypatch.setattr(recorder.asyncio, "create_subprocess_exec", fake_ffmpeg)
+            await recorder.stop_recording(session, rec.id)
+
+        assert calls == []
+
+    async def test_thumbnail_failure_does_not_block_completion(
+        self, fake_hls_generator: FakeHlsGenerator, monkeypatch
+    ):
+        async def failing_ffmpeg(*args, **kwargs):
+            return InstantProc(returncode=1)
+
+        with Session(engine) as session:
+            rec = await recorder.start_recording(session, "Golf_Channel")
+            output_path = recorder._output_paths[rec.id]
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"fake mp4 bytes")
+
+            monkeypatch.setattr(recorder.asyncio, "create_subprocess_exec", failing_ffmpeg)
+            result = await recorder.stop_recording(session, rec.id)
+            assert result.status == recorder.RecordingStatus.complete
