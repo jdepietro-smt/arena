@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Settings as SettingsIcon, Radio } from 'lucide-react'
+import { Settings as SettingsIcon, Radio, Download } from 'lucide-react'
 import { getUsers, createUser, deleteUser, getAuditLog } from '../api/client'
 import api from '../api/client'
 import Card from '../components/ui/Card'
@@ -11,6 +11,7 @@ import Button from '../components/ui/Button'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
 import { getErrorMessage } from '../utils/errors'
+import { downloadCsv } from '../utils/csv'
 
 const TABS = [
   { value: 'server', label: 'Server' },
@@ -342,11 +343,26 @@ function AuditLogTab() {
 
   const forbidden = error?.response?.status === 403
 
+  function exportCsv() {
+    downloadCsv(
+      `audit-log-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['When', 'Who', 'Action', 'Target', 'Detail'],
+      entries.map(e => [e.created_at, e.username, ACTION_LABEL[e.action] || e.action, e.target || '', e.detail || '']),
+    )
+  }
+
   return (
     <Card className="overflow-hidden">
-      <div className="px-4 py-3 border-b border-surface-600">
-        <h3 className="text-white text-sm font-semibold">Audit Log</h3>
-        <p className="text-gray-500 text-xs mt-0.5">Who created or deleted what — users, routes, and alert rules</p>
+      <div className="px-4 py-3 border-b border-surface-600 flex items-center justify-between">
+        <div>
+          <h3 className="text-white text-sm font-semibold">Audit Log</h3>
+          <p className="text-gray-500 text-xs mt-0.5">Who created or deleted what — users, routes, and alert rules</p>
+        </div>
+        {entries.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={exportCsv}>
+            <Download size={13} /> Export CSV
+          </Button>
+        )}
       </div>
       {isLoading ? (
         <div className="p-6 text-center text-sm text-gray-500">Loading…</div>

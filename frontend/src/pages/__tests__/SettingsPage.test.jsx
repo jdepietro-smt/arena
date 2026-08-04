@@ -20,6 +20,9 @@ vi.mock('../../api/client', () => ({
 import { getUsers, createUser, deleteUser, getAuditLog } from '../../api/client'
 import api from '../../api/client'
 
+vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
+import { downloadCsv } from '../../utils/csv'
+
 function renderSettingsPage() {
   const queryClient = createTestQueryClient()
   return render(
@@ -236,5 +239,22 @@ describe('SettingsPage', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Audit Log' }))
 
     expect(await screen.findByText('Admin access required to view the audit log.')).toBeInTheDocument()
+  })
+
+  it('exports audit entries as CSV', async () => {
+    getAuditLog.mockResolvedValue([
+      { id: 1, username: 'admin1', action: 'user.create', target: 'newop', detail: 'role=operator', created_at: '2026-01-15T10:30:00Z' },
+    ])
+    renderSettingsPage()
+    await userEvent.click(screen.getByRole('tab', { name: 'Audit Log' }))
+    await screen.findByText('newop')
+
+    await userEvent.click(screen.getByRole('button', { name: /export csv/i }))
+
+    expect(downloadCsv).toHaveBeenCalledTimes(1)
+    const [filename, headers, rows] = downloadCsv.mock.calls[0]
+    expect(filename).toMatch(/^audit-log-\d{4}-\d{2}-\d{2}\.csv$/)
+    expect(headers).toEqual(['When', 'Who', 'Action', 'Target', 'Detail'])
+    expect(rows).toEqual([['2026-01-15T10:30:00Z', 'admin1', 'Created user', 'newop', 'role=operator']])
   })
 })

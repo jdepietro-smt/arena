@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CirclePlay, Search, X } from 'lucide-react'
+import { CirclePlay, Search, X, Download } from 'lucide-react'
 import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl } from '../api/client'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
 import StatusDot from '../components/ui/StatusDot'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
 import { getErrorMessage } from '../utils/errors'
+import { downloadCsv } from '../utils/csv'
 
 function formatDuration(seconds) {
   if (seconds == null) return '—'
@@ -216,6 +218,17 @@ export default function RecordingsPage() {
 
   const totalBytes = completed.reduce((sum, r) => sum + (r.size_bytes || 0), 0)
 
+  function exportCsv() {
+    downloadCsv(
+      `recordings-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Filename', 'Stream', 'Status', 'Duration (s)', 'Size (bytes)', 'Started at'],
+      visible.map(r => [
+        r.filename || r.name || '', r.stream_name || r.stream || '', r.status || '',
+        r.duration_seconds ?? '', r.size_bytes ?? '', r.started_at || r.created_at || '',
+      ]),
+    )
+  }
+
   return (
     <div className="relative p-6 min-h-screen bg-surface-900">
       <div
@@ -234,14 +247,21 @@ export default function RecordingsPage() {
             </p>
           </div>
         </div>
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input
-            className="bg-surface-800 border border-surface-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-brand-500 w-56"
-            placeholder="Search recordings…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              className="bg-surface-800 border border-surface-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-brand-500 w-56"
+              placeholder="Search recordings…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {visible.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={exportCsv}>
+              <Download size={13} /> Export CSV
+            </Button>
+          )}
         </div>
       </div>
 

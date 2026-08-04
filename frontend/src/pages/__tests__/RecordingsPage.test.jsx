@@ -18,6 +18,9 @@ vi.mock('../../api/client', () => ({
 
 import { getRecordings, deleteRecording } from '../../api/client'
 
+vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
+import { downloadCsv } from '../../utils/csv'
+
 function renderRecordingsPage() {
   const queryClient = createTestQueryClient()
   return render(
@@ -133,5 +136,26 @@ describe('RecordingsPage', () => {
 
     expect(screen.getByText('studio-a.mp4')).toBeInTheDocument()
     expect(screen.queryByText('studio-b.mp4')).not.toBeInTheDocument()
+  })
+
+  it('does not show an Export CSV button when there are no recordings', async () => {
+    renderRecordingsPage()
+    await screen.findByText('No recordings yet')
+
+    expect(screen.queryByRole('button', { name: /export csv/i })).not.toBeInTheDocument()
+  })
+
+  it('exports the visible recordings as CSV', async () => {
+    getRecordings.mockResolvedValue([recording()])
+    renderRecordingsPage()
+    await screen.findByText('cam1_20260101.mp4')
+
+    await userEvent.click(screen.getByRole('button', { name: /export csv/i }))
+
+    expect(downloadCsv).toHaveBeenCalledTimes(1)
+    const [filename, headers, rows] = downloadCsv.mock.calls[0]
+    expect(filename).toMatch(/^recordings-\d{4}-\d{2}-\d{2}\.csv$/)
+    expect(headers).toEqual(['Filename', 'Stream', 'Status', 'Duration (s)', 'Size (bytes)', 'Started at'])
+    expect(rows).toEqual([['cam1_20260101.mp4', 'cam1', 'complete', 90, 5_000_000, '2026-01-01T00:00:00Z']])
   })
 })
