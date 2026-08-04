@@ -1,8 +1,8 @@
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import {
   Activity, LayoutGrid, Radio, LayoutPanelTop, Waypoints, CirclePlay,
-  BarChart3, BellRing, Settings, LogOut, ChevronDown, Menu, X,
+  BarChart3, BellRing, Settings, LogOut, ChevronDown, Menu, X, Smartphone,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import StatusDot from '../ui/StatusDot'
@@ -151,6 +151,15 @@ function UserDropdown({ user, onLogout }) {
             <div className="text-[11px] text-gray-400 mb-0.5">Signed in as</div>
             <div className="text-[13px] font-semibold text-gray-200">{user?.username || '—'}</div>
           </div>
+          <Link
+            to="/companion"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 w-full px-3 py-2.5 bg-transparent hover:bg-white/[0.04] text-gray-300 text-[13px] transition-colors"
+            role="menuitem"
+          >
+            <Smartphone size={15} />
+            Companion view
+          </Link>
           <button
             onClick={() => { setOpen(false); onLogout() }}
             className="flex items-center gap-2 w-full px-3 py-2.5 bg-transparent hover:bg-red-500/10 text-red-400 text-[13px] transition-colors"

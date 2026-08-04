@@ -18,6 +18,7 @@ const AlertsPage = lazy(() => import('./pages/AlertsPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const PlayerPage = lazy(() => import('./pages/PlayerPage'))
 const MultiviewWatchPage = lazy(() => import('./pages/MultiviewWatchPage'))
+const CompanionPage = lazy(() => import('./pages/CompanionPage'))
 
 function RouteFallback() {
   return (
@@ -86,6 +87,14 @@ export default function App() {
         </Route>
         <Route path="/watch/:streamName" element={<PlayerPage />} />
         <Route path="/multiview" element={<MultiviewWatchPage />} />
+        <Route
+          path="/companion"
+          element={
+            <ProtectedRoute>
+              <CompanionPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       </Suspense>
