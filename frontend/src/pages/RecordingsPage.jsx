@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CirclePlay, Search, X, Download } from 'lucide-react'
 import { getRecordings, deleteRecording, fetchRecordingBlobUrl, getRecordingStreamUrl } from '../api/client'
+import api from '../api/client'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -28,6 +29,53 @@ function formatSize(bytes) {
 function fileFormat(filename) {
   const ext = (filename || '').split('.').pop()
   return ext ? ext.toUpperCase() : '—'
+}
+
+// Status colors reserved for state, not a "4th series" — same green/amber/
+// red bands used app-wide for RTT/loss thresholds (AlertsPage's metricTone,
+// OverviewPage's StreamHealthTile), applied here to storage headroom.
+function usageTone(pct) {
+  if (pct >= 90) return { bar: 'bg-red-500', text: 'text-red-400' }
+  if (pct >= 70) return { bar: 'bg-amber-500', text: 'text-amber-400' }
+  return { bar: 'bg-emerald-500', text: 'text-emerald-400' }
+}
+
+function StorageUsageBar({ usedBytes }) {
+  const { data: config } = useQuery({
+    queryKey: ['recording-config'],
+    queryFn: () => api.get('/settings/recording').then(r => r.data).catch(() => null),
+  })
+
+  const maxGb = config?.max_storage_gb
+  if (!maxGb) return null
+
+  const usedGb = usedBytes / 1e9
+  const pct = Math.min(100, (usedGb / maxGb) * 100)
+  const tone = usageTone(pct)
+
+  return (
+    <Card className="p-4 mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-semibold text-white">Storage used</span>
+        <span className={`text-xs font-mono ${tone.text}`}>
+          {usedGb.toFixed(1)} GB of {maxGb.toFixed(0)} GB ({pct.toFixed(0)}%)
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-surface-700 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${tone.bar}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {pct >= 90 && (
+        <p className="text-xs text-red-400 mt-2">
+          Storage nearly full — {config?.auto_delete
+            ? 'oldest recordings will be deleted automatically as new ones come in.'
+            : 'auto-delete is off, so new recordings may fail once the limit is reached.'}
+        </p>
+      )}
+    </Card>
+  )
 }
 
 function formatTimestamp(ts) {
@@ -264,6 +312,8 @@ export default function RecordingsPage() {
           )}
         </div>
       </div>
+
+      <StorageUsageBar usedBytes={totalBytes} />
 
       {/* Active recordings */}
       {active.length > 0 && (

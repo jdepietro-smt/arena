@@ -14,9 +14,11 @@ vi.mock('../../api/client', () => ({
   deleteRecording: vi.fn(),
   fetchRecordingBlobUrl: vi.fn(),
   getRecordingStreamUrl: vi.fn(() => '/api/recordings/1/stream'),
+  default: { get: vi.fn() },
 }))
 
 import { getRecordings, deleteRecording } from '../../api/client'
+import api from '../../api/client'
 
 vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
 import { downloadCsv } from '../../utils/csv'
@@ -43,6 +45,7 @@ function recording(overrides = {}) {
 beforeEach(() => {
   getRecordings.mockReset().mockResolvedValue([])
   deleteRecording.mockReset()
+  api.get.mockReset().mockResolvedValue({ data: null })
   act(() => {
     useToastStore.setState({ toasts: [] })
     usePendingDeleteStore.setState({ hidden: new Set() })
@@ -157,5 +160,41 @@ describe('RecordingsPage', () => {
     expect(filename).toMatch(/^recordings-\d{4}-\d{2}-\d{2}\.csv$/)
     expect(headers).toEqual(['Filename', 'Stream', 'Status', 'Duration (s)', 'Size (bytes)', 'Started at'])
     expect(rows).toEqual([['cam1_20260101.mp4', 'cam1', 'complete', 90, 5_000_000, '2026-01-01T00:00:00Z']])
+  })
+
+  it('does not show a storage bar when there is no recording config', async () => {
+    api.get.mockResolvedValue({ data: null })
+    getRecordings.mockResolvedValue([recording()])
+    renderRecordingsPage()
+    await screen.findByText('cam1_20260101.mp4')
+
+    expect(screen.queryByText('Storage used')).not.toBeInTheDocument()
+  })
+
+  it('shows storage usage as a healthy (emerald) bar well under the limit', async () => {
+    api.get.mockResolvedValue({ data: { max_storage_gb: 500, auto_delete: false } })
+    getRecordings.mockResolvedValue([recording({ size_bytes: 5_000_000_000 })]) // 5 GB of 500 GB = 1%
+    renderRecordingsPage()
+
+    expect(await screen.findByText('Storage used')).toBeInTheDocument()
+    expect(screen.getByText('5.0 GB of 500 GB (1%)')).toBeInTheDocument()
+    expect(screen.queryByText(/Storage nearly full/)).not.toBeInTheDocument()
+  })
+
+  it('shows a near-full warning once usage crosses 90%, phrased around auto-delete being on', async () => {
+    api.get.mockResolvedValue({ data: { max_storage_gb: 100, auto_delete: true } })
+    getRecordings.mockResolvedValue([recording({ size_bytes: 95_000_000_000 })]) // 95 of 100 GB = 95%
+    renderRecordingsPage()
+
+    expect(await screen.findByText('95.0 GB of 100 GB (95%)')).toBeInTheDocument()
+    expect(screen.getByText(/oldest recordings will be deleted automatically/)).toBeInTheDocument()
+  })
+
+  it('phrases the near-full warning around failures when auto-delete is off', async () => {
+    api.get.mockResolvedValue({ data: { max_storage_gb: 100, auto_delete: false } })
+    getRecordings.mockResolvedValue([recording({ size_bytes: 95_000_000_000 })])
+    renderRecordingsPage()
+
+    expect(await screen.findByText(/new recordings may fail/)).toBeInTheDocument()
   })
 })
