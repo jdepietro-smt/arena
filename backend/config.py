@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # they're already looking.
     ALERT_WEBHOOK_URL: str = ""
 
+    # Ops assistant — answers natural-language questions about live stream/
+    # alert/event state via the Anthropic API. Left blank, the assistant
+    # endpoint returns 503 rather than silently no-op'ing, so the frontend
+    # widget can tell the user it isn't configured instead of hanging.
+    ANTHROPIC_API_KEY: str = ""
+
 
 settings = Settings()
 

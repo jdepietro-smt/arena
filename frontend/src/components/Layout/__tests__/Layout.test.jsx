@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Layout from '../index'
 import { useAuthStore } from '../../../store/auth'
+import { createTestQueryClient } from '../../../test/testQueryClient'
 
 beforeEach(() => {
   useAuthStore.setState({ token: 'fake-token', user: { username: 'admin', role: 'admin' } })
@@ -10,14 +12,17 @@ beforeEach(() => {
 })
 
 function renderLayout() {
+  const queryClient = createTestQueryClient()
   return render(
-    <MemoryRouter initialEntries={['/dashboard']}>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route path="dashboard" element={<div>Dashboard content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route path="dashboard" element={<div>Dashboard content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 

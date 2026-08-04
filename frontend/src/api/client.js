@@ -101,6 +101,9 @@ export const login = (username, password) => {
 }
 export const getMe = () => api.get('/auth/me').then(r => r.data)
 
+// --- Ops assistant ---
+export const queryAssistant = (question) => api.post('/assistant/query', { question }).then(r => r.data)
+
 // --- Users ---
 export const getUsers  = () => api.get('/users').then(r => r.data)
 export const createUser = (d) => api.post('/users', d).then(r => r.data)

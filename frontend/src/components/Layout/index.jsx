@@ -1,11 +1,17 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import {
   Activity, LayoutGrid, Radio, LayoutPanelTop, Waypoints, CirclePlay,
   BarChart3, BellRing, Settings, LogOut, ChevronDown, Menu, X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import StatusDot from '../ui/StatusDot'
+
+// Lazy — pulls in api/client.js (axios + every endpoint), which every page
+// already loads on its own dynamic-import chunk. Importing it eagerly here
+// would drag that whole module into the main entry bundle just for a
+// floating widget most sessions never open.
+const AssistantWidget = lazy(() => import('../AssistantWidget'))
 
 // ── Nav config ────────────────────────────────────────────────────────────────
 
@@ -277,6 +283,10 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <Suspense fallback={null}>
+        <AssistantWidget />
+      </Suspense>
     </div>
   )
 }
