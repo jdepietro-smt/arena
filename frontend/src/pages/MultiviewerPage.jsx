@@ -2,13 +2,41 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  getStreams, getMultiviewJobs, stopMultiviewJob,
+  getStreams, getMultiviewJobs, stopMultiviewJob, getMultiviewJobLog,
   getExternalSources, addExternalSource, removeExternalSource,
   getYoutubeCookiesStatus, uploadYoutubeCookies, removeYoutubeCookies,
 } from '../api/client'
 import MultiviewTile, { gridColsClassFor } from '../components/MultiviewTile'
+import Modal from '../components/ui/Modal'
+import { useAuthStore } from '../store/auth'
 import { toast } from '../store/toast'
 import { getErrorMessage } from '../utils/errors'
+
+function JobLogModal({ jobId, onClose }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['multiview-job-log', jobId],
+    queryFn: () => getMultiviewJobLog(jobId),
+    enabled: !!jobId,
+    refetchInterval: 3000,
+  })
+
+  return (
+    <Modal open={!!jobId} onClose={onClose} maxWidth="max-w-2xl">
+      <div className="p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-white text-sm font-semibold">Composite job log</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-sm px-2 py-1">Close</button>
+        </div>
+        <p className="text-gray-500 text-xs -mt-2">Recent ffmpeg stderr for this composite — refreshes every few seconds</p>
+        <pre className="text-xs text-gray-300 font-mono bg-surface-900 border border-surface-600 rounded-lg p-3 max-h-96 overflow-auto whitespace-pre-wrap">
+          {isLoading && 'Loading…'}
+          {isError && 'Failed to load log.'}
+          {!isLoading && !isError && (data?.log || 'No log output yet.')}
+        </pre>
+      </div>
+    </Modal>
+  )
+}
 
 function parseStreamsParam(searchParams) {
   return new Set(
@@ -52,6 +80,8 @@ export default function MultiviewerPage() {
   const [copied, setCopied] = useState(false)
   const queryClient = useQueryClient()
   const [stoppingId, setStoppingId] = useState(null)
+  const [logJobId, setLogJobId] = useState(null)
+  const isAdmin = useAuthStore(s => s.user?.role) === 'admin'
 
   const { data: streams = [], isError: streamsError } = useQuery({
     queryKey: ['streams'],
@@ -444,6 +474,14 @@ export default function MultiviewerPage() {
                     {j.paths.join(' + ')}
                     {j.audio_path && <span className="text-gray-500"> 🔊{j.audio_path}</span>}
                   </span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setLogJobId(j.job_id)}
+                      className="shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold border border-surface-500 text-gray-300 hover:border-surface-400 transition-colors"
+                    >
+                      Log
+                    </button>
+                  )}
                   <button
                     onClick={() => stopJob(j.job_id)}
                     disabled={stoppingId === j.job_id}
@@ -456,6 +494,7 @@ export default function MultiviewerPage() {
             </div>
           </div>
         )}
+        <JobLogModal jobId={logJobId} onClose={() => setLogJobId(null)} />
         <div className="mb-4">
           <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
             External Links

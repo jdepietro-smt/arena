@@ -7,12 +7,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import MultiviewerPage from '../MultiviewerPage'
 import ToastStack from '../../components/ui/Toast'
 import { useToastStore } from '../../store/toast'
+import { useAuthStore } from '../../store/auth'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
   getStreams: vi.fn(),
   getMultiviewJobs: vi.fn(),
   stopMultiviewJob: vi.fn(),
+  getMultiviewJobLog: vi.fn(),
   getExternalSources: vi.fn(),
   addExternalSource: vi.fn(),
   removeExternalSource: vi.fn(),
@@ -22,7 +24,7 @@ vi.mock('../../api/client', () => ({
 }))
 
 import {
-  getStreams, getMultiviewJobs, stopMultiviewJob,
+  getStreams, getMultiviewJobs, stopMultiviewJob, getMultiviewJobLog,
   getExternalSources, removeExternalSource,
   getYoutubeCookiesStatus, removeYoutubeCookies,
 } from '../../api/client'
@@ -43,6 +45,8 @@ beforeEach(() => {
   getStreams.mockReset().mockResolvedValue([])
   getMultiviewJobs.mockReset().mockResolvedValue([])
   stopMultiviewJob.mockReset()
+  getMultiviewJobLog.mockReset().mockResolvedValue({ job_id: 'job1', log: '' })
+  act(() => useAuthStore.setState({ user: null, token: null }))
   getExternalSources.mockReset().mockResolvedValue([])
   removeExternalSource.mockReset()
   getYoutubeCookiesStatus.mockReset().mockResolvedValue({ present: false })
@@ -76,6 +80,32 @@ describe('MultiviewerPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Stop' }))
 
     expect(await screen.findByText('Job not found')).toBeInTheDocument()
+  })
+
+  it('hides the Log button for a non-admin', async () => {
+    getMultiviewJobs.mockResolvedValue([
+      { job_id: 'job1', paths: ['cam1'], audio_path: null, running: true },
+    ])
+    renderMultiviewerPage()
+    await screen.findByRole('button', { name: 'Stop' })
+
+    expect(screen.queryByRole('button', { name: 'Log' })).not.toBeInTheDocument()
+  })
+
+  it('shows the composite job log for an admin', async () => {
+    act(() => useAuthStore.setState({ user: { username: 'admin1', role: 'admin' }, token: 'tok' }))
+    getMultiviewJobs.mockResolvedValue([
+      { job_id: 'job1', paths: ['cam1'], audio_path: null, running: true },
+    ])
+    getMultiviewJobLog.mockResolvedValue({ job_id: 'job1', log: 'frame=1 fps=30\nframe=2 fps=30' })
+    renderMultiviewerPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Log' }))
+
+    expect(getMultiviewJobLog).toHaveBeenCalledWith('job1')
+    expect(await screen.findByText(/frame=1 fps=30/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByText(/frame=1 fps=30/)).not.toBeInTheDocument()
   })
 
   it('shows an error toast when removing an external source fails', async () => {

@@ -58,6 +58,7 @@ export const fetchRecordingBlobUrl = (id, { inline = false } = {}) =>
 // --- Multiview ---
 export const getMultiviewJobs  = () => api.get('/multiview/jobs').then(r => r.data)
 export const stopMultiviewJob  = (jobId) => api.delete(`/multiview/jobs/${jobId}`)
+export const getMultiviewJobLog = (jobId) => api.get(`/multiview/jobs/${jobId}/log`).then(r => r.data)
 
 // --- External sources (SRT or YouTube-via-yt-dlp, auto-detected by URL) ---
 export const getExternalSources  = () => api.get('/sources').then(r => r.data)
