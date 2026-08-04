@@ -1,9 +1,10 @@
 """
 Router tests for /api/sources — external SRT/YouTube source CRUD and the
-YouTube cookies file management endpoints. The debug/* endpoints (Docker
-provider health check, GitHub plugin download, live mediamtx path
-inspection) aren't covered — they hit real external services rather than
-app logic.
+YouTube cookies file management endpoints. Most debug/* endpoints (Docker
+provider health check, GitHub plugin download) aren't covered — they hit
+real external services rather than app logic. stale-paths and
+force-remove-path are covered below since the mediamtx client they call
+is easy to fake (same pattern as test_streams_router.py's FakeMediaMTXClient).
 
 ExternalSourceManager.add() would otherwise spawn a real yt-dlp/ffmpeg
 process, so it's replaced with a fake — routers/external_sources.py
@@ -180,3 +181,74 @@ def test_upload_cookies_rejects_oversized_file(client, auth_headers, cookies_pat
     )
 
     assert resp.status_code == 400
+
+
+class FakeMediaMTXClientForPaths:
+    def __init__(self, paths):
+        self._paths = paths
+        self.removed = []
+
+    async def get_paths(self):
+        return self._paths
+
+    async def remove_path(self, name):
+        if name == "boom":
+            raise RuntimeError("mediamtx unreachable")
+        self.removed.append(name)
+
+
+def test_stale_paths_requires_admin(client, auth_headers):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+    resp = client.get("/api/sources/debug/stale-paths", headers=auth)
+    assert resp.status_code == 403
+
+
+def test_stale_paths_lists_only_not_ready(client, auth_headers, monkeypatch):
+    from backend.services import mediamtx
+
+    fake = FakeMediaMTXClientForPaths([
+        {"name": "live1", "ready": True},
+        {"name": "stuck1", "ready": False},
+    ])
+    monkeypatch.setattr(mediamtx, "get_client", lambda: fake)
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+    resp = client.get("/api/sources/debug/stale-paths", headers=auth)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [p["name"] for p in body] == ["stuck1"]
+    assert body[0]["ready"] is False
+
+
+def test_force_remove_path_requires_admin(client, auth_headers):
+    auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+    resp = client.post("/api/sources/debug/force-remove-path/stuck1", headers=auth)
+    assert resp.status_code == 403
+
+
+def test_force_remove_path_success(client, auth_headers, monkeypatch):
+    from backend.services import mediamtx
+
+    fake = FakeMediaMTXClientForPaths([])
+    monkeypatch.setattr(mediamtx, "get_client", lambda: fake)
+    monkeypatch.setattr("backend.services.managed_paths.unregister_path", lambda name: None)
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+    resp = client.post("/api/sources/debug/force-remove-path/stuck1", headers=auth)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"removed": "stuck1"}
+    assert fake.removed == ["stuck1"]
+
+
+def test_force_remove_path_502_when_mediamtx_errors(client, auth_headers, monkeypatch):
+    from backend.services import mediamtx
+
+    fake = FakeMediaMTXClientForPaths([])
+    monkeypatch.setattr(mediamtx, "get_client", lambda: fake)
+    auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+    resp = client.post("/api/sources/debug/force-remove-path/boom", headers=auth)
+
+    assert resp.status_code == 502

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings as SettingsIcon, Radio, Download } from 'lucide-react'
-import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout, getBackupStatus, triggerBackup } from '../api/client'
+import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout, getBackupStatus, triggerBackup, getStalePaths, forceRemovePath } from '../api/client'
 import { useAuthStore } from '../store/auth'
 import api from '../api/client'
 import Card from '../components/ui/Card'
@@ -337,6 +337,72 @@ function DatabaseBackupCard() {
   )
 }
 
+function StalePathsCard() {
+  const isAdmin = useAuthStore(s => s.user?.role) === 'admin'
+  const qc = useQueryClient()
+  const [confirming, setConfirming] = useState(null) // path name | null
+
+  const { data: paths = [], isFetching, refetch, isError } = useQuery({
+    queryKey: ['stale-paths'],
+    queryFn: getStalePaths,
+    enabled: isAdmin,
+  })
+
+  const removeMut = useMutation({
+    mutationFn: forceRemovePath,
+    onSuccess: (_data, name) => {
+      toast.success(`Removed path '${name}'`)
+      qc.invalidateQueries({ queryKey: ['stale-paths'] })
+      setConfirming(null)
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to remove path')),
+  })
+
+  if (!isAdmin) return null
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-white text-sm font-semibold">Stale mediamtx paths</h3>
+        <Button variant="ghost" size="sm" disabled={isFetching} onClick={() => refetch()}>
+          {isFetching ? 'Checking…' : 'Check now'}
+        </Button>
+      </div>
+      <p className="text-gray-500 text-xs mb-4">Paths registered with mediamtx that never went ready — leftovers from failed publishes. Force-remove clears them without a server restart.</p>
+      {isError && <p className="text-red-400 text-xs">Could not check for stale paths.</p>}
+      {!isError && paths.length === 0 && <p className="text-gray-500 text-xs">No stale paths found.</p>}
+      {paths.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {paths.map(p => (
+            <div key={p.name} className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-900 border border-surface-600">
+              <span className="text-sm font-mono text-gray-200 truncate">{p.name}</span>
+              <Button variant="ghost" size="sm" onClick={() => setConfirming(p.name)}>Force remove</Button>
+            </div>
+          ))}
+        </div>
+      )}
+      <Modal open={!!confirming} onClose={() => setConfirming(null)}>
+        <div className="p-4 flex flex-col gap-3">
+          <h3 className="text-white text-sm font-semibold">Force-remove path '{confirming}'?</h3>
+          <p className="text-gray-400 text-sm">
+            This immediately drops the path from mediamtx, including any active publisher or reader on it. Use this only for a path stuck at not-ready.
+          </p>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="ghost" size="sm" onClick={() => setConfirming(null)}>Cancel</Button>
+            <Button
+              variant="danger" size="sm"
+              disabled={removeMut.isPending}
+              onClick={() => removeMut.mutate(confirming)}
+            >
+              {removeMut.isPending ? 'Removing…' : 'Force remove'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </Card>
+  )
+}
+
 function ServerTab() {
   const { data: config } = useQuery({
     queryKey: ['server-config'],
@@ -356,6 +422,7 @@ function ServerTab() {
       <AlertWebhookCard configured={!!config?.webhook_configured} />
       <DatabaseBackupCard />
       <LoginAttemptsCard />
+      <StalePathsCard />
       <Card className="p-4">
         <h3 className="text-white text-sm font-semibold mb-1">TURN server</h3>
         <p className="text-gray-500 text-xs mb-4">WebRTC relay configuration</p>

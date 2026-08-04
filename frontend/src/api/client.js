@@ -73,6 +73,10 @@ export const uploadYoutubeCookies = (file) => {
 }
 export const removeYoutubeCookies = () => api.delete('/sources/youtube-cookies')
 
+// --- mediamtx path diagnostics (admin) ---
+export const getStalePaths = () => api.get('/sources/debug/stale-paths').then(r => r.data)
+export const forceRemovePath = (name) => api.post(`/sources/debug/force-remove-path/${encodeURIComponent(name)}`).then(r => r.data)
+
 // --- Stats ---
 export const getStats        = (p) => api.get(`/stats/${p}`).then(r => r.data)
 export const getStatsHistory = (p, s) => api.get(`/stats/${p}/history`, { params: { seconds: s } }).then(r => r.data)

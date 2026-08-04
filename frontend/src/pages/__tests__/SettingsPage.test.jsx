@@ -20,10 +20,12 @@ vi.mock('../../api/client', () => ({
   clearLoginLockout: vi.fn(),
   getBackupStatus: vi.fn(),
   triggerBackup: vi.fn(),
+  getStalePaths: vi.fn(),
+  forceRemovePath: vi.fn(),
   default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
 }))
 
-import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout, getBackupStatus, triggerBackup } from '../../api/client'
+import { getUsers, createUser, updateUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout, getBackupStatus, triggerBackup, getStalePaths, forceRemovePath } from '../../api/client'
 import api from '../../api/client'
 
 vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
@@ -49,6 +51,8 @@ beforeEach(() => {
   clearLoginLockout.mockReset()
   getBackupStatus.mockReset().mockResolvedValue({ last_backup: null })
   triggerBackup.mockReset()
+  getStalePaths.mockReset().mockResolvedValue([])
+  forceRemovePath.mockReset()
   api.get.mockReset().mockResolvedValue({ data: {} })
   api.put.mockReset().mockResolvedValue({ data: {} })
   api.post.mockReset()
@@ -125,6 +129,50 @@ describe('SettingsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Back up now' }))
 
     expect(await screen.findByText('Backup failed: disk full')).toBeInTheDocument()
+  })
+
+  it('hides the stale-paths card entirely for a non-admin', async () => {
+    renderSettingsPage()
+    await screen.findByText('Server configuration')
+
+    expect(screen.queryByText('Stale mediamtx paths')).not.toBeInTheDocument()
+    expect(getStalePaths).not.toHaveBeenCalled()
+  })
+
+  it('shows "No stale paths found" for an admin when the check comes back empty', async () => {
+    act(() => { useAuthStore.setState({ user: { username: 'admin1', role: 'admin' } }) })
+    renderSettingsPage()
+
+    expect(await screen.findByText('No stale paths found.')).toBeInTheDocument()
+  })
+
+  it('lists stale paths and force-removes one after confirming', async () => {
+    act(() => { useAuthStore.setState({ user: { username: 'admin1', role: 'admin' } }) })
+    getStalePaths.mockResolvedValue([{ name: 'stuck-path', ready: false }])
+    forceRemovePath.mockResolvedValue({ removed: 'stuck-path' })
+    renderSettingsPage()
+    await screen.findByText('stuck-path')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Force remove' }))
+    expect(await screen.findByText("Force-remove path 'stuck-path'?")).toBeInTheDocument()
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Force remove' })[1])
+
+    expect(forceRemovePath.mock.calls[0][0]).toBe('stuck-path')
+    expect(await screen.findByText("Removed path 'stuck-path'")).toBeInTheDocument()
+  })
+
+  it('shows an error toast when force-remove fails', async () => {
+    act(() => { useAuthStore.setState({ user: { username: 'admin1', role: 'admin' } }) })
+    getStalePaths.mockResolvedValue([{ name: 'stuck-path', ready: false }])
+    forceRemovePath.mockRejectedValue({ response: { data: { detail: 'mediamtx unreachable' } } })
+    renderSettingsPage()
+    await screen.findByText('stuck-path')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Force remove' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Force remove' })[1])
+
+    expect(await screen.findByText('mediamtx unreachable')).toBeInTheDocument()
   })
 
   it('shows nothing for login attempts when there is no tracked activity', async () => {
