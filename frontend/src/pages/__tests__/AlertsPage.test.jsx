@@ -54,6 +54,29 @@ beforeEach(() => {
   })
 })
 
+describe('AlertsPage — predicted risk', () => {
+  it('shows nothing when there are no predicted risks', async () => {
+    renderAlertsPage()
+    await screen.findByText('All systems normal')
+    expect(screen.queryByText('Predicted risk — not firing yet')).not.toBeInTheDocument()
+  })
+
+  it('surfaces a predicted risk with its reason, separately from firing alerts', async () => {
+    getAlertStatus.mockResolvedValue({
+      down_streams: [],
+      firing_rule_ids: [],
+      predicted_risks: { cam1: 'RTT projected to hit 320ms within ~2min (currently 180ms)' },
+    })
+    renderAlertsPage()
+
+    expect(await screen.findByText('Predicted risk — not firing yet')).toBeInTheDocument()
+    expect(screen.getByText('cam1')).toBeInTheDocument()
+    expect(screen.getByText('RTT projected to hit 320ms within ~2min (currently 180ms)')).toBeInTheDocument()
+    // Predicted risk isn't a firing alert — the "all clear" banner logic is unaffected.
+    expect(screen.getByText('All systems normal')).toBeInTheDocument()
+  })
+})
+
 describe('AlertsPage — alert rules', () => {
   it('shows the empty state when there are no rules', async () => {
     renderAlertsPage()

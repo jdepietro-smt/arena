@@ -27,11 +27,28 @@ class FakeMediaMTXClient:
 
 
 class FakeCollector:
-    def __init__(self, stats: dict[str, dict] | None = None) -> None:
+    def __init__(self, stats: dict[str, dict] | None = None, history: dict[str, list[dict]] | None = None) -> None:
         self._stats = stats or {}
+        self._history = history or {}
 
     def get_stats(self, path_name: str):
         return self._stats.get(path_name)
+
+    def get_all_paths(self) -> list[str]:
+        return sorted(self._history.keys())
+
+    def get_history(self, path_name: str, seconds: float = 60.0) -> list[dict]:
+        return self._history.get(path_name, [])
+
+
+def _series(field: str, values: list[float], start: float = 1000.0, step: float = 2.0) -> list[dict]:
+    """Build a fake history list for one metric field, evenly spaced by
+    *step* seconds — everything else defaults so _predict_risk's other
+    metric checks see no data and skip cleanly."""
+    return [
+        {"timestamp": start + i * step, "ready": True, "rtt_ms": None, "packet_loss_pct": None, "bitrate_kbps": None, field: v}
+        for i, v in enumerate(values)
+    ]
 
 
 def _ready(name: str) -> dict:
@@ -206,6 +223,103 @@ class TestRuleEvaluation:
         with Session(engine) as session:
             session.delete(session.get(AlertRule, rule_id))
             session.commit()
+
+
+class TestPredictiveAlerting:
+    async def test_rtt_trending_toward_critical_notifies_after_two_ticks(self, monkeypatch):
+        # Rising from 50ms to 250ms over 90s projects well past the 300ms
+        # critical band within the 120s horizon, while still under it now.
+        history = _series("rtt_ms", [50.0 + i * 4.0 for i in range(45)])
+        manager = AlertManager()
+        notified: list[str] = []
+        monkeypatch.setattr(manager, "_notify", _record(notified))
+        monkeypatch.setattr(alerting_module, "get_collector", lambda: FakeCollector(history={"Golf_Channel": history}))
+
+        await manager._check_predictions()
+        assert notified == []  # first tick just starts the streak, doesn't notify yet
+        assert "Golf_Channel" not in manager._predicted_risks
+
+        await manager._check_predictions()
+        assert len(notified) == 1
+        assert "trending toward trouble" in notified[0]
+        assert "Golf_Channel" in manager._predicted_risks
+
+        # Still trending the same way — must not re-notify every tick.
+        await manager._check_predictions()
+        assert len(notified) == 1
+
+    async def test_flat_stable_metrics_never_predict_risk(self, monkeypatch):
+        history = _series("rtt_ms", [80.0] * 45)
+        manager = AlertManager()
+        notified: list[str] = []
+        monkeypatch.setattr(manager, "_notify", _record(notified))
+        monkeypatch.setattr(alerting_module, "get_collector", lambda: FakeCollector(history={"Golf_Channel": history}))
+
+        for _ in range(3):
+            await manager._check_predictions()
+
+        assert notified == []
+        assert manager._predicted_risks == {}
+
+    async def test_prediction_clears_when_trend_reverses(self, monkeypatch):
+        rising = _series("rtt_ms", [50.0 + i * 4.0 for i in range(45)])
+        manager = AlertManager()
+        notified: list[str] = []
+        monkeypatch.setattr(manager, "_notify", _record(notified))
+        monkeypatch.setattr(alerting_module, "get_collector", lambda: FakeCollector(history={"Golf_Channel": rising}))
+
+        await manager._check_predictions()
+        await manager._check_predictions()
+        assert "Golf_Channel" in manager._predicted_risks
+        assert len(notified) == 1
+
+        flat = _series("rtt_ms", [80.0] * 45)
+        monkeypatch.setattr(alerting_module, "get_collector", lambda: FakeCollector(history={"Golf_Channel": flat}))
+        await manager._check_predictions()
+
+        assert "Golf_Channel" not in manager._predicted_risks
+        assert len(notified) == 2
+        assert "recovered" in notified[1]
+
+    async def test_already_down_stream_is_not_also_predicted_at_risk(self, monkeypatch):
+        history = _series("rtt_ms", [50.0 + i * 4.0 for i in range(45)])
+        manager = AlertManager()
+        manager._currently_down.add("Golf_Channel")
+        notified: list[str] = []
+        monkeypatch.setattr(manager, "_notify", _record(notified))
+        monkeypatch.setattr(alerting_module, "get_collector", lambda: FakeCollector(history={"Golf_Channel": history}))
+
+        await manager._check_predictions()
+        await manager._check_predictions()
+
+        assert notified == []
+        assert manager._predicted_risks == {}
+
+    async def test_bitrate_collapse_is_predicted(self, monkeypatch):
+        # Steady ~5000kbps collapsing toward near-zero.
+        history = _series("bitrate_kbps", [5000.0 - i * 100.0 for i in range(45)])
+        manager = AlertManager()
+        notified: list[str] = []
+        monkeypatch.setattr(manager, "_notify", _record(notified))
+        monkeypatch.setattr(alerting_module, "get_collector", lambda: FakeCollector(history={"Golf_Channel": history}))
+
+        await manager._check_predictions()
+        await manager._check_predictions()
+
+        assert len(notified) == 1
+        assert "Bitrate collapsing" in notified[0]
+
+    async def test_too_few_samples_does_not_predict(self, monkeypatch):
+        history = _series("rtt_ms", [50.0, 250.0])  # only 2 points
+        manager = AlertManager()
+        notified: list[str] = []
+        monkeypatch.setattr(manager, "_notify", _record(notified))
+        monkeypatch.setattr(alerting_module, "get_collector", lambda: FakeCollector(history={"Golf_Channel": history}))
+
+        await manager._check_predictions()
+        await manager._check_predictions()
+
+        assert notified == []
 
 
 def _record(sink: list[str]):

@@ -77,6 +77,19 @@ describe('OverviewPage', () => {
     expect(screen.queryByText('All systems normal')).not.toBeInTheDocument()
   })
 
+  it('shows a predicted-risk section separately from the firing-alerts panel', async () => {
+    getAlertStatus.mockResolvedValue({
+      down_streams: [],
+      firing_rule_ids: [],
+      predicted_risks: { cam3: 'Bitrate collapsing — projected 400kbps vs a recent average of 5000kbps' },
+    })
+    renderOverviewPage()
+
+    expect(await screen.findByText('Predicted Risk')).toBeInTheDocument()
+    expect(screen.getByText('cam3')).toBeInTheDocument()
+    expect(screen.getByText('All systems normal')).toBeInTheDocument()
+  })
+
   it('renders recent events with a relative timestamp', async () => {
     getEvents.mockResolvedValue([
       { id: 1, type: 'stream_connected', stream_path: 'cam1', message: 'Connected', created_at: new Date().toISOString() },

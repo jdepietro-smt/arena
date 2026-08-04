@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Radio, Zap, Disc, Users, BellRing, CheckCircle2 } from 'lucide-react'
+import { Activity, Radio, Zap, Disc, Users, BellRing, CheckCircle2, TrendingUp } from 'lucide-react'
 import { getStreams, getStatsSummary, getAlertStatus, getAlertRules, getEvents, getStatsHistory } from '../api/client'
 import Card from '../components/ui/Card'
 import StatusDot from '../components/ui/StatusDot'
@@ -134,7 +134,7 @@ export default function OverviewPage() {
     queryFn: getStatsSummary,
     refetchInterval: 3000,
   })
-  const { data: alertStatus = { down_streams: [], firing_rule_ids: [] } } = useQuery({
+  const { data: alertStatus = { down_streams: [], firing_rule_ids: [], predicted_risks: {} } } = useQuery({
     queryKey: ['alert-status'],
     queryFn: getAlertStatus,
     refetchInterval: 5000,
@@ -155,6 +155,7 @@ export default function OverviewPage() {
   const firingSet = new Set(alertStatus.firing_rule_ids)
   const firingRules = rules.filter(r => firingSet.has(r.id))
   const alertCount = downSet.size + firingRules.length
+  const predictedRisks = Object.entries(alertStatus.predicted_risks || {})
 
   const totalBitrate = summary?.total_bitrate_kbps
     ?? streams.reduce((acc, s) => acc + (s.bitrate_kbps || 0), 0)
@@ -248,6 +249,26 @@ export default function OverviewPage() {
               </div>
             )}
           </div>
+
+          {predictedRisks.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-1.5">
+                <TrendingUp size={13} className="text-amber-400" />
+                Predicted Risk
+              </h2>
+              <div className="flex flex-col gap-2">
+                {predictedRisks.map(([path, reason]) => (
+                  <div key={`risk-${path}`} className="flex items-start gap-2 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.05]">
+                    <TrendingUp size={13} className="text-amber-400 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-gray-200">{path}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{reason}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <h2 className="text-sm font-semibold text-gray-300 mb-3">Recent Events</h2>

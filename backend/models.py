@@ -69,6 +69,8 @@ class EventType(str, enum.Enum):
     recording_stopped = "recording_stopped"
     alert_fired = "alert_fired"
     alert_recovered = "alert_recovered"
+    predicted_risk = "predicted_risk"
+    predicted_risk_cleared = "predicted_risk_cleared"
 
 
 # ---------------------------------------------------------------------------

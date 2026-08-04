@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { TrendingUp } from 'lucide-react'
 import {
   getStreams, getAlertStatus, getAlertRules,
   createAlertRule, toggleAlertRule, deleteAlertRule,
@@ -386,7 +387,7 @@ export default function AlertsPage() {
     refetchInterval: 5000,
   })
 
-  const { data: alertStatus = { down_streams: [], firing_rule_ids: [] } } = useQuery({
+  const { data: alertStatus = { down_streams: [], firing_rule_ids: [], predicted_risks: {} } } = useQuery({
     queryKey: ['alert-status'],
     queryFn: getAlertStatus,
     refetchInterval: 5000,
@@ -478,6 +479,7 @@ export default function AlertsPage() {
 
   const downStreams = new Set(alertStatus.down_streams)
   const firingRuleIds = new Set(alertStatus.firing_rule_ids)
+  const predictedRisks = Object.entries(alertStatus.predicted_risks || {})
 
   // Union of currently-live paths and paths the alert manager still
   // considers down (mediamtx may have already stopped listing a path
@@ -496,6 +498,30 @@ export default function AlertsPage() {
       <div className="mb-6">
         <SummaryBanner downCount={downStreams.size} firingCount={firingRuleIds.size} />
       </div>
+
+      {predictedRisks.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3 flex items-center gap-1.5">
+            <TrendingUp size={13} className="text-amber-400" />
+            Predicted risk — not firing yet
+          </h2>
+          <div className="flex flex-col gap-2">
+            {predictedRisks.map(([path, reason]) => (
+              <div
+                key={path}
+                className="flex items-start gap-3 px-4 py-3 rounded-xl border"
+                style={{ background: 'rgba(250,178,25,0.06)', borderColor: 'rgba(250,178,25,0.25)' }}
+              >
+                <TrendingUp size={15} className="text-amber-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-100">{path}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{reason}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mb-6">
         <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-3">Stream health</h2>

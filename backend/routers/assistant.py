@@ -54,6 +54,7 @@ def _build_context(streams: list[dict], alert_status: dict, events: list) -> dic
         ],
         "down_streams": alert_status.get("down_streams", []),
         "firing_alert_rule_ids": alert_status.get("firing_rule_ids", []),
+        "predicted_risks": alert_status.get("predicted_risks", {}),
         "recent_events": [
             {
                 "type": e.type,
