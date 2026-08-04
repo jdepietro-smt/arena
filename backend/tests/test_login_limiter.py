@@ -81,3 +81,48 @@ class TestLoginLimiter:
         login_limiter.record_failure("1.2.3.4")  # only 1 "recent" failure now
 
         assert login_limiter.seconds_until_unlocked("1.2.3.4") is None
+
+
+class TestStatusAndClear:
+    def test_status_is_empty_with_no_activity(self):
+        assert login_limiter.status() == []
+
+    def test_status_reports_an_unlocked_ip_with_partial_attempts(self):
+        for _ in range(2):
+            login_limiter.record_failure("1.2.3.4")
+
+        entries = login_limiter.status()
+        assert entries == [{"ip": "1.2.3.4", "attempt_count": 2, "locked": False, "seconds_remaining": None}]
+
+    def test_status_reports_a_locked_ip_with_remaining_seconds(self):
+        for _ in range(5):
+            login_limiter.record_failure("1.2.3.4")
+
+        entries = login_limiter.status()
+        assert len(entries) == 1
+        assert entries[0]["ip"] == "1.2.3.4"
+        assert entries[0]["locked"] is True
+        assert entries[0]["seconds_remaining"] > 0
+
+    def test_status_sorts_locked_ips_before_unlocked_ones(self):
+        for _ in range(2):
+            login_limiter.record_failure("unlocked-ip")
+        for _ in range(5):
+            login_limiter.record_failure("locked-ip")
+
+        entries = login_limiter.status()
+        assert [e["ip"] for e in entries] == ["locked-ip", "unlocked-ip"]
+
+    def test_clear_lifts_a_lockout_and_reports_it_was_tracked(self):
+        for _ in range(5):
+            login_limiter.record_failure("1.2.3.4")
+        assert login_limiter.seconds_until_unlocked("1.2.3.4") is not None
+
+        was_tracked = login_limiter.clear("1.2.3.4")
+
+        assert was_tracked is True
+        assert login_limiter.seconds_until_unlocked("1.2.3.4") is None
+        assert login_limiter.status() == []
+
+    def test_clear_on_an_untracked_ip_reports_false_and_does_not_raise(self):
+        assert login_limiter.clear("9.9.9.9") is False

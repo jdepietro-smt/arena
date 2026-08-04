@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings as SettingsIcon, Radio, Download } from 'lucide-react'
-import { getUsers, createUser, deleteUser, getAuditLog } from '../api/client'
+import { getUsers, createUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../api/client'
 import api from '../api/client'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Badge from '../components/ui/Badge'
 import Tabs from '../components/ui/Tabs'
 import Button from '../components/ui/Button'
+import StatusDot from '../components/ui/StatusDot'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
 import { getErrorMessage } from '../utils/errors'
@@ -157,6 +158,62 @@ function AlertWebhookCard({ configured }) {
   )
 }
 
+function formatLockoutRemaining(seconds) {
+  const mins = Math.ceil(seconds / 60)
+  return `${mins} min${mins === 1 ? '' : 's'}`
+}
+
+function LoginAttemptsCard() {
+  const qc = useQueryClient()
+
+  const { data: attempts = [] } = useQuery({
+    queryKey: ['login-attempts'],
+    queryFn: getLoginAttempts,
+    refetchInterval: 10000,
+  })
+
+  const clearMut = useMutation({
+    mutationFn: clearLoginLockout,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['login-attempts'] })
+      toast.success('Lockout cleared')
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to clear lockout')),
+  })
+
+  if (attempts.length === 0) return null
+
+  return (
+    <Card className="p-4">
+      <h3 className="text-white text-sm font-semibold mb-1">Login attempts</h3>
+      <p className="text-gray-500 text-xs mb-4">IPs with recent failed logins — 5 failures in 15 minutes locks out for 15 minutes</p>
+      <div className="flex flex-col gap-2">
+        {attempts.map(a => (
+          <div key={a.ip} className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-900 border border-surface-600">
+            <div className="flex items-center gap-2 min-w-0">
+              <StatusDot tone={a.locked ? 'critical' : 'warning'} pulse={a.locked} size={7} />
+              <span className="text-sm font-mono text-gray-200 truncate">{a.ip}</span>
+              <span className="text-xs text-gray-500">
+                {a.attempt_count} attempt{a.attempt_count === 1 ? '' : 's'}
+                {a.locked && ` · locked, unlocks in ${formatLockoutRemaining(a.seconds_remaining)}`}
+              </span>
+            </div>
+            {a.locked && (
+              <Button
+                variant="ghost" size="sm"
+                disabled={clearMut.isPending}
+                onClick={() => clearMut.mutate(a.ip)}
+              >
+                Unlock
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 function ServerTab() {
   const { data: config } = useQuery({
     queryKey: ['server-config'],
@@ -174,6 +231,7 @@ function ServerTab() {
         <FieldRow label="HLS base URL" value={config?.hls_base_url} />
       </Card>
       <AlertWebhookCard configured={!!config?.webhook_configured} />
+      <LoginAttemptsCard />
       <Card className="p-4">
         <h3 className="text-white text-sm font-semibold mb-1">TURN server</h3>
         <p className="text-gray-500 text-xs mb-4">WebRTC relay configuration</p>

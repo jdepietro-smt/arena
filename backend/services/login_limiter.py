@@ -51,3 +51,32 @@ def record_failure(key: str) -> None:
 def record_success(key: str) -> None:
     _failures.pop(key, None)
     _locked_until.pop(key, None)
+
+
+def status() -> list[dict]:
+    """Every IP with a recent failed attempt or an active lockout — visibility
+    an admin currently has no way to get (no log line, no endpoint), so a
+    locked-out teammate looks identical to "the app is broken" until this."""
+    now = time.monotonic()
+    keys = set(_failures) | set(_locked_until)
+    out = []
+    for key in keys:
+        attempts = [t for t in _failures.get(key, []) if t >= now - _WINDOW_S]
+        remaining = seconds_until_unlocked(key)
+        out.append({
+            "ip": key,
+            "attempt_count": len(attempts),
+            "locked": remaining is not None,
+            "seconds_remaining": remaining,
+        })
+    return sorted(out, key=lambda e: (-e["locked"], -e["attempt_count"]))
+
+
+def clear(key: str) -> bool:
+    """Manually lift a lockout — for the false-positive case (shared office
+    IP, someone fat-fingered a password 5 times). Returns whether *key* was
+    actually tracked at all."""
+    was_tracked = key in _failures or key in _locked_until
+    _failures.pop(key, None)
+    _locked_until.pop(key, None)
+    return was_tracked

@@ -14,10 +14,12 @@ vi.mock('../../api/client', () => ({
   createUser: vi.fn(),
   deleteUser: vi.fn(),
   getAuditLog: vi.fn(),
+  getLoginAttempts: vi.fn(),
+  clearLoginLockout: vi.fn(),
   default: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
 }))
 
-import { getUsers, createUser, deleteUser, getAuditLog } from '../../api/client'
+import { getUsers, createUser, deleteUser, getAuditLog, getLoginAttempts, clearLoginLockout } from '../../api/client'
 import api from '../../api/client'
 
 vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
@@ -38,6 +40,8 @@ beforeEach(() => {
   createUser.mockReset()
   deleteUser.mockReset()
   getAuditLog.mockReset().mockResolvedValue([])
+  getLoginAttempts.mockReset().mockResolvedValue([])
+  clearLoginLockout.mockReset()
   api.get.mockReset().mockResolvedValue({ data: {} })
   api.put.mockReset().mockResolvedValue({ data: {} })
   api.post.mockReset()
@@ -82,6 +86,42 @@ describe('SettingsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send test alert' }))
 
     expect(await screen.findByText('Webhook responded with HTTP 404')).toBeInTheDocument()
+  })
+
+  it('shows nothing for login attempts when there is no tracked activity', async () => {
+    renderSettingsPage()
+    await screen.findByText('Server configuration')
+
+    expect(screen.queryByText('Login attempts')).not.toBeInTheDocument()
+  })
+
+  it('shows a locked IP with an Unlock button, and hides Unlock for an unlocked one', async () => {
+    getLoginAttempts.mockResolvedValue([
+      { ip: '10.0.0.9', attempt_count: 5, locked: true, seconds_remaining: 300 },
+      { ip: '10.0.0.5', attempt_count: 2, locked: false, seconds_remaining: null },
+    ])
+    renderSettingsPage()
+
+    expect(await screen.findByText('10.0.0.9')).toBeInTheDocument()
+    expect(screen.getByText('10.0.0.5')).toBeInTheDocument()
+    expect(screen.getByText(/locked, unlocks in 5 mins/)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Unlock' })).toHaveLength(1)
+  })
+
+  it('unlocks a locked IP and refreshes the list', async () => {
+    getLoginAttempts.mockResolvedValueOnce([
+      { ip: '10.0.0.9', attempt_count: 5, locked: true, seconds_remaining: 300 },
+    ]).mockResolvedValueOnce([])
+    clearLoginLockout.mockResolvedValue({ ok: true })
+    renderSettingsPage()
+    await screen.findByText('10.0.0.9')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Unlock' }))
+
+    expect(clearLoginLockout).toHaveBeenCalled()
+    expect(clearLoginLockout.mock.calls[0][0]).toBe('10.0.0.9')
+    expect(await screen.findByText('Lockout cleared')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Login attempts')).not.toBeInTheDocument())
   })
 
   it('shows the empty state when there are no users', async () => {

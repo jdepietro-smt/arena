@@ -8,6 +8,7 @@ from __future__ import annotations
 import sqlite3
 
 import httpx
+import pytest
 
 from backend.models import UserRole
 from backend.routers import settings as settings_router
@@ -222,3 +223,64 @@ def test_test_webhook_surfaces_a_network_failure_as_502(client, auth_headers, mo
 
     assert resp.status_code == 502
     assert "connection refused" in resp.json()["detail"]
+
+
+class TestLoginAttempts:
+    @pytest.fixture(autouse=True)
+    def _reset_limiter(self):
+        from backend.services import login_limiter
+        login_limiter._failures.clear()
+        login_limiter._locked_until.clear()
+        yield
+        login_limiter._failures.clear()
+        login_limiter._locked_until.clear()
+
+    def test_list_requires_admin(self, client, auth_headers):
+        auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+        resp = client.get("/api/settings/login-attempts", headers=auth)
+
+        assert resp.status_code == 403
+
+    def test_list_reports_a_locked_ip(self, client, auth_headers):
+        from backend.services import login_limiter
+        for _ in range(5):
+            login_limiter.record_failure("10.0.0.9")
+        auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+        resp = client.get("/api/settings/login-attempts", headers=auth)
+
+        assert resp.status_code == 200
+        entries = resp.json()
+        assert entries == [{"ip": "10.0.0.9", "attempt_count": 5, "locked": True, "seconds_remaining": entries[0]["seconds_remaining"]}]
+        assert entries[0]["seconds_remaining"] > 0
+
+    def test_clear_requires_admin(self, client, auth_headers):
+        auth, _ = auth_headers(UserRole.viewer, username="viewer1")
+
+        resp = client.post("/api/settings/login-attempts/10.0.0.9/clear", headers=auth)
+
+        assert resp.status_code == 403
+
+    def test_clear_404s_for_an_untracked_ip(self, client, auth_headers):
+        auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+        resp = client.post("/api/settings/login-attempts/1.2.3.4/clear", headers=auth)
+
+        assert resp.status_code == 404
+
+    def test_clear_lifts_a_lockout_and_writes_an_audit_entry(self, client, auth_headers):
+        from backend.services import login_limiter
+        for _ in range(5):
+            login_limiter.record_failure("10.0.0.9")
+        auth, _ = auth_headers(UserRole.admin, username="admin1")
+
+        resp = client.post("/api/settings/login-attempts/10.0.0.9/clear", headers=auth)
+
+        assert resp.status_code == 200
+        assert client.get("/api/settings/login-attempts", headers=auth).json() == []
+
+        log = client.get("/api/audit", headers=auth).json()
+        entry = next(e for e in log if e["action"] == "login_lockout.clear")
+        assert entry["username"] == "admin1"
+        assert entry["target"] == "10.0.0.9"

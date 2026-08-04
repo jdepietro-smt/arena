@@ -101,6 +101,10 @@ export const login = (username, password) => {
 }
 export const getMe = () => api.get('/auth/me').then(r => r.data)
 
+// --- Login attempts ---
+export const getLoginAttempts = () => api.get('/settings/login-attempts').then(r => r.data)
+export const clearLoginLockout = (ip) => api.post(`/settings/login-attempts/${encodeURIComponent(ip)}/clear`).then(r => r.data)
+
 // --- Audit log ---
 export const getAuditLog = (limit = 100) => api.get('/audit', { params: { limit } }).then(r => r.data)
 

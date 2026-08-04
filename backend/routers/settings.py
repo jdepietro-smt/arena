@@ -24,6 +24,7 @@ from ..auth import get_current_active_user, require_admin
 from ..config import settings
 from ..database import get_session
 from ..models import User
+from ..services import login_limiter
 from ..services.audit import log_audit
 from ..services.db_backup import get_db_backup, run_backup_once
 from ..services.rate_limiter import rate_limit
@@ -176,6 +177,27 @@ async def test_webhook(
             detail=f"Webhook responded with HTTP {resp.status_code}",
         )
     return {"ok": True, "status_code": resp.status_code}
+
+
+@router.get("/login-attempts", summary="Currently tracked failed-login IPs and lockouts (admin only)")
+async def list_login_attempts(_admin: User = Depends(require_admin)) -> list[dict]:
+    return login_limiter.status()
+
+
+@router.post("/login-attempts/{ip}/clear", summary="Manually lift a login lockout for an IP (admin only)")
+async def clear_login_attempts(
+    ip: str,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> dict:
+    was_tracked = login_limiter.clear(ip)
+    if not was_tracked:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No tracked login attempts for {ip}",
+        )
+    log_audit(session, admin.username, "login_lockout.clear", target=ip)
+    return {"ok": True}
 
 
 @router.put("/recording", summary="Update recording storage/retention settings")
