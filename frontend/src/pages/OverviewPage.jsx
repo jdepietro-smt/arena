@@ -1,7 +1,12 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Activity, Radio, Zap, Disc, Users, BellRing, CheckCircle2, TrendingUp } from 'lucide-react'
-import { getStreams, getStatsSummary, getAlertStatus, getAlertRules, getEvents, getStatsHistory } from '../api/client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Activity, Radio, Zap, Disc, Users, BellRing, CheckCircle2, TrendingUp, Star } from 'lucide-react'
+import {
+  getStreams, getStatsSummary, getAlertStatus, getAlertRules, getEvents, getStatsHistory,
+  getFavorites, addFavorite, removeFavorite,
+} from '../api/client'
+import { toast } from '../store/toast'
+import { getErrorMessage } from '../utils/errors'
 import Card from '../components/ui/Card'
 import StatusDot from '../components/ui/StatusDot'
 import Sparkline from '../components/charts/Sparkline'
@@ -63,7 +68,7 @@ function MetricReadout({ label, value, unit, tone }) {
   )
 }
 
-function StreamHealthTile({ stream, isDown }) {
+function StreamHealthTile({ stream, isDown, isFavorite, onToggleFavorite }) {
   const path = stream.path || stream.name
   const isLive = stream.ready === true
 
@@ -85,6 +90,14 @@ function StreamHealthTile({ stream, isDown }) {
     <Card className="p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={onToggleFavorite}
+            className="shrink-0 text-gray-500 hover:text-amber-400 focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2 rounded"
+            aria-label={isFavorite ? `Unpin ${stream.name || path}` : `Pin ${stream.name || path}`}
+            aria-pressed={isFavorite}
+          >
+            <Star size={13} fill={isFavorite ? 'currentColor' : 'none'} className={isFavorite ? 'text-amber-400' : ''} />
+          </button>
           <StatusDot tone={tone} pulse={isDown} />
           <span className="text-sm font-semibold text-gray-100 truncate">{stream.name || path}</span>
         </div>
@@ -149,6 +162,17 @@ export default function OverviewPage() {
     queryFn: () => getEvents(8),
     refetchInterval: 5000,
   })
+  const { data: favorites = [] } = useQuery({
+    queryKey: ['favorites'],
+    queryFn: getFavorites,
+  })
+  const favoriteSet = new Set(favorites)
+  const qc = useQueryClient()
+  const favoriteMut = useMutation({
+    mutationFn: ({ path, isFav }) => (isFav ? removeFavorite(path) : addFavorite(path)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['favorites'] }),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update favorite')),
+  })
 
   const liveStreams = streams.filter(s => s.ready)
   const downSet = new Set(alertStatus.down_streams)
@@ -204,13 +228,21 @@ export default function OverviewPage() {
             <Card className="p-10 text-center text-gray-400 text-sm">No streams connected</Card>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {streams.map(stream => (
-                <StreamHealthTile
-                  key={stream.path || stream.name}
-                  stream={stream}
-                  isDown={downSet.has(stream.path || stream.name)}
-                />
-              ))}
+              {[
+                ...streams.filter(s => favoriteSet.has(s.path || s.name)),
+                ...streams.filter(s => !favoriteSet.has(s.path || s.name)),
+              ].map(stream => {
+                const path = stream.path || stream.name
+                return (
+                  <StreamHealthTile
+                    key={path}
+                    stream={stream}
+                    isDown={downSet.has(path)}
+                    isFavorite={favoriteSet.has(path)}
+                    onToggleFavorite={() => favoriteMut.mutate({ path, isFav: favoriteSet.has(path) })}
+                  />
+                )
+              })}
             </div>
           )}
         </div>

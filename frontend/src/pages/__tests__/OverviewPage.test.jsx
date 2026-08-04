@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import OverviewPage from '../OverviewPage'
@@ -11,10 +12,14 @@ vi.mock('../../api/client', () => ({
   getAlertRules: vi.fn(),
   getEvents: vi.fn(),
   getStatsHistory: vi.fn(),
+  getFavorites: vi.fn(),
+  addFavorite: vi.fn(),
+  removeFavorite: vi.fn(),
 }))
 
 import {
   getStreams, getStatsSummary, getAlertStatus, getAlertRules, getEvents, getStatsHistory,
+  getFavorites, addFavorite, removeFavorite,
 } from '../../api/client'
 
 function renderOverviewPage() {
@@ -33,6 +38,9 @@ beforeEach(() => {
   getAlertRules.mockReset().mockResolvedValue([])
   getEvents.mockReset().mockResolvedValue([])
   getStatsHistory.mockReset().mockResolvedValue([])
+  getFavorites.mockReset().mockResolvedValue([])
+  addFavorite.mockReset().mockResolvedValue({})
+  removeFavorite.mockReset().mockResolvedValue({})
 })
 
 describe('OverviewPage', () => {
@@ -55,6 +63,31 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Camera 1')).toBeInTheDocument()
     expect(screen.getByText('4500')).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
+  })
+
+  it('pins a stream via its star button', async () => {
+    getStreams.mockResolvedValue([{ path: 'cam1', name: 'Camera 1', ready: true }])
+    renderOverviewPage()
+    await screen.findByText('Camera 1')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Pin Camera 1' }))
+
+    expect(addFavorite).toHaveBeenCalled()
+    expect(addFavorite.mock.calls[0][0]).toBe('cam1')
+  })
+
+  it('sorts a favorited stream first even though it was returned second', async () => {
+    getFavorites.mockResolvedValue(['cam2'])
+    getStreams.mockResolvedValue([
+      { path: 'cam1', name: 'Camera 1', ready: true },
+      { path: 'cam2', name: 'Camera 2', ready: true },
+    ])
+    renderOverviewPage()
+    await screen.findByText('Camera 2')
+
+    const tiles = screen.getAllByText(/^Camera [12]$/)
+    expect(tiles[0]).toHaveTextContent('Camera 2')
+    expect(tiles[1]).toHaveTextContent('Camera 1')
   })
 
   it('shows an offline tile without metrics for a stream that is not ready', async () => {
