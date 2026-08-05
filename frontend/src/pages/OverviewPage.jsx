@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Activity, Radio, Zap, Disc, Users, BellRing, CheckCircle2, TrendingUp, Star } from 'lucide-react'
 import {
   getStreams, getStatsSummary, getAlertStatus, getAlertRules, getEvents, getStatsHistory,
-  getFavorites, addFavorite, removeFavorite,
+  getFavorites, addFavorite, removeFavorite, getStreamUptimeHistory,
 } from '../api/client'
 import { toast } from '../store/toast'
 import { getErrorMessage } from '../utils/errors'
@@ -68,6 +68,22 @@ function MetricReadout({ label, value, unit, tone }) {
   )
 }
 
+// 7 days keeps this a "how's it been running lately" read rather than an
+// SLA figure — see the Stats page's 30-day heatmap (+ CSV export) for the
+// fuller history.
+function useRecentUptimePct(path) {
+  const { data: history = [] } = useQuery({
+    queryKey: ['stream-uptime', path, 7],
+    queryFn: () => getStreamUptimeHistory(path, 7),
+    staleTime: 60_000,
+  })
+  const withSamples = history.filter(h => h.total_samples > 0)
+  if (withSamples.length === 0) return null
+  const totalUp = withSamples.reduce((sum, h) => sum + (h.uptime_pct * h.total_samples) / 100, 0)
+  const totalSamples = withSamples.reduce((sum, h) => sum + h.total_samples, 0)
+  return totalSamples > 0 ? (100 * totalUp) / totalSamples : null
+}
+
 function StreamHealthTile({ stream, isDown, isFavorite, onToggleFavorite }) {
   const path = stream.path || stream.name
   const isLive = stream.ready === true
@@ -79,6 +95,7 @@ function StreamHealthTile({ stream, isDown, isFavorite, onToggleFavorite }) {
     refetchInterval: 5000,
   })
 
+  const uptimePct = useRecentUptimePct(path)
   const bitrateSeries = useMemo(() => history.map(h => h.bitrate_kbps ?? null), [history])
 
   const tone = isDown ? 'critical' : isLive ? 'good' : 'muted'
@@ -101,11 +118,23 @@ function StreamHealthTile({ stream, isDown, isFavorite, onToggleFavorite }) {
           <StatusDot tone={tone} pulse={isDown} />
           <span className="text-sm font-semibold text-gray-100 truncate">{stream.name || path}</span>
         </div>
-        {stream.readers != null && (
-          <span className="shrink-0 text-xs text-gray-500 flex items-center gap-1">
-            <Users size={12} />{stream.readers}
-          </span>
-        )}
+        <div className="shrink-0 flex items-center gap-2">
+          {uptimePct != null && (
+            <span
+              className={`text-[11px] font-mono font-medium ${
+                uptimePct >= 99.9 ? 'text-emerald-400' : uptimePct >= 95 ? 'text-amber-400' : 'text-red-400'
+              }`}
+              title="Uptime over the last 7 days"
+            >
+              {uptimePct.toFixed(1)}% · 7d
+            </span>
+          )}
+          {stream.readers != null && (
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <Users size={12} />{stream.readers}
+            </span>
+          )}
+        </div>
       </div>
 
       {isLive ? (
