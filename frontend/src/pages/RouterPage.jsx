@@ -7,23 +7,27 @@ import {
   createRoute,
   activateRoute,
   deactivateRoute,
+  failBackRoute,
   deleteRoute,
 } from '../api/client'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import { useAuthStore } from '../store/auth'
 import { toast } from '../store/toast'
 import { scheduleDelete, usePendingDeleteIds } from '../store/pendingDelete'
 import { getErrorMessage } from '../utils/errors'
 
 const DEST_TYPES = ['SRT Out', 'HLS Re-stream', 'RTMP Out']
+const DEST_TYPE_TO_API = { 'SRT Out': 'srt', 'HLS Re-stream': 'hls', 'RTMP Out': 'rtmp' }
 
 const defaultForm = {
   name: '',
   source: '',
   destType: 'SRT Out',
   destUrl: '',
+  backupSource: '',
 }
 
 const inputClass = 'bg-surface-900 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 placeholder-gray-600'
@@ -63,6 +67,16 @@ function NewRouteModal({ streams, onClose, onSubmit, loading }) {
                 <option key={s.path || s.name} value={s.path || s.name}>{s.name || s.path}</option>
               ))}
             </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">Backup source (optional — automatic failover)</label>
+            <select className={inputClass} value={form.backupSource} onChange={e => set('backupSource', e.target.value)}>
+              <option value="">No backup — alert only</option>
+              {streams.filter(s => (s.path || s.name) !== form.source).map(s => (
+                <option key={s.path || s.name} value={s.path || s.name}>{s.name || s.path}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-0.5">If the source goes down, this route automatically relays from the backup instead.</p>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">Destination type</label>
@@ -134,6 +148,7 @@ export default function RouterPage() {
   const [matrix, setMatrix] = useState({})
 
   const pendingDeleteIds = usePendingDeleteIds()
+  const isAdmin = useAuthStore(s => s.user?.role) === 'admin'
 
   const { data: streams = [] } = useQuery({ queryKey: ['streams'], queryFn: getStreams, refetchInterval: 5000 })
   const { data: allRoutes = [], isError: routesError } = useQuery({ queryKey: ['routes'], queryFn: getRoutes, refetchInterval: 3000 })
@@ -144,8 +159,8 @@ export default function RouterPage() {
       const route = await createRoute({
         name: form.name,
         source_path: form.source,
-        dest_type: form.destType,
-        dest_url: form.destUrl,
+        destinations: [{ type: DEST_TYPE_TO_API[form.destType] || 'srt', url: form.destUrl }],
+        backup_source_path: form.backupSource || null,
       })
       await activateRoute(route.id)
       return route
@@ -165,6 +180,15 @@ export default function RouterPage() {
       toast.success(active ? 'Route paused' : 'Route activated')
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Failed to update route')),
+  })
+
+  const failBackMut = useMutation({
+    mutationFn: (id) => failBackRoute(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['routes'] })
+      toast.success('Route failed back to primary source')
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to fail back route')),
   })
 
   function handleDeleteRoute(route) {
@@ -325,31 +349,49 @@ export default function RouterPage() {
             {!routesError && routes.length === 0 && (
               <div className="text-center py-10 text-gray-400 text-sm">No routes configured</div>
             )}
-            {routes.map(route => (
+            {routes.map(route => {
+              const destUrl = route.destinations?.[0]?.url
+              return (
               <div key={route.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-gray-100 text-sm font-medium truncate">{route.name}</div>
                     <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500 min-w-0">
-                      <span className="text-gray-400 truncate max-w-[90px]">{route.source_path || route.source}</span>
+                      <span className="text-gray-400 truncate max-w-[90px]">
+                        {route.failed_over ? route.backup_source_path : route.source_path}
+                      </span>
                       <span className="text-gray-400 flex-shrink-0">→</span>
-                      <span className="text-gray-400 truncate max-w-[90px]">{route.dest_url || route.dest}</span>
+                      <span className="text-gray-400 truncate max-w-[90px]">{destUrl}</span>
                     </div>
-                    {route.bitrate_kbps && (
-                      <div className="text-xs text-gray-400 font-mono mt-0.5">
-                        {(route.bitrate_kbps / 1000).toFixed(1)} Mbps
+                    {route.backup_source_path && (
+                      <div className="text-[11px] text-gray-500 mt-1">
+                        Backup: <span className="font-mono">{route.backup_source_path}</span>
+                      </div>
+                    )}
+                    {route.failed_over && (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Badge tone="warning">Failed over</Badge>
+                        {isAdmin && (
+                          <button
+                            onClick={() => failBackMut.mutate(route.id)}
+                            disabled={failBackMut.isPending}
+                            className="text-[10px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/60 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
+                          >
+                            {failBackMut.isPending ? 'Working…' : 'Fail back to primary'}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <Badge tone={route.active ? 'good' : 'muted'}>{route.active ? 'Active' : 'Inactive'}</Badge>
+                    <Badge tone={route.is_active ? 'good' : 'muted'}>{route.is_active ? 'Active' : 'Inactive'}</Badge>
                     <div className="flex gap-1.5 mt-0.5">
                       <button
-                        onClick={() => toggleMut.mutate({ id: route.id, active: route.active })}
+                        onClick={() => toggleMut.mutate({ id: route.id, active: route.is_active })}
                         disabled={toggleMut.isPending}
                         className="text-[10px] text-brand-400 hover:text-brand-300 border border-brand-500/30 hover:border-brand-500/60 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
                       >
-                        {route.active ? 'Pause' : 'Activate'}
+                        {route.is_active ? 'Pause' : 'Activate'}
                       </button>
                       <button
                         onClick={() => handleDeleteRoute(route)}
@@ -361,7 +403,8 @@ export default function RouterPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </Card>
       </div>

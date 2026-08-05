@@ -29,6 +29,8 @@ const ACTION_LABEL = {
   'user.delete': 'Deleted user',
   'route.create': 'Created route',
   'route.delete': 'Deleted route',
+  'route.failover': 'Route auto-failed-over',
+  'route.failback': 'Route failed back to primary',
   'alert_rule.create': 'Created alert rule',
   'alert_rule.delete': 'Deleted alert rule',
   'webhook.test': 'Sent test webhook alert',

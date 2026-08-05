@@ -36,6 +36,7 @@ from ..database import engine
 from ..models import AlertAction, AlertRule, CompareOperator, EventType
 from .events import log_event
 from .mediamtx import get_client
+from .route_failover import check_and_failover
 from .srt_stats import get_collector
 from .uptime import record_sample
 
@@ -163,6 +164,7 @@ class AlertManager:
                     self._currently_down.add(name)
                     await self._notify(f":red_circle: Stream *{name}* went down.")
                     self._log_event(EventType.stream_disconnected, name, "Stream went down")
+                    await check_and_failover(name, self._notify)
 
     async def _check_rules(self) -> None:
         with Session(engine) as session:

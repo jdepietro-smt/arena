@@ -63,14 +63,20 @@ class RouteManager:
         self._relays: dict[int, list[_Relay]] = {}
         self._lock = asyncio.Lock()
 
-    async def activate(self, route: StreamRoute) -> None:
+    async def activate(self, route: StreamRoute, source_override: str | None = None) -> None:
+        """source_override lets a caller relay from a different path than
+        route.source_path without persisting a change to it — used by
+        route_failover.py to switch to a backup source and by the
+        fail-back endpoint to switch back, both while leaving the route's
+        own configured source_path untouched."""
         started: list[_Relay] = []
+        source = source_override or route.source_path
         destinations = route.destinations or []
         for dest in destinations:
             url = dest.get("url") if isinstance(dest, dict) else str(dest)
             if not url:
                 continue
-            cmd = self._cmd(route.source_path, url)
+            cmd = self._cmd(source, url)
             relay = _Relay(route.id, url)
             try:
                 await relay.start(cmd)

@@ -19,8 +19,9 @@ from sqlmodel import Session, select
 
 from ..auth import get_current_active_user, require_admin
 from ..database import get_session
-from ..models import RouteCreate, RouteRead, StreamRoute, User
+from ..models import EventType, RouteCreate, RouteRead, StreamRoute, User
 from ..services.audit import log_audit
+from ..services.events import log_event
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,7 @@ async def create_route(
         source_path=route_in.source_path,
         destinations=route_in.destinations,
         is_active=False,  # start inactive; activate explicitly below if requested
+        backup_source_path=route_in.backup_source_path,
     )
     session.add(route)
     session.commit()
@@ -237,6 +239,59 @@ async def deactivate_route(
     session.add(route)
     session.commit()
     session.refresh(route)
+    return RouteRead.model_validate(route)
+
+
+@router.put(
+    "/{route_id}/fail-back",
+    response_model=RouteRead,
+    summary="Manually switch a failed-over route back to its primary source (admin only)",
+)
+async def fail_back_route(
+    route_id: int,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> RouteRead:
+    """
+    Switch a route that automatically failed over (services/
+    route_failover.py) back to its configured primary source_path.
+
+    Deliberately manual and admin-gated — see route_failover.py's module
+    docstring for why failback never happens automatically on its own.
+    """
+    route = await _get_route_or_404(session, route_id)
+
+    if not route.failed_over:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Route {route_id} is not currently failed over",
+        )
+
+    manager = await _get_route_manager()
+    if manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Route manager service is not available",
+        )
+
+    try:
+        if route.is_active:
+            await manager.deactivate(route)
+            await manager.activate(route)  # no source_override — back to route.source_path
+    except Exception as exc:
+        logger.exception("Failed to fail back route %d", route_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not fail back route: {exc}",
+        )
+
+    route.failed_over = False
+    session.add(route)
+    session.commit()
+    log_event(session, EventType.route_failed_back, stream_path=route.source_path,
+               message=f"Route '{route.name}' manually failed back to primary source")
+    log_audit(session, admin.username, "route.failback", target=route.name)
+    session.refresh(route)  # log_audit's commit expires route's attributes
     return RouteRead.model_validate(route)
 
 

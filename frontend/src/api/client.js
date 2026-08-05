@@ -34,6 +34,7 @@ export const getRoutes    = () => api.get('/routes').then(r => r.data)
 export const createRoute  = (d) => api.post('/routes', d).then(r => r.data)
 export const activateRoute = (id) => api.put(`/routes/${id}/activate`).then(r => r.data)
 export const deactivateRoute = (id) => api.put(`/routes/${id}/deactivate`).then(r => r.data)
+export const failBackRoute = (id) => api.put(`/routes/${id}/fail-back`).then(r => r.data)
 export const deleteRoute  = (id) => api.delete(`/routes/${id}`)
 
 // --- Recordings ---

@@ -68,6 +68,24 @@ def _ensure_users_last_login_column() -> None:
             logger.info("Added users.last_login column to existing database.")
 
 
+def _ensure_stream_routes_failover_columns() -> None:
+    """Same story as _ensure_users_last_login_column() above — an existing
+    stream_routes table from before automatic failover shipped needs these
+    two columns ALTERed in, since create_all() never does that itself."""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    with engine.connect() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(stream_routes)").fetchall()}
+        if "backup_source_path" not in columns:
+            conn.exec_driver_sql("ALTER TABLE stream_routes ADD COLUMN backup_source_path TEXT")
+            conn.commit()
+            logger.info("Added stream_routes.backup_source_path column to existing database.")
+        if "failed_over" not in columns:
+            conn.exec_driver_sql("ALTER TABLE stream_routes ADD COLUMN failed_over BOOLEAN DEFAULT 0")
+            conn.commit()
+            logger.info("Added stream_routes.failed_over column to existing database.")
+
+
 def create_db_and_tables() -> None:
     """Create all tables defined by SQLModel metadata.
 
@@ -79,6 +97,7 @@ def create_db_and_tables() -> None:
 
     SQLModel.metadata.create_all(engine)
     _ensure_users_last_login_column()
+    _ensure_stream_routes_failover_columns()
     logger.info("Database tables created (or already exist).")
 
 

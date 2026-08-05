@@ -74,6 +74,8 @@ class EventType(str, enum.Enum):
     predicted_risk_cleared = "predicted_risk_cleared"
     qc_issue_detected = "qc_issue_detected"
     qc_issue_cleared = "qc_issue_cleared"
+    route_failed_over = "route_failed_over"
+    route_failed_back = "route_failed_back"
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +110,14 @@ class StreamRoute(SQLModel, table=True):
     destinations: List[Any] = Field(default_factory=list, sa_column=Column(JSON))
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Automatic failover target — see services/route_failover.py. None means
+    # this route has no configured backup and never fails over.
+    backup_source_path: Optional[str] = Field(default=None)
+    # True while relaying from backup_source_path instead of source_path.
+    # Failback is deliberately manual (PUT /{id}/fail-back) rather than
+    # automatic on primary recovery — see route_failover.py's docstring for
+    # why (flapping between two imperfect sources is worse than staying put).
+    failed_over: bool = Field(default=False)
 
 
 class StreamPreset(SQLModel, table=True):
@@ -339,6 +349,7 @@ class RouteCreate(BaseModel):
     source_path: str
     destinations: List[dict] = []
     is_active: bool = True
+    backup_source_path: Optional[str] = None
 
 
 class RouteRead(BaseModel):
@@ -348,6 +359,8 @@ class RouteRead(BaseModel):
     destinations: List[Any]
     is_active: bool
     created_at: datetime
+    backup_source_path: Optional[str] = None
+    failed_over: bool = False
 
     model_config = {"from_attributes": True}
 

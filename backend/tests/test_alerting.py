@@ -161,6 +161,33 @@ class TestConnectivity:
         with Session(engine) as session:
             assert get_uptime_history(session, "mv_abc123", days=30) == []
 
+    async def test_a_stream_going_down_triggers_a_failover_check(self, monkeypatch):
+        """Wiring only — check_and_failover's own selection/state-machine
+        logic is covered by test_route_failover.py. This just confirms
+        AlertManager actually calls it, with the right path and its own
+        notify function, the moment a stream crosses the down threshold —
+        not on every poll while it stays down."""
+        calls = []
+
+        async def fake_check_and_failover(down_path, notify):
+            calls.append(down_path)
+
+        monkeypatch.setattr(alerting_module, "check_and_failover", fake_check_and_failover)
+        manager = AlertManager()
+        monkeypatch.setattr(manager, "_notify", _record([]))
+
+        monkeypatch.setattr(alerting_module, "get_client", lambda: FakeMediaMTXClient([_ready("Golf_Channel")]))
+        await manager._check_connectivity()
+        monkeypatch.setattr(alerting_module, "get_client", lambda: FakeMediaMTXClient([]))
+        await manager._check_connectivity()
+        assert calls == []  # first miss — below the debounce threshold
+
+        await manager._check_connectivity()  # second consecutive miss — now down
+        assert calls == ["Golf_Channel"]
+
+        await manager._check_connectivity()  # still down — must not re-trigger
+        assert calls == ["Golf_Channel"]
+
 
 class TestRuleEvaluation:
     async def test_breach_then_recovery_notifies_twice(self, monkeypatch):
