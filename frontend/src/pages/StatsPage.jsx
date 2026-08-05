@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Download } from 'lucide-react'
+import Button from '../components/ui/Button'
 import { getStreams, getStatsHistory, getStreamUptimeHistory } from '../api/client'
 import Card from '../components/ui/Card'
 import TimeSeriesChart from '../components/charts/TimeSeriesChart'
 import BarChartMini from '../components/charts/BarChartMini'
+import { downloadCsv } from '../utils/csv'
 
 function formatDuration(seconds) {
   if (!seconds) return '—'
@@ -50,22 +52,38 @@ function UptimeHeatmap({ streamPath }) {
     return d.toISOString().slice(0, 10)
   })
 
+  function exportCsv() {
+    downloadCsv(
+      `uptime-${streamPath}-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Date', 'Uptime %', 'Samples'],
+      days.map(date => {
+        const day = byDate.get(date)
+        return [date, day?.uptime_pct ?? '', day?.total_samples ?? 0]
+      }),
+    )
+  }
+
   return (
     <Card className="p-4 mb-4">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-white text-sm font-semibold">Uptime — last 30 days</h2>
-        <div className="flex items-center gap-3 text-[11px] text-gray-500">
-          {['Healthy (≥99.9%)', 'Degraded (95–99.9%)', 'Down (<95%)', 'No data'].map(label => (
-            <span key={label} className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-sm ${
-                label.startsWith('Healthy') ? 'bg-emerald-500'
-                  : label.startsWith('Degraded') ? 'bg-amber-500'
-                  : label.startsWith('Down') ? 'bg-red-500'
-                  : 'bg-surface-700'
-              }`} />
-              {label}
-            </span>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 text-[11px] text-gray-500">
+            {['Healthy (≥99.9%)', 'Degraded (95–99.9%)', 'Down (<95%)', 'No data'].map(label => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-sm ${
+                  label.startsWith('Healthy') ? 'bg-emerald-500'
+                    : label.startsWith('Degraded') ? 'bg-amber-500'
+                    : label.startsWith('Down') ? 'bg-red-500'
+                    : 'bg-surface-700'
+                }`} />
+                {label}
+              </span>
+            ))}
+          </div>
+          <Button variant="ghost" size="sm" onClick={exportCsv} disabled={history.length === 0}>
+            <Download size={13} /> Export CSV
+          </Button>
         </div>
       </div>
       <p className="text-gray-500 text-xs mb-3">Only tracks days since this feature shipped — no historical backfill</p>

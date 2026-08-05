@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,6 +13,9 @@ vi.mock('../../api/client', () => ({
 }))
 
 import { getStreams, getStatsHistory, getStreamUptimeHistory } from '../../api/client'
+
+vi.mock('../../utils/csv', () => ({ downloadCsv: vi.fn() }))
+import { downloadCsv } from '../../utils/csv'
 
 function renderStatsPage(initialPath = '/stats') {
   const queryClient = createTestQueryClient()
@@ -28,6 +32,7 @@ beforeEach(() => {
   getStreams.mockReset().mockResolvedValue([])
   getStatsHistory.mockReset().mockResolvedValue([])
   getStreamUptimeHistory.mockReset().mockResolvedValue([])
+  downloadCsv.mockReset()
 })
 
 describe('StatsPage', () => {
@@ -87,5 +92,33 @@ describe('StatsPage', () => {
 
     await screen.findByText('Uptime — last 30 days')
     await waitFor(() => expect(getStreamUptimeHistory).toHaveBeenCalledWith('cam1', 30))
+  })
+
+  it('disables the uptime export button when there is no history yet', async () => {
+    getStreams.mockResolvedValue([{ path: 'cam1', name: 'Camera 1' }])
+    renderStatsPage()
+
+    await screen.findByText('Uptime — last 30 days')
+    expect(screen.getByRole('button', { name: /export csv/i })).toBeDisabled()
+    expect(downloadCsv).not.toHaveBeenCalled()
+  })
+
+  it('exports 30 rows of uptime history as CSV, one per calendar day', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    getStreams.mockResolvedValue([{ path: 'cam1', name: 'Camera 1' }])
+    getStreamUptimeHistory.mockResolvedValue([
+      { date: today, uptime_pct: 100, total_samples: 8640 },
+    ])
+    renderStatsPage()
+    await screen.findByText('Uptime — last 30 days')
+
+    await userEvent.click(await screen.findByRole('button', { name: /export csv/i }))
+
+    expect(downloadCsv).toHaveBeenCalledTimes(1)
+    const [filename, headers, rows] = downloadCsv.mock.calls[0]
+    expect(filename).toMatch(/^uptime-cam1-\d{4}-\d{2}-\d{2}\.csv$/)
+    expect(headers).toEqual(['Date', 'Uptime %', 'Samples'])
+    expect(rows).toHaveLength(30)
+    expect(rows.find(([date]) => date === today)).toEqual([today, 100, 8640])
   })
 })
