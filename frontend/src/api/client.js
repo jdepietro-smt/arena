@@ -110,6 +110,11 @@ export const login = (username, password) => {
 }
 export const getMe = () => api.get('/auth/me').then(r => r.data)
 
+// --- QC monitoring (frozen-frame / black-video / silent-audio) ---
+export const getQcStatus = () => api.get('/qc/status').then(r => r.data)
+export const enableQc = (path) => api.post(`/qc/${encodeURIComponent(path)}/enable`).then(r => r.data)
+export const disableQc = (path) => api.post(`/qc/${encodeURIComponent(path)}/disable`).then(r => r.data)
+
 // --- Favorites ---
 export const getFavorites = () => api.get('/favorites').then(r => r.data)
 export const addFavorite = (streamPath) => api.post('/favorites', { stream_path: streamPath }).then(r => r.data)

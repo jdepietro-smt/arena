@@ -72,6 +72,8 @@ class EventType(str, enum.Enum):
     alert_recovered = "alert_recovered"
     predicted_risk = "predicted_risk"
     predicted_risk_cleared = "predicted_risk_cleared"
+    qc_issue_detected = "qc_issue_detected"
+    qc_issue_cleared = "qc_issue_cleared"
 
 
 # ---------------------------------------------------------------------------

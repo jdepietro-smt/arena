@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, ChevronRight, Copy, Trash2, PackageOpen, Radio, X, Star } from 'lucide-react'
+import { Search, Plus, ChevronRight, Copy, Trash2, PackageOpen, Radio, X, Star, AlertTriangle } from 'lucide-react'
 import {
   getStreams, getPresets, savePreset, deletePreset,
   startRecording, stopRecording, getPreviewUrls,
   getFavorites, addFavorite, removeFavorite,
+  getQcStatus, enableQc, disableQc,
 } from '../api/client'
 import { startWhep } from '../utils/whep'
 import Card from '../components/ui/Card'
@@ -13,6 +14,7 @@ import Badge from '../components/ui/Badge'
 import Tabs from '../components/ui/Tabs'
 import Button from '../components/ui/Button'
 import StatusDot from '../components/ui/StatusDot'
+import { useAuthStore } from '../store/auth'
 import { toast } from '../store/toast'
 import { getErrorMessage } from '../utils/errors'
 
@@ -82,7 +84,7 @@ function WhepPlayer({ src }) {
 
 // ── Expanded stream row ───────────────────────────────────────────────────────
 
-function ExpandedRow({ stream }) {
+function ExpandedRow({ stream, qcMonitored, qcIssues }) {
   const { data: urls, isLoading } = useQuery({
     queryKey: ['preview-urls', stream.publisher_id],
     queryFn: () => getPreviewUrls(stream.publisher_id),
@@ -90,7 +92,9 @@ function ExpandedRow({ stream }) {
   })
 
   const queryClient = useQueryClient()
+  const isAdmin = useAuthStore(s => s.user?.role) === 'admin'
   const isRecording = stream.recording === true
+  const path = stream.path || stream.publisher_id
 
   const recMutation = useMutation({
     mutationFn: isRecording
@@ -101,6 +105,15 @@ function ExpandedRow({ stream }) {
       toast.success(isRecording ? 'Recording stopped' : 'Recording started')
     },
     onError: (err) => toast.error(getErrorMessage(err, `Failed to ${isRecording ? 'stop' : 'start'} recording`)),
+  })
+
+  const qcMutation = useMutation({
+    mutationFn: () => (qcMonitored ? disableQc(path) : enableQc(path)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['qc-status'] })
+      toast.success(qcMonitored ? 'QC monitoring disabled' : 'QC monitoring enabled')
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update QC monitoring')),
   })
 
   return (
@@ -151,7 +164,7 @@ function ExpandedRow({ stream }) {
             ))}
 
             {/* Recording control */}
-            <div className="pt-2">
+            <div className="pt-2 flex items-center gap-2">
               <Button
                 variant={isRecording ? 'danger' : 'ghost'}
                 size="sm"
@@ -161,7 +174,41 @@ function ExpandedRow({ stream }) {
                 <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white animate-pulse' : 'bg-gray-500'}`} />
                 {recMutation.isPending ? 'Working...' : isRecording ? 'Stop Recording' : 'Start Recording'}
               </Button>
+              {isAdmin ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => qcMutation.mutate()}
+                  disabled={qcMutation.isPending}
+                  title="Frozen-frame / black-video / silent-audio detection"
+                >
+                  <AlertTriangle size={13} className={qcMonitored ? 'text-emerald-400' : 'text-gray-500'} />
+                  {qcMutation.isPending ? 'Working...' : qcMonitored ? 'QC Monitoring: On' : 'QC Monitoring: Off'}
+                </Button>
+              ) : qcMonitored && (
+                <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                  <AlertTriangle size={13} className="text-emerald-400" /> QC monitoring on
+                </span>
+              )}
             </div>
+
+            {/* QC issues — freeze/silence are live; a black-video entry here
+                is always retrospective (see qc_monitor.py's docstring) since
+                that filter never reports one while it's still happening. */}
+            {qcIssues.length > 0 && (
+              <div className="pt-2 flex flex-col gap-1.5">
+                {qcIssues.map(issue => (
+                  <div
+                    key={issue.kind}
+                    className="flex items-center gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2.5 py-1.5"
+                  >
+                    <AlertTriangle size={13} className="shrink-0" />
+                    <span className="font-medium capitalize">{issue.kind} detected</span>
+                    <span className="text-red-400/70">since {new Date(issue.started_at + 'Z').toLocaleTimeString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </td>
@@ -248,6 +295,19 @@ function LiveStreamsTab({ search }) {
     queryFn: getFavorites,
   })
   const favoriteSet = new Set(favorites)
+
+  const { data: qcStatus } = useQuery({
+    queryKey: ['qc-status'],
+    queryFn: getQcStatus,
+    refetchInterval: 5000,
+  })
+  const qcMonitoredSet = new Set(qcStatus?.monitored_paths || [])
+  const qcIssuesByPath = new Map()
+  for (const issue of qcStatus?.active_issues || []) {
+    const list = qcIssuesByPath.get(issue.path) || []
+    list.push(issue)
+    qcIssuesByPath.set(issue.path, list)
+  }
 
   const favoriteMut = useMutation({
     mutationFn: ({ path, isFavorite }) => (isFavorite ? removeFavorite(path) : addFavorite(path)),
@@ -346,6 +406,8 @@ function LiveStreamsTab({ search }) {
                   const bitrateMbps = stream.bitrate_kbps
                     ? (stream.bitrate_kbps / 1000).toFixed(2)
                     : '—'
+                  const path = stream.path || stream.publisher_id
+                  const qcIssues = qcIssuesByPath.get(path) || []
 
                   return [
                     <tr
@@ -393,6 +455,11 @@ function LiveStreamsTab({ search }) {
                           <StatusDot tone={isLive ? 'good' : 'muted'} pulse={isLive} size={7} />
                           <Badge tone={isLive ? 'good' : 'muted'}>{isLive ? 'LIVE' : 'OFFLINE'}</Badge>
                           {stream.recording && <Badge tone="critical">REC</Badge>}
+                          {qcIssues.length > 0 && (
+                            <span title={`${qcIssues.map(i => i.kind).join(', ')} detected`}>
+                              <AlertTriangle size={13} className="text-red-400" />
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -427,7 +494,12 @@ function LiveStreamsTab({ search }) {
                     </tr>,
 
                     isExpanded && (
-                      <ExpandedRow key={`${stream.publisher_id}-expanded`} stream={stream} />
+                      <ExpandedRow
+                        key={`${stream.publisher_id}-expanded`}
+                        stream={stream}
+                        qcMonitored={qcMonitoredSet.has(path)}
+                        qcIssues={qcIssues}
+                      />
                     ),
                   ].filter(Boolean)
                 })

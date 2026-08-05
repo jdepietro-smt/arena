@@ -18,12 +18,13 @@ from .services.srt_stats import get_collector
 from .services.compositor import get_compositor
 from .services.external_source import get_external_sources
 from .services.hls_generator import get_hls_generator
+from .services.qc_monitor import get_qc_monitor
 from .services.mediamtx import get_client
 from .services.rate_limiter import check_and_record
 from .routers import (
     streams, routes, recordings, stats, users, hls_proxy, whep_proxy,
     multiview, external_sources, alerts, redundancy, settings as settings_router,
-    events, assistant, audit, favorites,
+    events, assistant, audit, favorites, qc,
 )
 from .auth import router as auth_router
 
@@ -82,6 +83,7 @@ async def lifespan(app: FastAPI):
     await get_collector().start()
     get_compositor().start_reaper()
     get_hls_generator().start()
+    get_qc_monitor().start()
     get_alert_manager().start()
     get_redundancy_monitor().start()
     get_recording_retention().start()
@@ -92,6 +94,7 @@ async def lifespan(app: FastAPI):
     await get_compositor().stop()
     await get_external_sources().stop_all()
     await get_hls_generator().stop_all()
+    await get_qc_monitor().stop_all()
     await get_alert_manager().stop()
     await get_redundancy_monitor().stop()
     await get_recording_retention().stop()
@@ -172,6 +175,7 @@ app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(assistant.router, prefix="/api/assistant", tags=["assistant"])
 app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
 app.include_router(favorites.router, prefix="/api/favorites", tags=["favorites"])
+app.include_router(qc.router, prefix="/api/qc", tags=["qc"])
 
 
 @app.get("/api/health", tags=["health"])

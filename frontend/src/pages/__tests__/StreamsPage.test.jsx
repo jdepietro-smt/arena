@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import StreamsPage from '../StreamsPage'
 import ToastStack from '../../components/ui/Toast'
 import { useToastStore } from '../../store/toast'
+import { useAuthStore } from '../../store/auth'
 import { createTestQueryClient } from '../../test/testQueryClient'
 
 vi.mock('../../api/client', () => ({
@@ -19,12 +20,16 @@ vi.mock('../../api/client', () => ({
   getFavorites: vi.fn(),
   addFavorite: vi.fn(),
   removeFavorite: vi.fn(),
+  getQcStatus: vi.fn(),
+  enableQc: vi.fn(),
+  disableQc: vi.fn(),
 }))
 
 import {
   getStreams, getPresets, savePreset, deletePreset,
   startRecording, stopRecording, getPreviewUrls,
   getFavorites, addFavorite, removeFavorite,
+  getQcStatus, enableQc, disableQc,
 } from '../../api/client'
 
 function renderStreamsPage() {
@@ -56,7 +61,13 @@ beforeEach(() => {
   getFavorites.mockReset().mockResolvedValue([])
   addFavorite.mockReset().mockResolvedValue({})
   removeFavorite.mockReset().mockResolvedValue({})
-  act(() => useToastStore.setState({ toasts: [] }))
+  getQcStatus.mockReset().mockResolvedValue({ monitored_paths: [], active_issues: [] })
+  enableQc.mockReset().mockResolvedValue({})
+  disableQc.mockReset().mockResolvedValue({})
+  act(() => {
+    useToastStore.setState({ toasts: [] })
+    useAuthStore.setState({ user: null, token: null })
+  })
 })
 
 describe('StreamsPage — Live Streams tab', () => {
@@ -163,6 +174,61 @@ describe('StreamsPage — Live Streams tab', () => {
     await userEvent.click(await screen.findByRole('button', { name: /start recording/i }))
 
     expect(await screen.findByText('Stream not ready')).toBeInTheDocument()
+  })
+
+  it('hides the QC monitoring toggle for a non-admin, but shows a read-only badge when monitoring is on', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', ready: true })])
+    getQcStatus.mockResolvedValue({ monitored_paths: ['cam1'], active_issues: [] })
+    renderStreamsPage()
+    await screen.findByText('Camera 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Expand' }))
+
+    expect(await screen.findByText('QC monitoring on')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /QC Monitoring/ })).not.toBeInTheDocument()
+  })
+
+  it('lets an admin enable QC monitoring for a stream', async () => {
+    act(() => useAuthStore.setState({ user: { username: 'admin1', role: 'admin' }, token: 'tok' }))
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', ready: true })])
+    renderStreamsPage()
+    await screen.findByText('Camera 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Expand' }))
+
+    const toggle = await screen.findByRole('button', { name: 'QC Monitoring: Off' })
+    await userEvent.click(toggle)
+
+    expect(enableQc.mock.calls[0][0]).toBe('cam1')
+    expect(await screen.findByText('QC monitoring enabled')).toBeInTheDocument()
+  })
+
+  it('lets an admin disable QC monitoring when it is already on', async () => {
+    act(() => useAuthStore.setState({ user: { username: 'admin1', role: 'admin' }, token: 'tok' }))
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', ready: true })])
+    getQcStatus.mockResolvedValue({ monitored_paths: ['cam1'], active_issues: [] })
+    renderStreamsPage()
+    await screen.findByText('Camera 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Expand' }))
+
+    const toggle = await screen.findByRole('button', { name: 'QC Monitoring: On' })
+    await userEvent.click(toggle)
+
+    expect(disableQc.mock.calls[0][0]).toBe('cam1')
+    expect(await screen.findByText('QC monitoring disabled')).toBeInTheDocument()
+  })
+
+  it('shows an active QC issue as a warning icon on the collapsed row and a detail banner when expanded', async () => {
+    getStreams.mockResolvedValue([stream({ publisher_id: 'cam1', ready: true })])
+    getQcStatus.mockResolvedValue({
+      monitored_paths: ['cam1'],
+      active_issues: [{ path: 'cam1', kind: 'freeze', started_at: '2026-01-01T00:00:00' }],
+    })
+    renderStreamsPage()
+    await screen.findByText('Camera 1')
+
+    expect(await screen.findByTitle('freeze detected')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand' }))
+    expect(await screen.findByText('freeze detected')).toBeInTheDocument()
   })
 
   it('shows a connection-error message instead of the empty state when the streams query fails', async () => {
