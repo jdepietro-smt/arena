@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { startWhep } from '../utils/whep'
+import { startUpscaler } from '../utils/upscale'
 
 export default function PlayerPage() {
   const { streamName } = useParams()
   const videoRef = useRef(null)
+  const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const pcRef = useRef(null)
   const retryRef = useRef(null)
@@ -14,6 +16,7 @@ export default function PlayerPage() {
   const [muted, setMuted] = useState(true)
   const [hasAudio, setHasAudio] = useState(null) // null = unknown, true/false = detected
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [upscaled, setUpscaled] = useState(false)
 
   const whepUrl = `/api/whep/${streamName}/whep`
 
@@ -42,6 +45,41 @@ export default function PlayerPage() {
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
+
+  // Fullscreen on a screen bigger than the stream (e.g. 720p on 1080p) makes
+  // the browser stretch the <video> with bilinear filtering, which looks soft.
+  // Draw it through a bicubic WebGL canvas instead while it's being enlarged.
+  useEffect(() => {
+    const video = videoRef.current, canvas = canvasRef.current, box = containerRef.current
+    if (!isFullscreen || !video || !canvas || !box) return
+    let stop = null
+    const apply = () => {
+      const vw = video.videoWidth, vh = video.videoHeight
+      if (!vw || !vh) return
+      const dpr = window.devicePixelRatio || 1
+      const scale = Math.min(box.clientWidth / vw, box.clientHeight / vh)
+      const w = Math.round(vw * scale), h = Math.round(vh * scale)
+      canvas.style.width = w + 'px'
+      canvas.style.height = h + 'px'
+      const pw = Math.round(w * dpr), ph = Math.round(h * dpr)
+      if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph }
+      const enlarging = scale * dpr > 1.05
+      if (enlarging && !stop) { stop = startUpscaler(video, canvas); setUpscaled(!!stop) }
+      else if (!enlarging && stop) { stop(); stop = null; setUpscaled(false) }
+    }
+    const ro = new ResizeObserver(apply)
+    ro.observe(box)
+    video.addEventListener('resize', apply)
+    video.addEventListener('loadedmetadata', apply)
+    apply()
+    return () => {
+      ro.disconnect()
+      video.removeEventListener('resize', apply)
+      video.removeEventListener('loadedmetadata', apply)
+      stop?.()
+      setUpscaled(false)
+    }
+  }, [isFullscreen])
 
   const pollStats = async (pc) => {
     if (!pc || pc.connectionState !== 'connected') return
@@ -151,6 +189,13 @@ export default function PlayerPage() {
         playsInline
         autoPlay
       />
+      {isFullscreen && (
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 m-auto pointer-events-none"
+          style={{ display: upscaled ? 'block' : 'none' }}
+        />
+      )}
 
       <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3
         bg-gradient-to-t from-black/80 to-transparent">
