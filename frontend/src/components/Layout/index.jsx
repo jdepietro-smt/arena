@@ -1,3 +1,4 @@
+import SmtLogo from '../SmtLogo'
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import {
@@ -40,22 +41,6 @@ const PAGE_TITLES = {
 }
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
-
-function LogoMark({ size = 26 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 26 26" fill="none">
-      <rect width="26" height="26" rx="7" fill="url(#logoGrad)" />
-      <defs>
-        <linearGradient id="logoGrad" x1="0" y1="0" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#ffc447" />
-          <stop offset="100%" stopColor="#ffb938" />
-        </linearGradient>
-      </defs>
-      <polygon fill="#1a1205" fillOpacity="0.95" points="10,8 19,13 10,18" />
-      <line x1="6" y1="8" x2="6" y2="18" stroke="#1a1205" strokeWidth="2.2" strokeLinecap="round" strokeOpacity="0.95" />
-    </svg>
-  )
-}
 
 // ── Health hook ───────────────────────────────────────────────────────────────
 
@@ -248,7 +233,7 @@ export default function Layout() {
         {/* Brand */}
         <div className="flex items-center justify-between px-4 pt-6 pb-5 border-b border-white/5">
           <div className="flex items-center gap-2.5 px-0.5">
-            <LogoMark size={30} />
+            <SmtLogo size={36} />
             <span className="font-label text-[15px] font-semibold tracking-[0.14em] uppercase text-gray-100">
               Arena <span className="text-brand-500">Hub</span>
             </span>

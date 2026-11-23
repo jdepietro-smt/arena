@@ -1,18 +1,9 @@
+import SmtLogo from '../components/SmtLogo'
 import { useState, useId, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, AlertCircle, Loader2 } from 'lucide-react'
 import { login, getMe } from '../api/client'
 import { useAuthStore } from '../store/auth'
-
-function LogoMark({ size = 48 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-      <rect width="36" height="36" rx="9" fill="#ffb938" />
-      <rect x="8" y="12" width="2.5" height="12" rx="1.25" fill="#1a1205" />
-      <polygon fill="#1a1205" points="14,10.5 26,18 14,25.5" />
-    </svg>
-  )
-}
 
 function Field({ id, label, icon: Icon, ...inputProps }) {
   return (
@@ -112,7 +103,7 @@ export default function LoginPage() {
         <div className="bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-600 rounded-2xl px-9 py-10 shadow-[0_24px_64px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,185,56,0.08)]">
           <div className="text-center mb-9">
             <div className="flex justify-center mb-4.5">
-              <LogoMark size={48} />
+              <SmtLogo size={72} />
             </div>
             <h1 className="m-0 mb-1.5 font-label text-[20px] font-semibold tracking-[0.16em] uppercase text-gray-100 text-balance">
               Arena <span className="text-brand-500">Hub</span>
