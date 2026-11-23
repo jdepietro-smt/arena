@@ -47,12 +47,12 @@ function LogoMark({ size = 26 }) {
       <rect width="26" height="26" rx="7" fill="url(#logoGrad)" />
       <defs>
         <linearGradient id="logoGrad" x1="0" y1="0" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#818cf8" />
-          <stop offset="100%" stopColor="#6366f1" />
+          <stop offset="0%" stopColor="#ffc447" />
+          <stop offset="100%" stopColor="#ffb938" />
         </linearGradient>
       </defs>
-      <polygon fill="white" fillOpacity="0.95" points="10,8 19,13 10,18" />
-      <line x1="6" y1="8" x2="6" y2="18" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeOpacity="0.95" />
+      <polygon fill="#1a1205" fillOpacity="0.95" points="10,8 19,13 10,18" />
+      <line x1="6" y1="8" x2="6" y2="18" stroke="#1a1205" strokeWidth="2.2" strokeLinecap="round" strokeOpacity="0.95" />
     </svg>
   )
 }
@@ -88,7 +88,7 @@ function NavItem({ path, label, Icon, onNavigate }) {
       className={({ isActive }) =>
         `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] tracking-tight transition-all border-l-2 ${
           isActive
-            ? 'text-brand-200 bg-gradient-to-r from-brand-500/15 to-transparent border-brand-400 font-semibold shadow-[inset_0_0_20px_-8px_rgba(129,140,248,0.5)]'
+            ? 'text-brand-200 bg-gradient-to-r from-brand-500/15 to-transparent border-brand-400 font-semibold shadow-[inset_0_0_20px_-8px_rgba(255,196,71,0.5)]'
             : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/[0.04] font-medium'
         }`
       }
@@ -127,7 +127,7 @@ function UserDropdown({ user, onLogout }) {
             : 'bg-transparent border-white/[0.06] hover:bg-white/[0.04] hover:border-white/10'
         }`}
       >
-        <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-[11px] font-bold text-white tracking-wide bg-gradient-to-br from-brand-400 to-violet-500">
+        <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-[11px] font-bold text-[#1a1205] tracking-wide bg-gradient-to-br from-brand-300 to-brand-500">
           {initials}
         </div>
         <div className="flex-1 min-w-0 text-left">
@@ -200,7 +200,7 @@ export default function Layout() {
 
   const pageTitle = Object.entries(PAGE_TITLES).find(([p]) =>
     location.pathname.startsWith(p)
-  )?.[1] ?? 'ArenaHub'
+  )?.[1] ?? 'Arena Hub'
 
   function handleLogout() {
     logout()
@@ -223,7 +223,7 @@ export default function Layout() {
           sidebar nav on every single page load/navigation. */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-600 focus:text-white focus:text-sm focus:font-semibold focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-500 focus:text-[#1a1205] focus:text-sm focus:font-semibold focus:shadow-lg"
       >
         Skip to main content
       </a>
@@ -249,8 +249,8 @@ export default function Layout() {
         <div className="flex items-center justify-between px-4 pt-6 pb-5 border-b border-white/5">
           <div className="flex items-center gap-2.5 px-0.5">
             <LogoMark size={30} />
-            <span className="text-[18px] font-extrabold tracking-tight bg-gradient-to-r from-indigo-300 via-violet-300 to-signal-400 bg-clip-text text-transparent">
-              ArenaHub
+            <span className="font-label text-[15px] font-semibold tracking-[0.14em] uppercase text-gray-100">
+              Arena <span className="text-brand-500">Hub</span>
             </span>
           </div>
           <button
@@ -303,7 +303,7 @@ export default function Layout() {
             <span>to jump anywhere</span>
           </div>
           <div className="relative hidden sm:block text-[11px] font-semibold text-gray-400 uppercase tracking-[0.15em] shrink-0">
-            ArenaHub
+            Arena Hub
           </div>
         </header>
 

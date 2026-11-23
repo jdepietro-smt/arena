@@ -17,7 +17,7 @@ function MessageBubble({ role, text, isError }) {
       <div
         className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${
           isUser
-            ? 'bg-brand-600 text-white'
+            ? 'bg-brand-500 text-[#1a1205]'
             : isError
               ? 'bg-red-500/10 border border-red-500/25 text-red-300'
               : 'bg-surface-700 text-gray-200'
@@ -130,7 +130,7 @@ export default function AssistantWidget() {
             <button
               onClick={() => send(input)}
               disabled={!input.trim() || mutation.isPending}
-              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2"
+              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-[#1a1205] transition-colors focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2"
               aria-label="Send question"
             >
               <Send size={15} />
@@ -141,7 +141,7 @@ export default function AssistantWidget() {
 
       <button
         onClick={() => setOpen(v => !v)}
-        className="fixed bottom-6 right-6 z-[250] w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-violet-600 shadow-lg shadow-brand-900/40 flex items-center justify-center text-white hover:scale-105 transition-transform focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2"
+        className="fixed bottom-6 right-6 z-[250] w-12 h-12 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-brand-900/40 flex items-center justify-center text-white hover:scale-105 transition-transform focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2"
         aria-label={open ? 'Minimize ops assistant' : 'Open ops assistant'}
         aria-expanded={open}
       >

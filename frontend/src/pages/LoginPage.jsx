@@ -7,9 +7,9 @@ import { useAuthStore } from '../store/auth'
 function LogoMark({ size = 48 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-      <rect width="36" height="36" rx="9" fill="#6366f1" />
-      <rect x="8" y="12" width="2.5" height="12" rx="1.25" fill="white" />
-      <polygon fill="white" points="14,10.5 26,18 14,25.5" />
+      <rect width="36" height="36" rx="9" fill="#ffb938" />
+      <rect x="8" y="12" width="2.5" height="12" rx="1.25" fill="#1a1205" />
+      <polygon fill="#1a1205" points="14,10.5 26,18 14,25.5" />
     </svg>
   )
 }
@@ -23,7 +23,7 @@ function Field({ id, label, icon: Icon, ...inputProps }) {
       >
         {label}
       </label>
-      <div className="group flex items-center gap-2.5 h-11 px-3.5 rounded-lg bg-surface-900 border border-surface-600 transition-colors focus-within:border-brand-500 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.18)]">
+      <div className="group flex items-center gap-2.5 h-11 px-3.5 rounded-lg bg-surface-900 border border-surface-600 transition-colors focus-within:border-brand-500 focus-within:shadow-[0_0_0_3px_rgba(255,185,56,0.18)]">
         <Icon size={16} className="shrink-0 text-gray-400 transition-colors group-focus-within:text-brand-400" />
         <input
           id={id}
@@ -105,17 +105,17 @@ export default function LoginPage() {
       <div
         aria-hidden="true"
         className="fixed inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 50% 0%, rgba(99,102,241,0.10) 0%, transparent 55%)' }}
+        style={{ background: 'radial-gradient(circle at 50% 0%, rgba(255,185,56,0.08) 0%, transparent 55%)' }}
       />
 
       <div className="relative z-10 w-full max-w-[400px]">
-        <div className="bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-600 rounded-2xl px-9 py-10 shadow-[0_24px_64px_rgba(0,0,0,0.55),0_0_0_1px_rgba(99,102,241,0.08)]">
+        <div className="bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-600 rounded-2xl px-9 py-10 shadow-[0_24px_64px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,185,56,0.08)]">
           <div className="text-center mb-9">
             <div className="flex justify-center mb-4.5">
               <LogoMark size={48} />
             </div>
-            <h1 className="m-0 mb-1.5 text-[22px] font-extrabold tracking-tight text-gray-100 text-balance">
-              Arena
+            <h1 className="m-0 mb-1.5 font-label text-[20px] font-semibold tracking-[0.16em] uppercase text-gray-100 text-balance">
+              Arena <span className="text-brand-500">Hub</span>
             </h1>
             <p className="m-0 text-[13px] text-gray-400 uppercase tracking-wider font-semibold">
               Professional Stream Management
@@ -164,10 +164,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className={`flex items-center justify-center gap-2 w-full h-11 rounded-lg text-white text-sm font-bold tracking-tight transition-all ${
+              className={`flex items-center justify-center gap-2 w-full h-11 rounded-lg text-[#1a1205] text-sm font-bold tracking-tight transition-all ${
                 loading
                   ? 'bg-brand-500/50 cursor-not-allowed'
-                  : 'bg-gradient-to-br from-brand-500 to-violet-600 shadow-[0_4px_20px_rgba(99,102,241,0.35)] hover:opacity-90 hover:-translate-y-px active:translate-y-0'
+                  : 'bg-gradient-to-br from-brand-400 to-brand-600 shadow-[0_4px_20px_rgba(255,185,56,0.30)] hover:opacity-90 hover:-translate-y-px active:translate-y-0'
               }`}
             >
               {loading ? <><Loader2 size={18} className="animate-spin" /> Signing in…</> : 'Sign in'}
@@ -176,7 +176,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center mt-5 text-xs text-gray-400 tracking-wide">
-          Arena — SDI Stream Management
+          Arena Hub — SDI Stream Management
         </p>
       </div>
     </div>

@@ -18,7 +18,7 @@ function Skeleton({ className = '' }) {
 
 const ACCENTS = {
   emerald: { text: 'text-emerald-300', iconBg: 'bg-emerald-500/15', ring: 'ring-emerald-500/40', glow: 'rgba(52,211,153,0.4)', bar: 'from-emerald-400 to-emerald-600' },
-  brand:   { text: 'text-brand-300',   iconBg: 'bg-brand-500/15',   ring: 'ring-brand-500/40',   glow: 'rgba(129,140,248,0.4)', bar: 'from-brand-400 to-brand-600' },
+  brand:   { text: 'text-brand-300',   iconBg: 'bg-brand-500/15',   ring: 'ring-brand-500/40',   glow: 'rgba(255,196,71,0.4)', bar: 'from-brand-400 to-brand-600' },
   red:     { text: 'text-red-300',     iconBg: 'bg-red-500/15',     ring: 'ring-red-500/40',     glow: 'rgba(248,113,113,0.4)', bar: 'from-red-400 to-red-600' },
   signal:  { text: 'text-signal-300',  iconBg: 'bg-signal-500/15',  ring: 'ring-signal-500/40',  glow: 'rgba(34,211,238,0.4)',  bar: 'from-signal-400 to-signal-500' },
 }
@@ -336,7 +336,7 @@ export default function DashboardPage() {
     <div className="relative flex flex-col h-full min-h-0 gap-4 p-6 bg-surface-900">
       <div
         className="absolute top-0 left-1/4 w-[500px] h-[300px] blur-[100px] opacity-[0.07] pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #818cf8, transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, #ffc447, transparent 70%)' }}
       />
 
       {/* Summary bar */}
@@ -406,7 +406,7 @@ export default function DashboardPage() {
             <div className="relative flex flex-col items-center justify-center h-full min-h-[360px] gap-4 rounded-2xl border border-dashed border-surface-600 overflow-hidden">
               <div
                 className="absolute inset-0 opacity-[0.06]"
-                style={{ background: 'radial-gradient(circle at 50% 40%, #818cf8, transparent 60%)' }}
+                style={{ background: 'radial-gradient(circle at 50% 40%, #ffc447, transparent 60%)' }}
               />
               <div className="relative w-16 h-16 rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/30 flex items-center justify-center">
                 <Radio size={28} strokeWidth={1.5} className="text-brand-400" />

@@ -4,47 +4,49 @@ export default {
   theme: {
     extend: {
       colors: {
+        // The accent is the amber of the Portal and the Comms apps (#ffb938), so the three read as one product.
         brand: {
-          50:  '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#1e1b4b',
+          50:  '#fff8e6',
+          100: '#ffefc2',
+          200: '#ffe08a',
+          300: '#ffd05c',
+          400: '#ffc447',
+          500: '#ffb938',
+          600: '#e69f1c',
+          700: '#b87a10',
+          800: '#7d530c',
+          900: '#3d2a06',
         },
         // Consolidated near-black scale, deliberately given more separation
         // between steps than the old flat #111118-everywhere approach —
         // real contrast between page canvas and card surface is what
         // reads as depth rather than "one color, several names."
         surface: {
-          950: '#050508',  // outermost app shell (Layout root)
-          900: '#08080c',  // page canvas
-          800: '#14141f',  // card / panel background — lighter than canvas on purpose
-          750: '#191926',  // secondary panel, table stripe, nested chip
-          700: '#1e1e30',  // raised surface, hover state
-          600: '#28283c',  // hairline borders
-          500: '#38385a',  // stronger borders, scrollbar thumb
+          950: '#07080a',  // outermost app shell (Layout root)
+          900: '#0d0f13',  // page canvas (the Portal's background)
+          800: '#161a21',  // card / panel background (the Portal's panel)
+          750: '#1b2028',  // secondary panel, table stripe, nested chip
+          700: '#1f242d',  // raised surface, hover state
+          600: '#2a303a',  // hairline borders (the Portal's edge)
+          500: '#3b4350',  // stronger borders, scrollbar thumb
         },
         // Cyan "signal" accent — a second hue reserved for live/data
         // readouts (sparklines, live pulses, mono numerals) so the app
         // reads as an actual broadcast monitoring surface, not just a
         // generic indigo SaaS dashboard with different labels.
         signal: {
-          300: '#67e8f9',
-          400: '#22d3ee',
-          500: '#06b6d4',
+          300: '#ffd05c',
+          400: '#ffc447',
+          500: '#ffb938',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
+        label: ['Bahnschrift', 'Segoe UI Semibold', 'Arial Narrow', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
-        glow: '0 0 24px -4px rgba(99, 102, 241, 0.35)',
+        glow: '0 0 24px -4px rgba(255, 185, 56, 0.30)',
         panel: '0 4px 24px -4px rgba(0, 0, 0, 0.4)',
       },
       keyframes: {

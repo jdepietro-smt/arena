@@ -11,7 +11,7 @@ const VIEW_WIDTH = 600
 export default function TimeSeriesChart({
   data, // [{ x: number, y: number|null }], x ascending
   height = 220,
-  color = '#818cf8',
+  color = '#ffc447',
   variant = 'area', // 'area' | 'line'
   unit = '',
   xFormat = (v) => `${v}s`,

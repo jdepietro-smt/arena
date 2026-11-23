@@ -216,7 +216,7 @@ export default function RouterPage() {
     <div className="relative p-6 min-h-screen bg-surface-900">
       <div
         className="absolute top-0 left-1/3 w-[450px] h-[260px] blur-[100px] opacity-[0.06] pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #818cf8, transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, #ffc447, transparent 70%)' }}
       />
 
       {showNewRoute && (
