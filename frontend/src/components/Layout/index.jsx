@@ -112,7 +112,7 @@ function UserDropdown({ user, onLogout }) {
             : 'bg-transparent border-white/[0.06] hover:bg-white/[0.04] hover:border-white/10'
         }`}
       >
-        <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-[11px] font-bold text-[#1a1205] tracking-wide bg-gradient-to-br from-brand-300 to-brand-500">
+        <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-[11px] font-bold text-[#191919] tracking-wide bg-gradient-to-br from-brand-300 to-brand-500">
           {initials}
         </div>
         <div className="flex-1 min-w-0 text-left">
@@ -208,7 +208,7 @@ export default function Layout() {
           sidebar nav on every single page load/navigation. */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-500 focus:text-[#1a1205] focus:text-sm focus:font-semibold focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-500 focus:text-[#191919] focus:text-sm focus:font-semibold focus:shadow-lg"
       >
         Skip to main content
       </a>

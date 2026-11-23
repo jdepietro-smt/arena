@@ -4,18 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        // The accent is the amber of the Portal and the Comms apps (#ffb938), so the three read as one product.
+        // The accent is the amber of the Portal and the Comms apps (#6ebe48), so the three read as one product.
         brand: {
-          50:  '#fff8e6',
-          100: '#ffefc2',
-          200: '#ffe08a',
-          300: '#ffd05c',
-          400: '#ffc447',
-          500: '#ffb938',
-          600: '#e69f1c',
-          700: '#b87a10',
-          800: '#7d530c',
-          900: '#3d2a06',
+          50:  '#f1f9ec',
+          100: '#ddf0d1',
+          200: '#c3e5b0',
+          300: '#98d87b',
+          400: '#82cb5f',
+          500: '#6ebe48',
+          600: '#5aa63a',
+          700: '#468330',
+          800: '#30601f',
+          900: '#1a3512',
         },
         // Consolidated near-black scale, deliberately given more separation
         // between steps than the old flat #111118-everywhere approach —
@@ -35,9 +35,9 @@ export default {
         // reads as an actual broadcast monitoring surface, not just a
         // generic indigo SaaS dashboard with different labels.
         signal: {
-          300: '#ffd05c',
-          400: '#ffc447',
-          500: '#ffb938',
+          300: '#98d87b',
+          400: '#82cb5f',
+          500: '#6ebe48',
         },
       },
       fontFamily: {
@@ -46,7 +46,7 @@ export default {
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
-        glow: '0 0 24px -4px rgba(255, 185, 56, 0.30)',
+        glow: '0 0 24px -4px rgba(110, 190, 72, 0.30)',
         panel: '0 4px 24px -4px rgba(0, 0, 0, 0.4)',
       },
       keyframes: {

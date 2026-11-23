@@ -336,7 +336,7 @@ export default function DashboardPage() {
     <div className="relative flex flex-col h-full min-h-0 gap-4 p-6 bg-surface-900">
       <div
         className="absolute top-0 left-1/4 w-[500px] h-[300px] blur-[100px] opacity-[0.07] pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #ffc447, transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, #82cb5f, transparent 70%)' }}
       />
 
       {/* Summary bar */}
@@ -406,7 +406,7 @@ export default function DashboardPage() {
             <div className="relative flex flex-col items-center justify-center h-full min-h-[360px] gap-4 rounded-2xl border border-dashed border-surface-600 overflow-hidden">
               <div
                 className="absolute inset-0 opacity-[0.06]"
-                style={{ background: 'radial-gradient(circle at 50% 40%, #ffc447, transparent 60%)' }}
+                style={{ background: 'radial-gradient(circle at 50% 40%, #82cb5f, transparent 60%)' }}
               />
               <div className="relative w-16 h-16 rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/30 flex items-center justify-center">
                 <Radio size={28} strokeWidth={1.5} className="text-brand-400" />

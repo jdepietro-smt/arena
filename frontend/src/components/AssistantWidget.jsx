@@ -17,7 +17,7 @@ function MessageBubble({ role, text, isError }) {
       <div
         className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${
           isUser
-            ? 'bg-brand-500 text-[#1a1205]'
+            ? 'bg-brand-500 text-[#191919]'
             : isError
               ? 'bg-red-500/10 border border-red-500/25 text-red-300'
               : 'bg-surface-700 text-gray-200'
@@ -130,7 +130,7 @@ export default function AssistantWidget() {
             <button
               onClick={() => send(input)}
               disabled={!input.trim() || mutation.isPending}
-              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-[#1a1205] transition-colors focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2"
+              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-brand-500 hover:bg-brand-400 disabled:opacity-40 disabled:cursor-not-allowed text-[#191919] transition-colors focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2"
               aria-label="Send question"
             >
               <Send size={15} />

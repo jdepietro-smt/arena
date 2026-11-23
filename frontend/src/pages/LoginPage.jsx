@@ -14,7 +14,7 @@ function Field({ id, label, icon: Icon, ...inputProps }) {
       >
         {label}
       </label>
-      <div className="group flex items-center gap-2.5 h-11 px-3.5 rounded-lg bg-surface-900 border border-surface-600 transition-colors focus-within:border-brand-500 focus-within:shadow-[0_0_0_3px_rgba(255,185,56,0.18)]">
+      <div className="group flex items-center gap-2.5 h-11 px-3.5 rounded-lg bg-surface-900 border border-surface-600 transition-colors focus-within:border-brand-500 focus-within:shadow-[0_0_0_3px_rgba(110,190,72,0.18)]">
         <Icon size={16} className="shrink-0 text-gray-400 transition-colors group-focus-within:text-brand-400" />
         <input
           id={id}
@@ -96,11 +96,11 @@ export default function LoginPage() {
       <div
         aria-hidden="true"
         className="fixed inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 50% 0%, rgba(255,185,56,0.08) 0%, transparent 55%)' }}
+        style={{ background: 'radial-gradient(circle at 50% 0%, rgba(110,190,72,0.08) 0%, transparent 55%)' }}
       />
 
       <div className="relative z-10 w-full max-w-[400px]">
-        <div className="bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-600 rounded-2xl px-9 py-10 shadow-[0_24px_64px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,185,56,0.08)]">
+        <div className="bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-600 rounded-2xl px-9 py-10 shadow-[0_24px_64px_rgba(0,0,0,0.55),0_0_0_1px_rgba(110,190,72,0.08)]">
           <div className="text-center mb-9">
             <div className="flex justify-center mb-4.5">
               <SmtLogo size={72} />
@@ -155,10 +155,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className={`flex items-center justify-center gap-2 w-full h-11 rounded-lg text-[#1a1205] text-sm font-bold tracking-tight transition-all ${
+              className={`flex items-center justify-center gap-2 w-full h-11 rounded-lg text-[#191919] text-sm font-bold tracking-tight transition-all ${
                 loading
                   ? 'bg-brand-500/50 cursor-not-allowed'
-                  : 'bg-gradient-to-br from-brand-400 to-brand-600 shadow-[0_4px_20px_rgba(255,185,56,0.30)] hover:opacity-90 hover:-translate-y-px active:translate-y-0'
+                  : 'bg-gradient-to-br from-brand-400 to-brand-600 shadow-[0_4px_20px_rgba(110,190,72,0.30)] hover:opacity-90 hover:-translate-y-px active:translate-y-0'
               }`}
             >
               {loading ? <><Loader2 size={18} className="animate-spin" /> Signing in…</> : 'Sign in'}

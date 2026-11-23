@@ -7,7 +7,7 @@ import { useRef, useState } from 'react'
 // was loaded on the Dashboard (via this component) as well as Stats,
 // costing every user that download just to render a stream card's tiny
 // bitrate trend line.
-export default function Sparkline({ data, height = 36, color = '#ffc447', formatValue = (v) => v }) {
+export default function Sparkline({ data, height = 36, color = '#82cb5f', formatValue = (v) => v }) {
   const [hoverIdx, setHoverIdx] = useState(null)
   const svgRef = useRef(null)
 

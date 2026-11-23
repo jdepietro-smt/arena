@@ -787,7 +787,7 @@ export default function SettingsPage() {
     <div className="relative p-6 min-h-screen bg-surface-900 max-w-3xl">
       <div
         className="absolute top-0 left-1/3 w-[400px] h-[240px] blur-[100px] opacity-[0.06] pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #ffc447, transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, #82cb5f, transparent 70%)' }}
       />
       <div className="relative flex items-center gap-3 mb-6">
         <SettingsIcon size={24} className="text-brand-400" />

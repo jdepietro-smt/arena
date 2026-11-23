@@ -242,7 +242,7 @@ export default function StatsPage() {
           <TimeSeriesChart
             data={chartData.map(d => ({ x: d.t, y: d.bitrate }))}
             height={200}
-            color="#ffc447"
+            color="#82cb5f"
             variant="area"
             unit=" Mbps"
           />

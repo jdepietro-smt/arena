@@ -145,7 +145,7 @@ function StreamHealthTile({ stream, isDown, isFavorite, onToggleFavorite }) {
             <MetricReadout label="Loss" value={loss} unit="%" tone={metricTone('packet_loss', loss)} />
           </div>
           {bitrateSeries.length > 1 && (
-            <Sparkline data={bitrateSeries} height={32} color="#ffc447" formatValue={(v) => `${Math.round(v)} kbps`} />
+            <Sparkline data={bitrateSeries} height={32} color="#82cb5f" formatValue={(v) => `${Math.round(v)} kbps`} />
           )}
         </>
       ) : (
@@ -221,7 +221,7 @@ export default function OverviewPage() {
     <div className="relative flex flex-col gap-5 p-6 min-h-screen bg-surface-900">
       <div
         className="absolute top-0 left-1/3 w-[500px] h-[280px] blur-[100px] opacity-[0.07] pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #ffc447, transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, #82cb5f, transparent 70%)' }}
       />
 
       {/* Header */}

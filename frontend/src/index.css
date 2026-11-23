@@ -16,12 +16,12 @@
   ::-webkit-scrollbar-thumb { background: #3b4350; border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #4a5360; }
 
-  ::selection { background: rgba(255, 185, 56, 0.35); color: #fff; }
+  ::selection { background: rgba(110, 190, 72, 0.35); color: #fff; }
 
   /* Visible only for keyboard focus, not mouse clicks — a focus ring on
      every click feels broken; on every Tab press it's essential a11y. */
   :focus-visible {
-    outline: 2px solid rgba(255, 185, 56, 0.6);
+    outline: 2px solid rgba(110, 190, 72, 0.6);
     outline-offset: 2px;
   }
 }

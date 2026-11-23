@@ -130,7 +130,7 @@ function MiniSparkline({ data }) {
     <Sparkline
       data={data}
       height={36}
-      color="#ffc447"
+      color="#82cb5f"
       formatValue={(v) => `${(v / 1000).toFixed(1)} Mbps`}
     />
   )
